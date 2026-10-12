@@ -69,11 +69,6 @@ out/
 !.env.example
 !.env.*.example
 
-# Local Spring configuration
-application-local.yml
-application-local.yaml
-application-local.properties
-
 # Credentials / Keys
 *.pem
 *.key
