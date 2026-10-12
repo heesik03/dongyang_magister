@@ -1,0 +1,21 @@
+name: 작업 및 이슈 (Issue)
+description: 작업 내용, 버그 수정, 개선 사항 등 모든 이슈 작성
+title: "[Issue] "
+body:
+  - type: textarea
+    id: overview
+    attributes:
+      label: 📌 개요
+      description: 작업할 내용이나 문제 상황을 간략히 요약해 주세요.
+      placeholder: 간략한 내용 요약
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: 📋 세부 내용
+      description: 세부 작업 항목이나 상세 설명을 작성해 주세요.
+      value: |
+        - [ ] 
+    validations:
+      required: false
