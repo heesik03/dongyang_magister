@@ -183,6 +183,16 @@ fieldset input { flex-shrink: 0; }
 .event-card > .row:last-child { margin-top: 16px; flex-wrap: wrap; }
 .event-card .button { font-size: 12px; padding: 6px 10px; }
 .unknown-heading { margin-top: 40px; color: var(--color-warning); }
+.mobile-menu { display: none; }
+.topbar-left { display: flex; align-items: center; gap: 8px; }
+.sidebar-collapsed { width: 72px; padding: 20px 8px; }
+.sidebar-collapsed .brand, .sidebar-collapsed .nav-item { font-size: 0; padding: 8px; justify-content: center; }
+.sidebar-collapsed .workspace-label, .sidebar-collapsed .sidebar-works, .sidebar-collapsed .sidebar-note, .sidebar-collapsed .profile > div, .sidebar-collapsed .avatar { display: none; }
+.demo-link { display: inline-block; margin-top: 8px; color: var(--color-primary); font-size: 12px; font-weight: 600; }
+.discard-confirm { margin-top: 20px; }
+.discard-confirm p { font-size: 13px; }
+.drawer-nav .nav-item { font-size: 14px; justify-content: flex-start; margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 767px) { .mobile-menu { display: flex; justify-content: center; margin-top: 20px; } .desktop-menu { display: none; } }
 @media (max-width: 1279px) { .editor-review-grid { display: block; } .workspace-mobile-tabs { display: flex; padding: 12px 24px; gap: 8px; border-bottom: 1px solid var(--color-border); } .workspace-mobile-tabs button { flex: 1; border: none; background: var(--color-sidebar); } .workspace-mobile-tabs button.selected { background: var(--color-primary-soft); color: var(--color-primary); } .view-editor .review-panel, .view-review .editor-pane { display: none; } .view-review .review-panel { display: block; } .focus-toolbar { display: none; } .review-panel { border-left: none; max-width: 780px; margin: auto; } .manuscript-toolbar { flex-wrap: wrap; } }
 @media (max-width: 767px) { .manuscript-toolbar { padding: 16px; gap: 16px; } .chapter-select, .toolbar-actions { width: 100%; } .save-status { width: 100%; margin-bottom: 4px; } .toolbar-actions > button { flex: 1; font-size: 12px; } .editor-pane { padding: 24px 16px; } .editor-pane > h2 { font-size: 20px; } .manuscript-label textarea { min-height: 400px; } .editor-bottom { flex-direction: column; } .workspace-mobile-tabs { padding: 12px 16px; } .review-panel { padding: 24px 16px; } .timeline-panel { padding: 24px 16px; } .timeline-panel .section-line { flex-direction: column; align-items: flex-start; } .timeline-list { margin-left: 5px; padding-left: 16px; } .event-card { padding: 16px; } .event-card:before { left: -24px; } }
 @media (max-width: 1100px) { .work-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .welcome-note > .badge { display: none; } .settings-layout { grid-template-columns: 260px 1fr; } }

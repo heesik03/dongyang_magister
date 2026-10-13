@@ -14,3 +14,7 @@ export function readUser(): User | null {
   } catch { /* 저장소를 사용할 수 없으면 로그인 화면에서 다시 시작한다. */ }
   return null
 }
+
+export function getReturnPath(state: unknown) {
+  return state && typeof state === 'object' && 'from' in state && typeof state.from === 'string' && state.from.startsWith('/') && !state.from.startsWith('//') ? state.from : '/'
+}

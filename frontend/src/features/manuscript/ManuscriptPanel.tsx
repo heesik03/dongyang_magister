@@ -34,7 +34,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     const start = quote ? chapter?.content.indexOf(quote) ?? -1 : -1
     if (quote && element && start >= 0) { element.focus(); element.setSelectionRange(start, start + quote.length); element.scrollIntoView({ block: 'center' }) }
   }, [params, chapter?.id, chapter?.content])
-  const stale = !!analysis && (analysis.source !== chapter?.content || analysis.reviews.some(review => work.settings.find(setting => setting.id === review.settingId)?.content !== review.evidence || work.settings.find(setting => setting.id === review.settingId)?.status !== '확정'))
+  const stale = !!analysis && (analysis.source !== chapter?.content || (analysis.settingsSnapshot && analysis.settingsSnapshot !== JSON.stringify(work.settings.filter(setting => setting.status === '확정' && analysis.settingIds.includes(setting.id)))) || analysis.reviews.some(review => work.settings.find(setting => setting.id === review.settingId)?.content !== review.evidence || work.settings.find(setting => setting.id === review.settingId)?.status !== '확정'))
   function createChapter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const title = String(new FormData(event.currentTarget).get('title')).trim()
@@ -53,7 +53,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     if (!chapter?.content.trim()) { setError('원고를 먼저 입력해 주세요.'); return }
     if (!consistency && !motivation) { setError('분석 항목을 하나 이상 선택해 주세요.'); return }
     if (!work.settings.some(setting => setting.status === '확정' && settingIds.includes(setting.id))) { setError('참고할 확정 설정을 하나 이상 선택해 주세요.'); setOptionsOpen(true); return }
-    setOptionsOpen(false); setAnalyzing(true); setError(''); setView('검토')
+    setOptionsOpen(false); setAnalyzing(true); setError(''); setView('검토'); setFocusMode(false)
     timer.current = setTimeout(() => {
       setAnalyzing(false)
       if (simulatedFailure) { setError('시연용 분석 실패입니다. 원고와 선택한 범위는 유지됩니다. 분석 설정에서 실패 시연을 해제하고 재시도해 주세요.'); return }

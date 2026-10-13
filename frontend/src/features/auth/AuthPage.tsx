@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from './auth'
+import { getReturnPath, useAuth } from './auth'
 import { Icon } from '../../shared/Icon'
 
 export function AuthPage({ signup = false }: { signup?: boolean }) {
@@ -11,9 +11,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
   function enter(name: string, email: string) {
     try {
       login({ name, email: email.toLowerCase() })
-      const state: unknown = location.state
-      const from = state && typeof state === 'object' && 'from' in state && typeof state.from === 'string' && state.from.startsWith('/') && !state.from.startsWith('//') ? state.from : '/'
-      navigate(from, { replace: true })
+      navigate(getReturnPath(location.state), { replace: true })
     } catch { setError('브라우저의 세션 저장이 차단되어 있습니다. 저장 권한을 허용한 뒤 다시 시도해 주세요.') }
   }
   function submit(event: FormEvent<HTMLFormElement>) {

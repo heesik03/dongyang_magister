@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { useAuth } from './auth'
+import { getReturnPath, useAuth } from './auth'
 
 export function ProtectedRoute() {
   const { user } = useAuth()
@@ -7,5 +7,6 @@ export function ProtectedRoute() {
   return user ? <Outlet /> : <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />
 }
 export function GuestRoute() {
-  return useAuth().user ? <Navigate to="/" replace /> : <Outlet />
+  const location = useLocation()
+  return useAuth().user ? <Navigate to={getReturnPath(location.state)} replace /> : <Outlet />
 }

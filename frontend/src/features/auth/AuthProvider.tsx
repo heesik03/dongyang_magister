@@ -8,8 +8,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(nextUser)
   }
   function logout() {
-    sessionStorage.removeItem('magister.session')
-    setUser(null)
+    try { sessionStorage.removeItem('magister.session') }
+    finally { setUser(null) }
   }
   return <AuthContext value={{ user, login, logout }}>{children}</AuthContext>
 }

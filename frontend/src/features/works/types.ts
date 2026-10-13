@@ -4,6 +4,6 @@ export interface Setting { id: string; title: string; kind: SettingKind; status:
 export interface Chapter { id: string; title: string; content: string; revision: number }
 export type Decision = '미검토' | '수용' | '보류' | '의도된 설정'
 export interface Review { id: string; type: '설정 충돌 후보' | '설명 보완'; quote: string; settingId: string; evidence: string; reason: string; suggestion: string; decision: Decision; note: string }
-export interface Analysis { chapterId: string; revision: number; source: string; settingIds: string[]; previousIds: string[]; reviews: Review[]; createdAt: string }
+export interface Analysis { chapterId: string; revision: number; source: string; settingIds: string[]; previousIds: string[]; reviews: Review[]; createdAt: string; settingsSnapshot?: string }
 export interface StoryEvent { id: string; title: string; time: string; characters: string; chapterId: string; quote: string }
 export interface Work { id: string; title: string; genre: string; era: string; description: string; updatedAt: string; settings: Setting[]; chapters: Chapter[]; analyses: Analysis[]; events: StoryEvent[] }
