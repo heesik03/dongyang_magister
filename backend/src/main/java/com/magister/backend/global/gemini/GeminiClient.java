@@ -7,10 +7,10 @@ import com.google.genai.Models;
 import com.google.genai.errors.ApiException;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
+import com.magister.backend.global.error.code.GeminiErrorCode;
+import com.magister.backend.global.error.exception.GeminiApiException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-
-import static com.magister.backend.global.gemini.GeminiApiException.ErrorCode;
 
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class GeminiClient {
@@ -43,10 +43,10 @@ public class GeminiClient {
         } catch (RuntimeException exception) {
             for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
                 if (cause instanceof InterruptedIOException) {
-                    throw new GeminiApiException(ErrorCode.TIMEOUT);
+                    throw new GeminiApiException(GeminiErrorCode.TIMEOUT);
                 }
                 if (cause instanceof IOException) {
-                    throw new GeminiApiException(ErrorCode.UNAVAILABLE);
+                    throw new GeminiApiException(GeminiErrorCode.UNAVAILABLE);
                 }
             }
             throw exception;
@@ -54,17 +54,17 @@ public class GeminiClient {
 
         String text = response == null ? null : response.text();
         if (text == null || text.isBlank()) {
-            throw new GeminiApiException(ErrorCode.INVALID_RESPONSE);
+            throw new GeminiApiException(GeminiErrorCode.INVALID_RESPONSE);
         }
         return text;
     }
 
-    private ErrorCode mapStatus(int status) {
+    private GeminiErrorCode mapStatus(int status) {
         return switch (status) {
-            case 401, 403 -> ErrorCode.AUTHENTICATION_FAILED;
-            case 408, 504 -> ErrorCode.TIMEOUT;
-            case 429 -> ErrorCode.RATE_LIMITED;
-            default -> status >= 500 ? ErrorCode.UNAVAILABLE : ErrorCode.REQUEST_REJECTED;
+            case 401, 403 -> GeminiErrorCode.AUTHENTICATION_FAILED;
+            case 408, 504 -> GeminiErrorCode.TIMEOUT;
+            case 429 -> GeminiErrorCode.RATE_LIMITED;
+            default -> status >= 500 ? GeminiErrorCode.UNAVAILABLE : GeminiErrorCode.REQUEST_REJECTED;
         };
     }
 }

@@ -7,6 +7,8 @@ import com.google.genai.Models;
 import com.google.genai.errors.ApiException;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
+import com.magister.backend.global.error.code.GeminiErrorCode;
+import com.magister.backend.global.error.exception.GeminiApiException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -44,13 +46,13 @@ class GeminiClientTests {
     void rejectsEmptyResponse() {
         when(models.generateContent(eq("test-model"), eq("hello"), any(GenerateContentConfig.class)))
                 .thenReturn(GenerateContentResponse.fromJson("{}"));
-        assertError(GeminiApiException.ErrorCode.INVALID_RESPONSE);
+        assertError(GeminiErrorCode.INVALID_RESPONSE);
     }
 
     @ParameterizedTest
     @CsvSource({"401,AUTHENTICATION_FAILED", "403,AUTHENTICATION_FAILED", "429,RATE_LIMITED",
             "408,TIMEOUT", "504,TIMEOUT", "500,UNAVAILABLE", "400,REQUEST_REJECTED"})
-    void translatesProviderErrorsWithoutExposingBody(int status, GeminiApiException.ErrorCode code) {
+    void translatesProviderErrorsWithoutExposingBody(int status, GeminiErrorCode code) {
         when(models.generateContent(eq("test-model"), eq("hello"), any(GenerateContentConfig.class)))
                 .thenThrow(new ApiException(status, "ERROR", "sensitive-provider-body"));
         assertError(code);
@@ -60,10 +62,10 @@ class GeminiClientTests {
     void translatesNetworkTimeout() {
         when(models.generateContent(eq("test-model"), eq("hello"), any(GenerateContentConfig.class)))
                 .thenThrow(new RuntimeException(new SocketTimeoutException("sensitive-provider-body")));
-        assertError(GeminiApiException.ErrorCode.TIMEOUT);
+        assertError(GeminiErrorCode.TIMEOUT);
     }
 
-    private void assertError(GeminiApiException.ErrorCode code) {
+    private void assertError(GeminiErrorCode code) {
         assertThatThrownBy(() -> client.generateText("hello"))
                 .isInstanceOfSatisfying(GeminiApiException.class, exception -> {
                     assertThat(exception.getErrorCode()).isEqualTo(code);

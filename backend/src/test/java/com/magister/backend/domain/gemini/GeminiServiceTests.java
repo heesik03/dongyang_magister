@@ -5,7 +5,7 @@ import com.magister.backend.domain.gemini.service.GeminiService;
 import com.magister.backend.global.gemini.GeminiClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import com.magister.backend.global.error.exception.CustomException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -23,8 +23,8 @@ class GeminiServiceTests {
         when(client.generateText("hello", 1024)).thenReturn("answer");
         assertThat(service.generate(new GeminiRequest("hello")).text()).isEqualTo("answer");
         assertThatThrownBy(() -> service.generate(new GeminiRequest("hello")))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        exception -> assertThat(exception.getStatusCode())
+                .isInstanceOfSatisfying(CustomException.class,
+                        exception -> assertThat(exception.getErrorCode().getHttpStatus())
                                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS));
         verify(client, times(1)).generateText("hello", 1024);
     }

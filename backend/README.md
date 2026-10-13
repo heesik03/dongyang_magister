@@ -44,11 +44,11 @@ $body = @{ prompt = '연결 확인용으로 안녕하세요라고 짧게 답해�
 Invoke-RestMethod -Uri 'http://localhost:8080/api/gemini' -Method Post -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
 ```
 
-성공은 HTTP 200과 `{"text":"안녕하세요!"}` 형태로 응답한다. 실제 텍스트는 모델에 따라 달라진다. 요청에 모델이나 API 키를 전달하지 않으며 서버 설정을 사용한다.
+성공은 HTTP 200과 `{"success":true,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"text":"안녕하세요!"},"errors":[]}` 형태로 응답한다. 실제 텍스트는 모델에 따라 달라진다. 요청에 모델이나 API 키를 전달하지 않으며 서버 설정을 사용한다. 기존 `text` 필드를 사용하던 클라이언트는 `data.text`를 읽도록 변경한다.
 
 - `prompt`: 필수, 공백 불가, 최대 2,000자. 출력은 최대 1,024토큰.
 - 호출 제한: 프로세스 전체에서 동시 1건, 시작 간격 최소 5초. 초과 시 429. 입력 오류·잘못된 JSON은 400.
-- 공급자 인증 실패·요청 거절·빈 응답은 502, 공급자 호출 제한·서버 오류는 503, 타임아웃은 504. 공급자 오류는 `ProblemDetail`에 `code`를 포함한다.
+- 공급자 인증 실패·요청 거절·빈 응답은 502, 공급자 호출 제한·서버 오류는 503, 타임아웃은 504. 실패 응답은 `success=false`, 오류 `code`와 안전한 `message`, `data=null`, 필드 오류 목록 `errors`를 포함한다.
 - 예시 엔드포인트는 인증 없이 호출하는 로컬 개발용이다. 운영 API로 확장할 때 사용자 인증·권한과 분산 호출 제한, 원고 전송 안내를 설계한다.
 
 ## Swagger / OpenAPI
@@ -63,6 +63,10 @@ Spring Boot 4.1에 맞는 `springdoc-openapi-starter-webmvc-ui:3.1.1`을 사용�
 - OpenAPI JSON: http://localhost:8080/v3/api-docs
 - `/api/**` 경로를 문서화하며 Gemini 요청·응답 예시를 제공한다. `Try it out` 후 `Execute`를 누르면 실제 Gemini 요청이 실행된다.
 - `global/config/SwaggerConfig`에서 제목·설명·버전을 관리한다. 인증 방식이 확정되면 해당 방식의 보안 스키마를 추가한다.
+- 엔드포인트 문서는 `domain/gemini/docs/GeminiControllerDocs`, DTO 필드 설명은 `GeminiRequestDocs`와 `GeminiResponseDocs`에서 관리한다. Controller와 DTO가 해당 인터페이스를 구현하며 런타임 매핑과 입력 검증은 구현 클래스에 유지한다.
+- `global/exception/GlobalExceptionHandler`가 전체 Controller의 오류를 `ApiResponse`와 `application/json`으로 처리한다. 입력 검증은 `VALIDATION_ERROR`와 필드별 오류, 잘못된 요청은 `INVALID_REQUEST`, 예상하지 못한 오류는 `INTERNAL_SERVER_ERROR`로 응답한다. 기타 Spring MVC 오류는 HTTP 상태 이름을 사용한다. 실제 HTTP 상태 코드와 `Allow` 같은 응답 헤더를 유지하고 내부 오류 메시지와 거절된 입력값은 포함하지 않는다.
+- `CommonErrorCode`와 `GeminiErrorCode`가 공통 `ErrorCode` 계약을 구현한다. 일반 업무 오류는 `new CustomException(CommonErrorCode.TOO_MANY_REQUESTS)`, Gemini 오류는 `new GeminiApiException(GeminiErrorCode.TIMEOUT)`처럼 생성한다. 오류 메시지는 서버에서 정의하며 공급자 오류 본문은 보존하지 않는다.
+- 성공 응답은 Controller에서 `ApiResponse.success(data)`로 생성한다. 예외 핸들러는 Spring의 null 계약에 맞춰 `@NullMarked`를 적용하며 null을 허용하는 인자와 반환값만 `@Nullable`로 선언한다.
 - 공식 호환성 및 의존성 문서: https://springdoc.org/
 
 ## 검증 명령
