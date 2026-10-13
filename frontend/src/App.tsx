@@ -3,6 +3,8 @@ import { AuthProvider } from './features/auth/AuthProvider'
 import { AuthPage } from './features/auth/AuthPage'
 import { ProtectedRoute, GuestRoute } from './features/auth/ProtectedRoute'
 import { Shell } from './shared/Shell'
+import { LibraryPage } from './features/works/LibraryPage'
+import { WorkPage } from './features/works/WorkPage'
 import './App.css'
 
 export default function App() {
@@ -13,7 +15,8 @@ export default function App() {
     </Route>
     <Route element={<ProtectedRoute />}>
       <Route element={<Shell />}>
-        <Route index element={<div className="page"><h1>작품 보관함</h1><p>당신의 이야기를 위한 작업 공간입니다.</p></div>} />
+        <Route index element={<LibraryPage />} />
+        <Route path="works/:workId/:tab" element={<WorkPage />} />
       </Route>
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
