@@ -1,3 +1,10 @@
 spring:
   application:
     name: backend
+  config:
+    import: "optional:file:./.env[.properties]"
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: ${GEMINI_MODEL:}
+  timeout: ${GEMINI_TIMEOUT:30s}
