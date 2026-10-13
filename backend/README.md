@@ -22,10 +22,10 @@
 
 `domain/gemini`의 `GeminiController → GeminiService → global.gemini.GeminiClient` 흐름으로 호출한다. DB 저장이나 작품 분석 로직은 포함하지 않는 연결 확인용 예시이다.
 
-인증 체계가 아직 없으므로 Controller는 `local` 프로필에서만 등록된다. 해당 프로필에서는 서버가 `127.0.0.1`에 바인딩된다. `backend/`에서 다음 명령으로 실행한다. 별도로 기존 MySQL 연결 설정도 준비해야 한다.
+서버는 `127.0.0.1`에 바인딩된다. `backend/`에서 다음 명령으로 실행한다. 별도로 기존 MySQL 연결 설정도 준비해야 한다.
 
 ```powershell
-.\gradlew.bat bootRun --args="--spring.profiles.active=local"
+.\gradlew.bat bootRun
 ```
 
 요청:
@@ -51,6 +51,20 @@ Invoke-RestMethod -Uri 'http://localhost:8080/api/gemini' -Method Post -ContentT
 - 공급자 인증 실패·요청 거절·빈 응답은 502, 공급자 호출 제한·서버 오류는 503, 타임아웃은 504. 공급자 오류는 `ProblemDetail`에 `code`를 포함한다.
 - 예시 엔드포인트는 인증 없이 호출하는 로컬 개발용이다. 운영 API로 확장할 때 사용자 인증·권한과 분산 호출 제한, 원고 전송 안내를 설계한다.
 
-## 검증
+## Swagger / OpenAPI
 
-`backend/`에서 `.\gradlew.bat test`와 `.\gradlew.bat build`를 실행한다. 테스트는 가짜 Gemini 설정, SDK 테스트 대역 및 테스트 전용 H2 DB를 사용하며 실제 Gemini API 호출이나 과금이 발생하지 않는다. 실제 API 연동은 유효한 키와 모델을 준비한 후 별도로 확인한다.
+Spring Boot 4.1에 맞는 `springdoc-openapi-starter-webmvc-ui:3.1.1`을 사용한다. 모든 YAML 설정은 `application.yaml`에서 관리하며 Swagger UI와 OpenAPI 문서는 기본 실행에서 활성화된다.
+
+```powershell
+.\gradlew.bat bootRun
+```
+
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- OpenAPI JSON: http://localhost:8080/v3/api-docs
+- `/api/**` 경로를 문서화하며 Gemini 요청·응답 예시를 제공한다. `Try it out` 후 `Execute`를 누르면 실제 Gemini 요청이 실행된다.
+- `global/config/SwaggerConfig`에서 제목·설명·버전을 관리한다. 인증 방식이 확정되면 해당 방식의 보안 스키마를 추가한다.
+- 공식 호환성 및 의존성 문서: https://springdoc.org/
+
+## 검증 명령
+
+`backend/`에서 `.\gradlew.bat test`와 `.\gradlew.bat build`를 실행한다. 테스트는 가짜 Gemini 설정과 SDK 테스트 대역을 사용하며 실제 Gemini API 호출이나 과금이 발생하지 않는다. 전체 애플리케이션 컨텍스트를 사용하는 테스트에는 별도의 테스트용 MySQL 연결 설정이 필요하다. 실제 API 연동은 유효한 키와 모델을 준비한 후 별도로 확인한다.

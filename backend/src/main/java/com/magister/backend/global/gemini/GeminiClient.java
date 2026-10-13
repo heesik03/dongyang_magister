@@ -7,18 +7,16 @@ import com.google.genai.Models;
 import com.google.genai.errors.ApiException;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 import static com.magister.backend.global.gemini.GeminiApiException.ErrorCode;
 
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class GeminiClient {
 
     private final Models models;
     private final GeminiProperties properties;
-
-    GeminiClient(Models models, GeminiProperties properties) {
-        this.models = models;
-        this.properties = properties;
-    }
 
     public String generateText(String prompt) {
         return generateText(prompt, GenerateContentConfig.builder().build());

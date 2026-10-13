@@ -1,14 +1,12 @@
 package com.magister.backend.domain.gemini.controller;
 
 import com.magister.backend.global.gemini.GeminiApiException;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-@Profile("local")
 @RestControllerAdvice(assignableTypes = GeminiController.class)
 public class GeminiExceptionHandler extends ResponseEntityExceptionHandler {
 

@@ -6,13 +6,13 @@ import java.util.concurrent.Semaphore;
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.domain.gemini.dto.GeminiResponse;
 import com.magister.backend.global.gemini.GeminiClient;
-import org.springframework.context.annotation.Profile;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
-@Profile("local")
+@RequiredArgsConstructor
 public class GeminiService {
 
     private static final int MAX_OUTPUT_TOKENS = 1024;
@@ -21,10 +21,6 @@ public class GeminiService {
     private final GeminiClient geminiClient;
     private final Semaphore callPermit = new Semaphore(1);
     private Long lastCallNanos;
-
-    public GeminiService(GeminiClient geminiClient) {
-        this.geminiClient = geminiClient;
-    }
 
     public GeminiResponse generate(GeminiRequest request) {
         if (!callPermit.tryAcquire()) {
