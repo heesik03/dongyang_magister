@@ -10,4 +10,9 @@ public record SignupRequest(
                 @Pattern(
                         regexp = "^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^\\p{L}\\p{N}\\s])\\S+$",
                         message = "비밀번호는 영문·숫자·특수문자를 포함하고 공백 없이 입력해 주세요.")
-                String password) {}
+                String password) {
+    public SignupRequest {
+        email = email == null ? null : email.strip();
+        name = name == null ? null : name.strip();
+    }
+}

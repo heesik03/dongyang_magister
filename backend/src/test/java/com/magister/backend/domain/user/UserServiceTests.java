@@ -10,6 +10,7 @@ import com.magister.backend.domain.user.service.UserService;
 import com.magister.backend.global.error.exception.CustomException;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
 
 class UserServiceTests {
@@ -40,5 +41,22 @@ class UserServiceTests {
                                                 "writer@example.com", "작가", "Password1!")))
                 .isInstanceOf(CustomException.class);
         verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void rethrowsNonEmailIntegrityViolationInsteadOfTreatingAsDuplicateEmail() {
+        var repository = mock(UserRepository.class);
+        when(repository.existsByEmail("writer@example.com")).thenReturn(false);
+        when(repository.saveAndFlush(any(User.class)))
+                .thenThrow(new DataIntegrityViolationException("Data too long for column 'name'"));
+        var service =
+                new UserService(repository, Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8());
+
+        assertThatThrownBy(
+                        () ->
+                                service.signup(
+                                        new SignupRequest(
+                                                "writer@example.com", "작가", "Password1!")))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 }
