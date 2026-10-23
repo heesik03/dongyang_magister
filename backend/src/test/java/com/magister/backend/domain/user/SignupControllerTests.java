@@ -12,7 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SignupControllerTests {
     @Test void rejectsPasswordsWithoutAllRequiredCharacterGroups() throws Exception {
         var service = mock(UserService.class);
-        var mvc = MockMvcBuilders.standaloneSetup(new UserController(service))
+        var mvc = MockMvcBuilders.standaloneSetup(new UserController(service, null))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
         for (String password : new String[]{"password1", "Password!", "12345678!", "Ab1!", "Pass word1!"}) {
             mvc.perform(post("/api/user").contentType("application/json")
