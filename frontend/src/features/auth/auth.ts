@@ -1,20 +1,70 @@
-import { createContext, useContext } from 'react'
+import { create } from 'zustand'
+import { ApiError, authApi } from './api'
 
-export interface User { name: string; email: string }
-export const AuthContext = createContext<{ user: User | null; login: (user: User) => void; logout: () => void } | null>(null)
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('AuthProvider가 필요합니다.')
-  return context
+export interface User {
+  id: number
+  name: string
+  email: string
 }
-export function readUser(): User | null {
-  try {
-    const value: unknown = JSON.parse(sessionStorage.getItem('magister.session') || 'null')
-    if (value && typeof value === 'object' && 'name' in value && typeof value.name === 'string' && 'email' in value && typeof value.email === 'string') return { name: value.name, email: value.email }
-  } catch { /* 저장소를 사용할 수 없으면 로그인 화면에서 다시 시작한다. */ }
-  return null
+interface AuthState {
+  user: User | null
+  loading: boolean
+  error: string
+  initialize: (signal?: AbortSignal) => Promise<void>
+  login: (email: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  retry: () => void
+  expire: () => void
 }
-
+let revision = 0
+export const useAuth = create<AuthState>((set, get) => ({
+  user: null,
+  loading: true,
+  error: '',
+  async initialize(signal) {
+    const current = ++revision
+    set({ loading: true, error: '' })
+    try {
+      const user = await authApi.me(signal)
+      if (!signal?.aborted && current === revision) set({ user, loading: false })
+    } catch (error) {
+      if (signal?.aborted || current !== revision) return
+      if (error instanceof ApiError && error.status === 401) set({ user: null, loading: false })
+      else
+        set({
+          loading: false,
+          error: '로그인 상태를 확인하지 못했습니다. 서버 연결을 확인하고 다시 시도해 주세요.',
+        })
+    }
+  },
+  async login(email, password) {
+    ++revision
+    const user = await authApi.login(email, password)
+    set({ user, loading: false, error: '' })
+  },
+  async logout() {
+    try {
+      await authApi.logout()
+      get().expire()
+    } catch {
+      set({ error: '로그아웃하지 못했습니다. 다시 시도해 주세요.' })
+    }
+  },
+  retry() {
+    void get().initialize()
+  },
+  expire() {
+    ++revision
+    set({ user: null, loading: false, error: '' })
+  },
+}))
 export function getReturnPath(state: unknown) {
-  return state && typeof state === 'object' && 'from' in state && typeof state.from === 'string' && state.from.startsWith('/') && !state.from.startsWith('//') ? state.from : '/'
+  return state &&
+    typeof state === 'object' &&
+    'from' in state &&
+    typeof state.from === 'string' &&
+    state.from.startsWith('/') &&
+    !state.from.startsWith('//')
+    ? state.from
+    : '/'
 }

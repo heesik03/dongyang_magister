@@ -55,9 +55,25 @@ AI 결과는 확정 판정이 아닌 검토 후보입니다. 인물의 변화나
 | 데이터베이스 | MySQL 사용 예정, 드라이버 의존성 포함 |
 | AI | Google Gemini API 사용 예정 |
 
-프런트엔드는 로그인·회원가입, 작품·설정집·회차 원고 관리, AI 검토 시연과 작가 판단 저장, 사건 타임라인을 임시 데이터로 구현했습니다. 백엔드 API와 Gemini는 연결하지 않았으며 실제 인증도 수행하지 않습니다. 실행과 시연 방법은 [프런트엔드 안내](frontend/README.md)를 참고하세요.
+프런트엔드는 로그인·회원가입, 작품·설정집·회차 원고 관리, AI 검토 시연과 작가 판단 저장, 사건 타임라인을 임시 데이터로 구현했습니다. 회원가입·이메일 로그인·로그아웃·내 정보 조회는 세션 인증 API에 연결했습니다. 세션은 1시간 미사용 시 만료되며 Gemini API도 인증이 필요합니다. 작품·원고 저장과 AI 검토 화면은 아직 브라우저 기반 시연입니다. 프런트엔드는 `frontend/`에서 `pnpm install --frozen-lockfile` 후 `pnpm dev`로 실행합니다.
 
 상세 요구사항과 일정은 [Notion 프로젝트 기획서](https://app.notion.com/p/_Magister-3eac29dbef40809b8150f5dc8e403d2e)에서 관리합니다.
+
+## 백엔드 공통 응답
+
+API 응답은 `success`, `code`, `message`, `data`, `errors`를 제공합니다. `code`는 서버 내부에서 `ResponseCode` 타입으로 관리하며, 성공은 `SuccessCode`, 실패는 `ErrorCode` 구현과 연결합니다. JSON의 `code`는 기존과 동일한 문자열입니다. 오류 응답은 `ErrorCode`에서 코드와 메시지를 함께 가져오며, HTTP 상태도 해당 오류 정의에 맞춥니다.
+
+```json
+{
+  "success": false,
+  "code": "VALIDATION_ERROR",
+  "message": "입력값을 확인해 주세요.",
+  "data": null,
+  "errors": [{ "field": "prompt", "message": "prompt is required" }]
+}
+```
+
+공통 예외 처리기는 오류 코드와 HTTP 상태를 기록합니다. 4xx는 WARN, 5xx는 ERROR로 남기며 예외 메시지·원인·스택 트레이스·요청 본문은 기록하지 않습니다. 컨트롤러 로그는 요청 시작·종료와 소요 시간을 기록합니다. 추적 ID는 사용하지 않습니다.
 
 ## 프로젝트 구조
 

@@ -1,13 +1,16 @@
 package com.magister.backend.domain.gemini.controller;
 
+import com.magister.backend.domain.gemini.docs.GeminiControllerDocs;
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.domain.gemini.dto.GeminiResponse;
 import com.magister.backend.domain.gemini.service.GeminiService;
-import jakarta.validation.Valid;
-import com.magister.backend.domain.gemini.docs.GeminiControllerDocs;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import com.magister.backend.global.response.ApiResponse;
+
+import jakarta.validation.Valid;
+
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;

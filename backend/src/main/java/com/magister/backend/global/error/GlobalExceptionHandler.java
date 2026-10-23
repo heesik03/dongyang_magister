@@ -2,23 +2,26 @@ package com.magister.backend.global.error;
 
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.code.ErrorCode;
+import com.magister.backend.global.error.code.FrameworkErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.response.ApiResponse;
 import com.magister.backend.global.response.FieldErrorDetail;
-import java.util.List;
+
+import lombok.extern.slf4j.Slf4j;
+
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+
+import java.util.List;
 
 @RestControllerAdvice
 @Slf4j
@@ -26,48 +29,72 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @Override
-    protected ResponseEntity<Object> createResponseEntity(@Nullable Object body, HttpHeaders headers,
-            HttpStatusCode statusCode, WebRequest request) {
-        Object responseBody = body;
-        if (!(body instanceof ApiResponse<?>)) {
-            HttpStatus status = HttpStatus.resolve(statusCode.value());
-            String code = statusCode.value() == 400 ? CommonErrorCode.INVALID_REQUEST.getCode()
-                    : status == null ? "HTTP_ERROR" : status.name();
-            String message = statusCode.is5xxServerError()
-                    ? CommonErrorCode.INTERNAL_SERVER_ERROR.getMessage() : "요청을 처리할 수 없습니다.";
-            responseBody = ApiResponse.failure(code, message);
+    protected ResponseEntity<Object> createResponseEntity(
+            @Nullable Object body,
+            HttpHeaders headers,
+            HttpStatusCode statusCode,
+            WebRequest request) {
+        ApiResponse<?> responseBody;
+        if (body instanceof ApiResponse<?> apiResponse) {
+            responseBody = apiResponse;
+        } else {
+            ErrorCode code =
+                    statusCode.value() == 400
+                            ? CommonErrorCode.INVALID_REQUEST
+                            : new FrameworkErrorCode(statusCode);
+            responseBody = ApiResponse.failure(code);
         }
         HttpHeaders responseHeaders = new HttpHeaders();
         responseHeaders.putAll(headers);
         responseHeaders.setContentType(MediaType.APPLICATION_JSON);
+        // 예외 메시지와 원인에는 요청 본문이나 공급자 비밀 값이 포함될 수 있다.
+        if (statusCode.is5xxServerError()) {
+            log.error(
+                    "API failure: code={}, status={}",
+                    responseBody.code().getCode(),
+                    statusCode.value());
+        } else {
+            log.warn(
+                    "API failure: code={}, status={}",
+                    responseBody.code().getCode(),
+                    statusCode.value());
+        }
         return super.createResponseEntity(responseBody, responseHeaders, statusCode, request);
     }
 
     @Override
     protected @Nullable ResponseEntity<Object> handleMethodArgumentNotValid(
-            MethodArgumentNotValidException exception, HttpHeaders headers,
-            HttpStatusCode statusCode, WebRequest request) {
-        List<FieldErrorDetail> errors = exception.getBindingResult().getFieldErrors().stream()
-                .map(error -> new FieldErrorDetail(error.getField(),
-                        error.getDefaultMessage() == null ? "올바르지 않은 값입니다." : error.getDefaultMessage()))
-                .toList();
-        ApiResponse<Void> body = ApiResponse.failure(CommonErrorCode.VALIDATION_ERROR.getCode(),
-                CommonErrorCode.VALIDATION_ERROR.getMessage(), errors);
+            MethodArgumentNotValidException exception,
+            HttpHeaders headers,
+            HttpStatusCode statusCode,
+            WebRequest request) {
+        List<FieldErrorDetail> errors =
+                exception.getBindingResult().getFieldErrors().stream()
+                        .map(
+                                error ->
+                                        new FieldErrorDetail(
+                                                error.getField(),
+                                                error.getDefaultMessage() == null
+                                                        ? "올바르지 않은 값입니다."
+                                                        : error.getDefaultMessage()))
+                        .toList();
+        ApiResponse<Void> body = ApiResponse.failure(CommonErrorCode.VALIDATION_ERROR, errors);
         return handleExceptionInternal(exception, body, headers, statusCode, request);
     }
 
     @ExceptionHandler(CustomException.class)
-    public ResponseEntity<ApiResponse<Void>> handleCustomException(CustomException exception) {
+    public ResponseEntity<Object> handleCustomException(
+            CustomException exception, WebRequest request) {
         ErrorCode error = exception.getErrorCode();
-        return ResponseEntity.status(error.getHttpStatus())
-                .body(ApiResponse.failure(error.getCode(), error.getMessage()));
+        return createResponseEntity(
+                ApiResponse.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleUnexpectedException(Exception exception) {
-        log.error("Unexpected request failure: exceptionType={}", exception.getClass().getName());
+    public ResponseEntity<Object> handleUnexpectedException(
+            Exception exception, WebRequest request) {
         ErrorCode error = CommonErrorCode.INTERNAL_SERVER_ERROR;
-        return ResponseEntity.status(error.getHttpStatus())
-                .body(ApiResponse.failure(error.getCode(), error.getMessage()));
+        return createResponseEntity(
+                ApiResponse.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
     }
 }

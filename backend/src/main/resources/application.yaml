@@ -10,10 +10,14 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  flyway:
+    locations: classpath:com/magister/backend/global/migration
+
   jpa:
+    open-in-view: false
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -22,6 +26,9 @@ gemini:
   api-key: ${GEMINI_API_KEY:}
   model: ${GEMINI_MODEL:}
   timeout: ${GEMINI_TIMEOUT:30s}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
 
 springdoc:
   api-docs:
@@ -37,3 +44,11 @@ springdoc:
 
 server:
   address: 127.0.0.1
+
+  servlet:
+    session:
+      timeout: 1h
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}

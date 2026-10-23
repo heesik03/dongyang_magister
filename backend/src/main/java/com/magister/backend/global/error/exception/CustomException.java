@@ -1,6 +1,7 @@
 package com.magister.backend.global.error.exception;
 
 import com.magister.backend.global.error.code.ErrorCode;
+
 import lombok.Getter;
 
 @Getter

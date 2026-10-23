@@ -1,15 +1,17 @@
 package com.magister.backend.domain.gemini.service;
 
-import java.time.Duration;
-import java.util.concurrent.Semaphore;
-
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.domain.gemini.dto.GeminiResponse;
-import com.magister.backend.global.gemini.GeminiClient;
-import lombok.RequiredArgsConstructor;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
+import com.magister.backend.global.gemini.GeminiClient;
+
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.concurrent.Semaphore;
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +34,8 @@ public class GeminiService {
                 throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
             }
             lastCallNanos = now;
-            return new GeminiResponse(geminiClient.generateText(request.prompt(), MAX_OUTPUT_TOKENS));
+            return new GeminiResponse(
+                    geminiClient.generateText(request.prompt(), MAX_OUTPUT_TOKENS));
         } finally {
             callPermit.release();
         }
