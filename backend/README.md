@@ -37,12 +37,7 @@ Content-Type: application/json
 {"prompt":"연결 확인용으로 안녕하세요라고 짧게 답해줘."}
 ```
 
-PowerShell 호출:
-
-```powershell
-$body = @{ prompt = '연결 확인용으로 안녕하세요라고 짧게 답해줘.' } | ConvertTo-Json
-Invoke-RestMethod -Uri 'http://localhost:8080/api/gemini' -Method Post -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
-```
+PowerShell 호출은 아래 세션 인증 절차에서 얻은 세션과 CSRF 토큰을 함께 사용합니다. 인증 없는 Gemini 요청은 거절됩니다.
 
 성공은 HTTP 200과 `{"success":true,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"text":"안녕하세요!"},"errors":[]}` 형태로 응답한다. 실제 텍스트는 모델에 따라 달라진다. 요청에 모델이나 API 키를 전달하지 않으며 서버 설정을 사용한다. 기존 `text` 필드를 사용하던 클라이언트는 `data.text`를 읽도록 변경한다.
 
@@ -72,3 +67,26 @@ Spring Boot 4.1에 맞는 `springdoc-openapi-starter-webmvc-ui:3.1.1`을 사용�
 ## 검증 명령
 
 `backend/`에서 `.\gradlew.bat test`와 `.\gradlew.bat build`를 실행한다. 테스트는 가짜 Gemini 설정과 SDK 테스트 대역을 사용하며 실제 Gemini API 호출이나 과금이 발생하지 않는다. 전체 애플리케이션 컨텍스트를 사용하는 테스트에는 별도의 테스트용 MySQL 연결 설정이 필요하다. 실제 API 연동은 유효한 키와 모델을 준비한 후 별도로 확인한다.
+
+## 사용자·세션 인증
+
+- `POST /api/user`: 이메일·필명·비밀번호로 회원가입 (201)
+- `GET /api/user/csrf`: 변경 요청의 CSRF 헤더 이름·토큰 조회
+- `POST /api/user/login`: 이메일·비밀번호 로그인
+- `GET /api/user/me`: 현재 사용자 조회
+- `POST /api/user/logout`: 로그아웃 및 세션 무효화 (Spring Security 필터 처리)
+
+변경 요청 전 `/api/user/csrf`를 같은 쿠키 세션으로 호출하고 응답의 `headerName` 헤더에 `token`을 전달합니다. 로그인 후에는 세션 ID가 변경되고 기존 CSRF 토큰이 폐기되므로 다시 조회합니다. 로그아웃 후에도 새 토큰을 조회해야 합니다. CSRF 누락·만료는 403, 미인증 조회는 401입니다.
+
+이메일은 소문자로 저장하며 중복 가입은 409입니다. 필명은 중복을 허용합니다. 비밀번호는 8~128자이며 영문·숫자·특수문자를 포함하고 공백을 허용하지 않습니다. PBKDF2 해시를 저장하며 평문·해시는 응답과 세션에 포함하지 않습니다. 로그인 실패 사유는 계정 존재 여부와 관계없이 같습니다.
+
+세션은 서버 메모리에 저장하고 1시간 미사용 시 만료됩니다. 동시 로그인은 허용하며 서버 재시작 시 재로그인이 필요합니다. 쿠키는 HttpOnly·SameSite=Lax이며 HTTPS 배포 시 `SESSION_COOKIE_SECURE=true`를 설정합니다. 개발은 Vite 프록시를 통해 동일 출처로 호출합니다.
+
+`users` 스키마는 Flyway Java 마이그레이션으로 생성하고 Hibernate는 `validate`로 확인합니다. Spring Security·Flyway·테스트 H2 버전은 Spring Boot 4.1.1의 의존성 관리에 따릅니다. 테스트는 `test` 프로필에서 격리된 H2의 MySQL 모드와 실제 마이그레이션을 사용하며, 실제 MySQL 동작은 E2E로 별도 검증합니다.
+
+```powershell
+# 비밀 값은 .env 또는 OS 환경 변수로 설정
+.\gradlew.bat test
+.\gradlew.bat build
+.\gradlew.bat bootRun
+```

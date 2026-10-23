@@ -1,15 +1,16 @@
-import { useState, type ReactNode } from 'react'
-import { AuthContext, readUser, type User } from './auth'
+import { useEffect, type ReactNode } from 'react'
+import { useAuth } from './auth'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(readUser)
-  function login(nextUser: User) {
-    sessionStorage.setItem('magister.session', JSON.stringify(nextUser))
-    setUser(nextUser)
-  }
-  function logout() {
-    try { sessionStorage.removeItem('magister.session') }
-    finally { setUser(null) }
-  }
-  return <AuthContext value={{ user, login, logout }}>{children}</AuthContext>
+  useEffect(() => {
+    const controller = new AbortController()
+    const expire = () => useAuth.getState().expire()
+    window.addEventListener('auth-expired', expire)
+    void useAuth.getState().initialize(controller.signal)
+    return () => {
+      controller.abort()
+      window.removeEventListener('auth-expired', expire)
+    }
+  }, [])
+  return children
 }
