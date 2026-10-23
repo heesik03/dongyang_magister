@@ -120,7 +120,7 @@ test('사용 가능한 이메일 확인 후 가입하며 비밀번호 충족 여
   fireEvent.click(screen.getByRole('button', { name: '중복 확인' }))
   await screen.findByText('사용할 수 있는 이메일입니다.')
   fireEvent.submit(screen.getByRole('button', { name: '회원가입하고 시작하기' }).closest('form')!)
-  await screen.findByText('가입되었습니다. 이메일로 로그인해 주세요.')
+  await screen.findByText('회원가입이 완료되었습니다.')
   expect((screen.getByLabelText('비밀번호', { exact: true }) as HTMLInputElement).value).toBe('')
   expect(authApi.signup).toHaveBeenCalledWith('작가', user.email, 'Password1!')
 })

@@ -108,6 +108,17 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
               ? '작가님의 세계를 함께 살펴볼 준비가 되었어요.'
               : '이어 쓰던 이야기가 기다리고 있어요.'}
           </p>
+          {!signup && location.state?.registered && (
+            <div role="status" className="signup-success">
+              <span className="signup-success-icon" aria-hidden="true">
+                ✓
+              </span>
+              <div>
+                <strong>회원가입이 완료되었습니다.</strong>
+                <p>가입한 이메일과 비밀번호로 로그인해 주세요.</p>
+              </div>
+            </div>
+          )}
           {signup && (
             <label>
               필명
@@ -150,7 +161,15 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
               )}
             </div>
             {signup && (
-              <p id="email-check-result" role="status" className="small">
+              <p
+                id="email-check-result"
+                role="status"
+                className={`email-check-result email-check-result--${emailCheck.status}`}
+              >
+                {emailCheck.status === 'available' && <span aria-hidden="true">✓ </span>}
+                {(emailCheck.status === 'unavailable' || emailCheck.status === 'error') && (
+                  <span aria-hidden="true">! </span>
+                )}
                 {emailCheck.message || '가입 전 이메일 중복을 확인해 주세요.'}
               </p>
             )}
@@ -207,9 +226,6 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
                 </p>
               )}
             </>
-          )}
-          {!signup && location.state?.registered && (
-            <p role="status">가입되었습니다. 이메일로 로그인해 주세요.</p>
           )}
           {saving && <p role="status">처리 중입니다.</p>}
           {error && (
