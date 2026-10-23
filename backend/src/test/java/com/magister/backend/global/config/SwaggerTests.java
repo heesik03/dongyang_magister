@@ -64,7 +64,8 @@ class SwaggerTests {
                 .andExpect(jsonPath("$.paths['/api/gemini'].post.responses['200'].content['application/json'].schema['$ref']")
                         .value(containsString("ApiResponse")))
                 .andExpect(jsonPath("$.paths['/api/gemini'].post.responses['502'].content['application/json'].schema['$ref']")
-                        .value(containsString("ApiResponse")));
+                        .value(containsString("ApiResponse")))
+                .andExpect(jsonPath("$.components.schemas.ApiResponse.properties.code.type").value("string"));
     }
 
     @Test

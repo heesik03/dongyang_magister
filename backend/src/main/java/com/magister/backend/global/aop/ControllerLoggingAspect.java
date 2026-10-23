@@ -48,7 +48,8 @@ public class ControllerLoggingAspect {
                 methodName
         );
         try {
-            Object result = joinPoint.proceed();
+            return joinPoint.proceed();
+        } finally {
             long durationMs =
                     (System.nanoTime() - startTime) / 1_000_000;
             log.info(
@@ -59,22 +60,6 @@ public class ControllerLoggingAspect {
                     methodName,
                     durationMs
             );
-            return result;
-        } catch (Throwable e) {
-            long durationMs =
-                    (System.nanoTime() - startTime) / 1_000_000;
-            log.error(
-                    "API ERROR | Method=[{}] | URI=[{}] | Handler=[{}.{}] | Duration=[{}ms] | Error=[{}]",
-                    httpMethod,
-                    uri,
-                    className,
-                    methodName,
-                    durationMs,
-                    e.getMessage(),
-                    e
-            );
-
-            throw e;
         }
     }
 }

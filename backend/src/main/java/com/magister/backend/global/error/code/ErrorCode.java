@@ -1,9 +1,9 @@
 package com.magister.backend.global.error.code;
 
-import org.springframework.http.HttpStatus;
+import com.magister.backend.global.response.ResponseCode;
+import org.springframework.http.HttpStatusCode;
 
-public interface ErrorCode {
-    HttpStatus getHttpStatus();
-    String getCode();
+public interface ErrorCode extends ResponseCode {
+    HttpStatusCode getHttpStatus();
     String getMessage();
 }
