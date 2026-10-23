@@ -9,6 +9,7 @@ import com.magister.backend.global.error.exception.CustomException;
 
 import lombok.RequiredArgsConstructor;
 
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -46,7 +47,7 @@ public class UserService {
             User saved = users.saveAndFlush(user);
             return UserResponse.from(saved);
         } catch (DataIntegrityViolationException exception) {
-            if (isEmailConstraintViolation(exception, email)) {
+            if (isEmailConstraintViolation(exception)) {
                 // 사전 중복 검사 이후 동시에 가입하는 경우도 DB 유일 제약으로 막는다.
                 throw new CustomException(UserErrorCode.EMAIL_ALREADY_EXISTS);
             }
@@ -54,14 +55,23 @@ public class UserService {
         }
     }
 
-    private boolean isEmailConstraintViolation(
-            DataIntegrityViolationException exception, String email) {
+    private boolean isEmailConstraintViolation(DataIntegrityViolationException exception) {
         for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
-            String message = cause.getMessage();
-            if (message != null && message.toLowerCase(Locale.ROOT).contains("uk_users_email")) {
+            if (cause instanceof ConstraintViolationException cve
+                    && cve.getConstraintName() != null
+                    && cve.getConstraintName().toLowerCase(Locale.ROOT).contains("email")) {
                 return true;
             }
+            String message = cause.getMessage();
+            if (message != null) {
+                String lower = message.toLowerCase(Locale.ROOT);
+                if (lower.contains("uk_users_email")
+                        || (lower.contains("unique") && lower.contains("email"))
+                        || (lower.contains("duplicate") && lower.contains("email"))) {
+                    return true;
+                }
+            }
         }
-        return users.existsByEmail(email);
+        return false;
     }
 }

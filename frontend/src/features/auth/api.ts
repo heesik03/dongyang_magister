@@ -20,12 +20,12 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function parseErrorMessage(body: unknown): string {
+export function parseErrorMessage(body: unknown): string {
   if (!record(body)) return '요청을 처리하지 못했습니다.'
   if (Array.isArray(body.errors)) {
     for (const item of body.errors) {
-      if (record(item) && typeof item.reason === 'string' && item.reason.trim()) {
-        return item.reason
+      if (record(item) && typeof item.message === 'string' && item.message.trim()) {
+        return item.message
       }
     }
   }
