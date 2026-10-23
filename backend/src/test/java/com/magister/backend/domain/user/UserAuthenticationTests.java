@@ -151,4 +151,34 @@ class UserAuthenticationTests {
                 .andExpect(
                         jsonPath("$.components.securitySchemes.session.name").value("JSESSIONID"));
     }
+
+    @Test
+    void checksEmailAvailabilityBeforeSignupAndValidatesRequest() throws Exception {
+        mvc.perform(
+                        post("/api/user/email/check")
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content("{\"email\":\"writer@example.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(true));
+        signup();
+        mvc.perform(
+                        post("/api/user/email/check")
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content("{\"email\":\"WRITER@example.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(false));
+        mvc.perform(
+                        post("/api/user/email/check")
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content("{\"email\":\"invalid\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(
+                        post("/api/user/email/check")
+                                .contentType("application/json")
+                                .content("{\"email\":\"writer@example.com\"}"))
+                .andExpect(status().isForbidden());
+    }
 }

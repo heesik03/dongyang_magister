@@ -33,7 +33,6 @@ function parseUser(value: unknown): User {
   return { id: value.id, name: value.name, email: value.email }
 }
 
-
 async function request(path: string, options: AxiosRequestConfig = {}): Promise<unknown> {
   const response = await client.request<unknown>({ ...options, url: path })
   const body: unknown = response.data
@@ -52,7 +51,6 @@ async function request(path: string, options: AxiosRequestConfig = {}): Promise<
   return body.data
 }
 
-
 async function mutate(path: string, body?: object) {
   const csrf = await request('/csrf')
   if (!record(csrf) || typeof csrf.headerName !== 'string' || typeof csrf.token !== 'string')
@@ -64,8 +62,14 @@ async function mutate(path: string, body?: object) {
   })
 }
 
-
 export const authApi = {
+  async checkEmail(email: string) {
+    const data = await mutate('/email/check', { email })
+    if (!record(data) || typeof data.available !== 'boolean') {
+      throw new Error('이메일 확인 응답 형식이 올바르지 않습니다.')
+    }
+    return data.available
+  },
   async me(signal?: AbortSignal) {
     return parseUser(await request('/me', { signal }))
   },

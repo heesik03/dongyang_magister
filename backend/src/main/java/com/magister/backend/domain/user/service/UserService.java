@@ -26,6 +26,12 @@ public class UserService {
         return email.strip().toLowerCase(Locale.ROOT);
     }
 
+    @Transactional(readOnly = true)
+    public boolean isEmailAvailable(String email) {
+        // 사전 확인은 화면 안내용이며 가입 시 유일 제약 검증도 반드시 수행한다.
+        return !users.existsByEmail(normalizeEmail(email));
+    }
+
     @Transactional
     public UserResponse signup(SignupRequest request) {
         // 이메일 대소문자 차이로 계정이 중복되지 않게 저장·조회 기준을 통일한다.

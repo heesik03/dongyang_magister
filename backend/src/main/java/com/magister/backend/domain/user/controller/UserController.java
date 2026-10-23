@@ -1,5 +1,6 @@
 package com.magister.backend.domain.user.controller;
 
+import com.magister.backend.domain.user.dto.EmailCheckRequest;
 import com.magister.backend.domain.user.dto.LoginRequest;
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.dto.UserResponse;
@@ -29,6 +30,15 @@ import java.net.URI;
 public class UserController {
     private final UserService users;
     private final SessionAuthenticationService sessions;
+
+    @Operation(
+            summary = "이메일 중복 확인",
+            description = "이메일을 URL에 남기지 않도록 본문으로 전달합니다. 가입 시 중복 여부는 다시 검사합니다.")
+    @PostMapping("/email/check")
+    public ApiResponse<EmailCheckResponse> checkEmail(
+            @Valid @RequestBody EmailCheckRequest request) {
+        return ApiResponse.success(new EmailCheckResponse(users.isEmailAvailable(request.email())));
+    }
 
     @Operation(summary = "회원가입")
     @PostMapping
@@ -60,6 +70,8 @@ public class UserController {
     public ApiResponse<UserResponse> me(@AuthenticationPrincipal LoginUser user) {
         return ApiResponse.success(new UserResponse(user.id(), user.email(), user.name()));
     }
+
+    public record EmailCheckResponse(boolean available) {}
 
     public record CsrfResponse(String headerName, String token) {}
 }

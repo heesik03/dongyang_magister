@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getReturnPath, useAuth } from './auth'
 import { authApi } from './api'
+import { useEmailAvailability } from './useEmailAvailability'
 import { Icon } from '../../shared/Icon'
 
 export function AuthPage({ signup = false }: { signup?: boolean }) {
@@ -10,6 +11,17 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
   const location = useLocation()
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const emailCheck = useEmailAvailability()
+  const emailInput = useRef<HTMLInputElement>(null)
+  const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const passwordRules = [
+    { label: '8~128자', valid: password.length >= 8 && password.length <= 128 },
+    { label: '영문 포함', valid: /[A-Za-z]/.test(password) },
+    { label: '숫자 포함', valid: /[0-9]/.test(password) },
+    { label: '특수문자 포함', valid: /[^\p{L}\p{N}\s]/u.test(password) },
+    { label: '공백 없음', valid: password.length > 0 && !/\s/.test(password) },
+  ]
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (saving) return
@@ -23,12 +35,18 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
       setError('비밀번호는 8~128자로 영문·숫자·특수문자를 포함하고 공백 없이 입력해 주세요.')
       return
     }
+    if (signup && emailCheck.status !== 'available') {
+      setError('이메일 중복 확인을 완료해 주세요.')
+      return
+    }
     const email = String(data.get('email')).trim()
     setSaving(true)
     setError('')
     try {
       if (signup) {
         await authApi.signup(String(data.get('name')).trim(), email, password)
+        setPassword('')
+        setConfirmation('')
         navigate('/login', {
           state: { ...getLoginState(location.state), registered: true },
           replace: true,
@@ -102,20 +120,48 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
               />
             </label>
           )}
-          <label>
-            이메일
-            <input
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder="writer@example.com"
-            />
-          </label>
+          <div>
+            <label htmlFor="auth-email">이메일</label>
+            <div className="email-check-field">
+              <input
+                id="auth-email"
+                ref={emailInput}
+                name="email"
+                type="email"
+                required
+                maxLength={254}
+                autoComplete="email"
+                placeholder="writer@example.com"
+                value={emailCheck.email}
+                onChange={(event) => emailCheck.setEmail(event.target.value)}
+                disabled={saving}
+                aria-describedby={signup ? 'email-check-result' : undefined}
+              />
+              {signup && (
+                <button
+                  type="button"
+                  disabled={saving || emailCheck.status === 'checking'}
+                  onClick={() => {
+                    if (emailInput.current?.reportValidity()) void emailCheck.check()
+                  }}
+                >
+                  {emailCheck.status === 'checking' ? '확인 중' : '중복 확인'}
+                </button>
+              )}
+            </div>
+            {signup && (
+              <p id="email-check-result" role="status" className="small">
+                {emailCheck.message || '가입 전 이메일 중복을 확인해 주세요.'}
+              </p>
+            )}
+          </div>
           <label>
             비밀번호
             <input
               name="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              aria-describedby={signup ? 'password-conditions' : undefined}
               type="password"
               required
               minLength={8}
@@ -126,10 +172,25 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
           </label>
           {signup && (
             <>
+              <ul
+                id="password-conditions"
+                className="password-conditions"
+                aria-label="비밀번호 조건"
+              >
+                {passwordRules.map((rule) => (
+                  <li key={rule.label} className={rule.valid ? 'is-valid' : ''}>
+                    <span aria-hidden="true">{rule.valid ? '✓' : '○'}</span> {rule.label}
+                    <span className="small">{rule.valid ? ' 충족' : ' 미충족'}</span>
+                  </li>
+                ))}
+              </ul>
               <label>
                 비밀번호 확인
                 <input
                   name="confirm"
+                  value={confirmation}
+                  onChange={(event) => setConfirmation(event.target.value)}
+                  aria-describedby="password-confirmation"
                   type="password"
                   required
                   minLength={8}
@@ -138,10 +199,13 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
                   placeholder="비밀번호를 한 번 더 입력"
                 />
               </label>
-              <label className="check">
-                <input type="checkbox" required />
-                작품과 원고는 아직 이 브라우저에 저장됨을 확인했습니다.
-              </label>
+              {confirmation && (
+                <p id="password-confirmation" role="status" className="small">
+                  {password === confirmation
+                    ? '비밀번호가 일치합니다.'
+                    : '비밀번호가 일치하지 않습니다.'}
+                </p>
+              )}
             </>
           )}
           {!signup && location.state?.registered && (
@@ -160,9 +224,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
             {signup ? '이미 계정이 있나요?' : '처음 오셨나요?'}{' '}
             <Link to={signup ? '/login' : '/signup'}>{signup ? '로그인' : '회원가입'}</Link>
           </p>
-          <p className="notice small">
-            로그인은 1시간 동안 활동이 없으면 만료됩니다. 작품과 원고는 이 브라우저에 저장됩니다.
-          </p>
+          <p className="notice small">로그인은 1시간 동안 활동이 없으면 만료됩니다.</p>
         </form>
       </section>
     </main>

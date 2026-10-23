@@ -70,6 +70,7 @@ Spring Boot 4.1에 맞는 `springdoc-openapi-starter-webmvc-ui:3.1.1`을 사용�
 
 ## 사용자·세션 인증
 
+- `POST /api/user/email/check`: 가입 전 이메일 중복 확인 (`available` 반환, CSRF 필요)
 - `POST /api/user`: 이메일·필명·비밀번호로 회원가입 (201)
 - `GET /api/user/csrf`: 변경 요청의 CSRF 헤더 이름·토큰 조회
 - `POST /api/user/login`: 이메일·비밀번호 로그인

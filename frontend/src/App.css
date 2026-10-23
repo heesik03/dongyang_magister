@@ -1239,3 +1239,29 @@ fieldset input {
     min-height: 44px;
   }
 }
+
+.email-check-field {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.email-check-field input {
+  flex: 1;
+  min-width: 0;
+}
+.email-check-field button {
+  flex-shrink: 0;
+}
+.password-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.password-conditions .is-valid {
+  color: var(--color-primary);
+}

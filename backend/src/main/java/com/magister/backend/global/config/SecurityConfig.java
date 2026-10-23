@@ -41,7 +41,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(
                         auth ->
                                 auth.requestMatchers(
-                                                HttpMethod.POST, "/api/user", "/api/user/login")
+                                                HttpMethod.POST,
+                                                "/api/user",
+                                                "/api/user/login",
+                                                "/api/user/email/check")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/user/csrf")
                                         .permitAll()
