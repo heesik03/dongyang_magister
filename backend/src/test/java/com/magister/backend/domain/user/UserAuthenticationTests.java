@@ -181,4 +181,24 @@ class UserAuthenticationTests {
                                 .content("{\"email\":\"writer@example.com\"}"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void allowsConfiguredCorsOriginAndRejectsDisallowedOrigin() throws Exception {
+        mvc.perform(
+                        options("/api/user")
+                                .header("Origin", "http://localhost:5173")
+                                .header("Access-Control-Request-Method", "POST")
+                                .header(
+                                        "Access-Control-Request-Headers",
+                                        "Content-Type, X-CSRF-TOKEN"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+
+        mvc.perform(
+                        options("/api/user")
+                                .header("Origin", "https://evil.example.com")
+                                .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden());
+    }
 }
