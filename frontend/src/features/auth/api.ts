@@ -20,6 +20,20 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function parseErrorMessage(body: unknown): string {
+  if (!record(body)) return '요청을 처리하지 못했습니다.'
+  if (Array.isArray(body.errors)) {
+    for (const item of body.errors) {
+      if (record(item) && typeof item.reason === 'string' && item.reason.trim()) {
+        return item.reason
+      }
+    }
+  }
+  return typeof body.message === 'string' && body.message.trim()
+    ? body.message
+    : '요청을 처리하지 못했습니다.'
+}
+
 function parseUser(value: unknown): User {
   if (
     !record(value) ||
@@ -39,12 +53,7 @@ async function request(path: string, options: AxiosRequestConfig = {}): Promise<
   if (response.status < 200 || response.status >= 300) {
     if (response.status === 401 && path !== '/login')
       window.dispatchEvent(new Event('auth-expired'))
-    throw new ApiError(
-      record(body) && typeof body.message === 'string'
-        ? body.message
-        : '요청을 처리하지 못했습니다.',
-      response.status,
-    )
+    throw new ApiError(parseErrorMessage(body), response.status)
   }
   if (!record(body) || body.success !== true || !('data' in body))
     throw new Error('서버 응답 형식이 올바르지 않습니다.')
