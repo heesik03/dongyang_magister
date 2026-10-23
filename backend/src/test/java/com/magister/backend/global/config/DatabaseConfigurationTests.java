@@ -23,7 +23,7 @@ class DatabaseConfigurationTests {
                     assertThat(context.getEnvironment().getProperty("spring.datasource.driver-class-name"))
                             .isEqualTo("com.mysql.cj.jdbc.Driver");
                     assertThat(context.getEnvironment().getProperty("spring.jpa.hibernate.ddl-auto"))
-                            .isEqualTo("update");
+                            .isEqualTo("validate");
                     assertThat(context.getEnvironment().getProperty("spring.config.datasource.url"))
                             .isNull();
                 });

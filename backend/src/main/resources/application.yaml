@@ -12,8 +12,8 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -37,3 +37,11 @@ springdoc:
 
 server:
   address: 127.0.0.1
+
+  servlet:
+    session:
+      timeout: 1h
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}

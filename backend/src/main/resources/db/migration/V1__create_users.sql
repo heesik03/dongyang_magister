@@ -1,0 +1,7 @@
+CREATE TABLE users (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(254) NOT NULL,
+    name VARCHAR(30) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    CONSTRAINT uk_users_email UNIQUE (email)
+);
