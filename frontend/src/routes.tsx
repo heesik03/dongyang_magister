@@ -6,8 +6,8 @@ import { WorkPage } from './features/works/WorkPage'
 import { Shell } from './shared/Shell'
 
 export const guestRoutes: RouteObject[] = [
-  { path: '/login', element: <AuthPage key="login" /> },
-  { path: '/signup', element: <AuthPage key="signup" signup /> },
+  { path: '/login', element: <AuthPage /> },
+  { path: '/signup', element: <AuthPage signup /> },
 ]
 
 export const protectedRoutes: RouteObject[] = [

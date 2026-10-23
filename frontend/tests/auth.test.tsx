@@ -76,6 +76,7 @@ test('로그인 실패 후 이메일 입력을 보존한다', async () => {
 test('회원가입 비밀번호 불일치 시 API를 호출하지 않는다', async () => {
   renderAuth('/signup')
   await screen.findByLabelText('필명')
+  fireEvent.change(screen.getByLabelText('필명'), { target: { value: '작가' } })
   fireEvent.change(screen.getByLabelText('비밀번호', { exact: true }), {
     target: { value: 'Password1!' },
   })
@@ -110,6 +111,14 @@ test('이메일 중복 확인을 완료하기 전에는 가입하지 않는다',
   expect(authApi.signup).not.toHaveBeenCalled()
 })
 
+test('필명이 공백뿐이면 가입 API를 호출하지 않는다', async () => {
+  await fillSignup()
+  fireEvent.change(screen.getByLabelText('필명'), { target: { value: '   ' } })
+  fireEvent.submit(screen.getByRole('button', { name: '회원가입하고 시작하기' }).closest('form')!)
+  expect((await screen.findByRole('alert')).textContent).toContain('필명을 입력해 주세요.')
+  expect(authApi.signup).not.toHaveBeenCalled()
+})
+
 test('사용 가능한 이메일 확인 후 가입하며 비밀번호 충족 여부를 표시한다', async () => {
   vi.mocked(authApi.checkEmail).mockResolvedValue(true)
   vi.mocked(authApi.signup).mockResolvedValue(user)
@@ -123,6 +132,40 @@ test('사용 가능한 이메일 확인 후 가입하며 비밀번호 충족 여
   await screen.findByText('회원가입이 완료되었습니다.')
   expect((screen.getByLabelText('비밀번호', { exact: true }) as HTMLInputElement).value).toBe('')
   expect(authApi.signup).toHaveBeenCalledWith('작가', user.email, 'Password1!')
+})
+
+test('가입 시점에 이메일 중복(409) 발생 시 이메일 확인 상태도 중복으로 갱신한다', async () => {
+  vi.mocked(authApi.checkEmail).mockResolvedValue(true)
+  vi.mocked(authApi.signup).mockRejectedValue(new ApiError('이미 가입된 이메일입니다.', 409))
+  await fillSignup()
+  fireEvent.click(screen.getByRole('button', { name: '중복 확인' }))
+  await screen.findByText('사용할 수 있는 이메일입니다.')
+  fireEvent.submit(screen.getByRole('button', { name: '회원가입하고 시작하기' }).closest('form')!)
+  expect((await screen.findByRole('alert')).textContent).toContain('이미 가입된 이메일입니다.')
+  expect(screen.queryByText('사용할 수 있는 이메일입니다.')).toBeNull()
+})
+
+test('보호 주소에서 로그인 화면을 거쳐 회원가입 후 로그인하면 원래 보호 주소로 이동한다', async () => {
+  vi.mocked(authApi.checkEmail).mockResolvedValue(true)
+  vi.mocked(authApi.signup).mockResolvedValue(user)
+  vi.mocked(authApi.login).mockResolvedValue(user)
+  renderAuth('/works/demo/manuscript')
+  await screen.findByRole('heading', { name: '다시 만나 반가워요' })
+  fireEvent.click(screen.getByRole('link', { name: '회원가입' }))
+  await screen.findByLabelText('필명')
+  fireEvent.change(screen.getByLabelText('필명'), { target: { value: '작가' } })
+  fireEvent.change(screen.getByLabelText('이메일'), { target: { value: user.email } })
+  fireEvent.change(screen.getByLabelText('비밀번호', { exact: true }), {
+    target: { value: 'Password1!' },
+  })
+  fireEvent.change(screen.getByLabelText('비밀번호 확인'), { target: { value: 'Password1!' } })
+  fireEvent.click(screen.getByRole('button', { name: '중복 확인' }))
+  await screen.findByText('사용할 수 있는 이메일입니다.')
+  fireEvent.submit(screen.getByRole('button', { name: '회원가입하고 시작하기' }).closest('form')!)
+  await screen.findByText('회원가입이 완료되었습니다.')
+  fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'Password1!' } })
+  fireEvent.submit(screen.getByRole('button', { name: /로그인/ }).closest('form')!)
+  expect(await screen.findByRole('heading', { name: '보호된 원고' })).toBeTruthy()
 })
 
 test('입력 변경 이후 도착한 이메일 확인 응답을 무시한다', async () => {

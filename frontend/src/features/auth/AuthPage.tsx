@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getReturnPath, useAuth } from './auth'
-import { authApi } from './api'
+import { ApiError, authApi } from './api'
 import { useEmailAvailability } from './useEmailAvailability'
 import { Icon } from '../../shared/Icon'
 
@@ -26,7 +26,12 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
     event.preventDefault()
     if (saving) return
     const data = new FormData(event.currentTarget)
+    const name = String(data.get('name') ?? '').trim()
     const password = String(data.get('password'))
+    if (signup && !name) {
+      setError('필명을 입력해 주세요.')
+      return
+    }
     if (signup && password !== data.get('confirm')) {
       setError('비밀번호가 일치하지 않습니다.')
       return
@@ -44,7 +49,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
     setError('')
     try {
       if (signup) {
-        await authApi.signup(String(data.get('name')).trim(), email, password)
+        await authApi.signup(name, email, password)
         setPassword('')
         setConfirmation('')
         navigate('/login', {
@@ -56,6 +61,9 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
         navigate(getReturnPath(location.state), { replace: true })
       }
     } catch (failure) {
+      if (signup && failure instanceof ApiError && failure.status === 409) {
+        emailCheck.markUnavailable(failure.message)
+      }
       setError(
         failure instanceof Error ? failure.message : '요청에 실패했습니다. 다시 시도해 주세요.',
       )
@@ -128,6 +136,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
                 maxLength={30}
                 autoComplete="nickname"
                 placeholder="이야기에 남길 이름"
+                disabled={saving}
               />
             </label>
           )}
@@ -187,6 +196,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
               maxLength={128}
               autoComplete={signup ? 'new-password' : 'current-password'}
               placeholder="8자 이상, 영문·숫자·특수문자 조합"
+              disabled={saving}
             />
           </label>
           {signup && (
@@ -216,6 +226,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
                   maxLength={128}
                   autoComplete="new-password"
                   placeholder="비밀번호를 한 번 더 입력"
+                  disabled={saving}
                 />
               </label>
               {confirmation && (
@@ -238,7 +249,17 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
           </button>
           <p className="auth-switch">
             {signup ? '이미 계정이 있나요?' : '처음 오셨나요?'}{' '}
-            <Link to={signup ? '/login' : '/signup'}>{signup ? '로그인' : '회원가입'}</Link>
+            <Link
+              to={signup ? '/login' : '/signup'}
+              state={getLoginState(location.state)}
+              onClick={() => {
+                setError('')
+                setPassword('')
+                setConfirmation('')
+              }}
+            >
+              {signup ? '로그인' : '회원가입'}
+            </Link>
           </p>
           <p className="notice small">로그인은 1시간 동안 활동이 없으면 만료됩니다.</p>
         </form>
