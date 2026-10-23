@@ -4,7 +4,13 @@ import { routes } from './routes'
 import './App.css'
 
 export default function App() {
-  return <BrowserRouter><AuthProvider><AppRoutes /></AuthProvider></BrowserRouter>
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  )
 }
 
 function AppRoutes() {

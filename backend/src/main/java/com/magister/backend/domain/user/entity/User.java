@@ -1,6 +1,7 @@
 package com.magister.backend.domain.user.entity;
 
 import jakarta.persistence.*;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -10,12 +11,16 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @Column(nullable = false, length = 254, unique = true)
     private String email;
+
     @Column(nullable = false, length = 30)
     private String name;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 

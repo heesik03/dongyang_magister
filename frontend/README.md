@@ -52,3 +52,7 @@ React Router 7.18.4는 React 19 환경에서 URL 탐색·중첩 레이아웃·Pr
 - Prettier 3.9.10: 코드 포맷 통일. 버전은 pnpm 잠금 파일로 관리합니다.
 
 E2E는 실행 중인 백엔드와 MySQL이 필요하며, 실행할 때마다 `writer-...@example.com` 테스트 계정을 생성합니다.
+
+## 코드 포맷
+
+`pnpm format`으로 TypeScript·JSX·CSS를 정리하고, `pnpm format:check`로 검사합니다. `.prettierrc.json`을 기준으로 들여쓰기 2칸과 최대 줄 길이 100자를 사용합니다.

@@ -2,6 +2,7 @@ package com.magister.backend.global.error.code;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 
 @Getter

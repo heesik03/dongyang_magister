@@ -7,9 +7,12 @@ import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.service.UserService;
 import com.magister.backend.global.error.exception.CustomException;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -29,16 +32,20 @@ public class SessionAuthenticationService {
     private final UserRepository users;
     private final HttpSessionSecurityContextRepository contexts;
 
-    public UserResponse login(LoginRequest input, HttpServletRequest request, HttpServletResponse response) {
+    public UserResponse login(
+            LoginRequest input, HttpServletRequest request, HttpServletResponse response) {
         Authentication authenticated = authenticate(input);
-        User user = users.findByEmail(authenticated.getName())
-                .orElseThrow(() -> new CustomException(UserErrorCode.INVALID_CREDENTIALS));
+        User user =
+                users.findByEmail(authenticated.getName())
+                        .orElseThrow(() -> new CustomException(UserErrorCode.INVALID_CREDENTIALS));
         // 비밀번호 해시가 포함된 UserDetails 대신 공개 식별 정보만 세션에 저장한다.
         LoginUser principal = new LoginUser(user.getId(), user.getEmail(), user.getName());
-        Authentication sessionAuth = UsernamePasswordAuthenticationToken.authenticated(
-                principal, null, authenticated.getAuthorities());
+        Authentication sessionAuth =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        principal, null, authenticated.getAuthorities());
         // JSON Controller 로그인은 필터의 자동 처리 대상이 아니므로 세션 고정 방지를 직접 적용한다.
-        new ChangeSessionIdAuthenticationStrategy().onAuthentication(sessionAuth, request, response);
+        new ChangeSessionIdAuthenticationStrategy()
+                .onAuthentication(sessionAuth, request, response);
         // 로그인 전 토큰을 폐기해 인증 경계가 바뀐 이후의 요청에는 새 토큰을 요구한다.
         new CsrfAuthenticationStrategy(new HttpSessionCsrfTokenRepository())
                 .onAuthentication(sessionAuth, request, response);
@@ -52,8 +59,9 @@ public class SessionAuthenticationService {
 
     private Authentication authenticate(LoginRequest input) {
         try {
-            return authenticationManager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(
-                    UserService.normalizeEmail(input.email()), input.password()));
+            return authenticationManager.authenticate(
+                    UsernamePasswordAuthenticationToken.unauthenticated(
+                            UserService.normalizeEmail(input.email()), input.password()));
         } catch (AuthenticationException exception) {
             // 계정 존재 여부가 로그인 실패 메시지로 드러나지 않게 통일한다.
             throw new CustomException(UserErrorCode.INVALID_CREDENTIALS);

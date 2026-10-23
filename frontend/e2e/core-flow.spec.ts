@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 
-test('회원가입 → 보호 라우트 → 세션 로그인 → AI 분석 → 작가 판단 → 타임라인', async ({ page }, testInfo) => {
+test('회원가입 → 보호 라우트 → 세션 로그인 → AI 분석 → 작가 판단 → 타임라인', async ({
+  page,
+}, testInfo) => {
   const email = `writer-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`
   await page.goto('/signup')
   await page.getByLabel('필명').fill('테스트 작가')
@@ -14,7 +16,13 @@ test('회원가입 → 보호 라우트 → 세션 로그인 → AI 분석 → �
   await expect(page).toHaveURL(/\/login$/)
   await page.getByLabel('이메일').fill(email)
   await page.getByLabel('비밀번호', { exact: true }).fill('Password1!')
+  await page.screenshot({ path: testInfo.outputPath('login.png'), fullPage: true })
   await page.getByRole('button', { name: '로그인', exact: true }).click()
+  const sessionCookie = (await page.context().cookies()).find(
+    (cookie) => cookie.name === 'JSESSIONID',
+  )
+  expect(sessionCookie?.httpOnly).toBe(true)
+  expect(sessionCookie?.sameSite).toBe('Lax')
   await expect(page).toHaveURL(/\/works\/moon-library\/manuscript$/)
   await page.reload()
   await expect(page).toHaveURL(/\/works\/moon-library\/manuscript$/)

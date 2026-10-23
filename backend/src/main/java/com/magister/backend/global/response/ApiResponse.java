@@ -1,13 +1,19 @@
 package com.magister.backend.global.response;
 
 import com.magister.backend.global.error.code.ErrorCode;
+
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.util.List;
+
 import org.jspecify.annotations.Nullable;
 
-public record ApiResponse<T>(boolean success,
-        @Schema(type = "string", example = "VALIDATION_ERROR") ResponseCode code, String message,
-        @Nullable T data, List<FieldErrorDetail> errors) {
+import java.util.List;
+
+public record ApiResponse<T>(
+        boolean success,
+        @Schema(type = "string", example = "VALIDATION_ERROR") ResponseCode code,
+        String message,
+        @Nullable T data,
+        List<FieldErrorDetail> errors) {
 
     public static <T> ApiResponse<T> success(T data) {
         return new ApiResponse<>(true, SuccessCode.SUCCESS, "요청이 성공했습니다.", data, List.of());

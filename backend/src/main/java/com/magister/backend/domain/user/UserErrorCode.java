@@ -1,8 +1,10 @@
 package com.magister.backend.domain.user;
 
 import com.magister.backend.global.error.code.ErrorCode;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 
 @Getter
@@ -15,5 +17,9 @@ public enum UserErrorCode implements ErrorCode {
 
     private final HttpStatus httpStatus;
     private final String message;
-    @Override public String getCode() { return name(); }
+
+    @Override
+    public String getCode() {
+        return name();
+    }
 }

@@ -1,16 +1,17 @@
 package com.magister.backend.global.gemini;
 
-import java.io.IOException;
-import java.io.InterruptedIOException;
-
 import com.google.genai.Models;
 import com.google.genai.errors.ApiException;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
 import com.magister.backend.global.error.code.GeminiErrorCode;
 import com.magister.backend.global.error.exception.GeminiApiException;
+
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+
+import java.io.IOException;
+import java.io.InterruptedIOException;
 
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class GeminiClient {
@@ -26,8 +27,8 @@ public class GeminiClient {
         if (maxOutputTokens < 1) {
             throw new IllegalArgumentException("maxOutputTokens must be positive");
         }
-        return generateText(prompt, GenerateContentConfig.builder()
-                .maxOutputTokens(maxOutputTokens).build());
+        return generateText(
+                prompt, GenerateContentConfig.builder().maxOutputTokens(maxOutputTokens).build());
     }
 
     private String generateText(String prompt, GenerateContentConfig config) {
@@ -64,7 +65,8 @@ public class GeminiClient {
             case 401, 403 -> GeminiErrorCode.AUTHENTICATION_FAILED;
             case 408, 504 -> GeminiErrorCode.TIMEOUT;
             case 429 -> GeminiErrorCode.RATE_LIMITED;
-            default -> status >= 500 ? GeminiErrorCode.UNAVAILABLE : GeminiErrorCode.REQUEST_REJECTED;
+            default ->
+                    status >= 500 ? GeminiErrorCode.UNAVAILABLE : GeminiErrorCode.REQUEST_REJECTED;
         };
     }
 }

@@ -19,6 +19,7 @@ public record FrameworkErrorCode(HttpStatusCode httpStatus) implements ErrorCode
     @Override
     public String getMessage() {
         return httpStatus.is5xxServerError()
-                ? CommonErrorCode.INTERNAL_SERVER_ERROR.getMessage() : "요청을 처리할 수 없습니다.";
+                ? CommonErrorCode.INTERNAL_SERVER_ERROR.getMessage()
+                : "요청을 처리할 수 없습니다.";
     }
 }

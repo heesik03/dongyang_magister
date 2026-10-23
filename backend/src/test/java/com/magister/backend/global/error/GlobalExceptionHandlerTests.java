@@ -1,14 +1,24 @@
 package com.magister.backend.global.error;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.response.ApiResponse;
+
 import jakarta.validation.Valid;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -22,18 +32,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 class GlobalExceptionHandlerTests {
     private final Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new TestController())
-            .setControllerAdvice(new GlobalExceptionHandler()).build();
+    private final MockMvc mvc =
+            MockMvcBuilders.standaloneSetup(new TestController())
+                    .setControllerAdvice(new GlobalExceptionHandler())
+                    .build();
 
     @BeforeEach
     void captureLogs() {
@@ -48,10 +53,14 @@ class GlobalExceptionHandlerTests {
     }
 
     @ParameterizedTest
-    @CsvSource({"limited,429,TOO_MANY_REQUESTS,WARN", "unexpected,500,INTERNAL_SERVER_ERROR,ERROR",
-            "input,405,METHOD_NOT_ALLOWED,WARN"})
-    void logsErrorCodeAndStatusWithoutExceptionDetails(String path, int expectedStatus,
-            String expectedCode, String expectedLevel) throws Exception {
+    @CsvSource({
+        "limited,429,TOO_MANY_REQUESTS,WARN",
+        "unexpected,500,INTERNAL_SERVER_ERROR,ERROR",
+        "input,405,METHOD_NOT_ALLOWED,WARN"
+    })
+    void logsErrorCodeAndStatusWithoutExceptionDetails(
+            String path, int expectedStatus, String expectedCode, String expectedLevel)
+            throws Exception {
         mvc.perform(get("/test/" + path))
                 .andExpect(status().is(expectedStatus))
                 .andExpect(jsonPath("$.success").value(false))
@@ -63,9 +72,12 @@ class GlobalExceptionHandlerTests {
 
     @ParameterizedTest
     @CsvSource({"false,INVALID_REQUEST", "true,VALIDATION_ERROR"})
-    void logsInputErrorsWithoutRequestBody(boolean validJson, String expectedCode) throws Exception {
-        String body = validJson ? "{\"prompt\":\"\",\"private\":\"sensitive-value\"}"
-                : "{\"prompt\":\"sensitive-value\"";
+    void logsInputErrorsWithoutRequestBody(boolean validJson, String expectedCode)
+            throws Exception {
+        String body =
+                validJson
+                        ? "{\"prompt\":\"\",\"private\":\"sensitive-value\"}"
+                        : "{\"prompt\":\"sensitive-value\"";
         mvc.perform(post("/test/input").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(expectedCode));
@@ -73,15 +85,22 @@ class GlobalExceptionHandlerTests {
     }
 
     private void assertSafeFailureLog(String code, int status, String level) {
-        assertThat(appender.list).filteredOn(event -> event.getFormattedMessage().startsWith("API failure:"))
-                .singleElement().satisfies(event -> {
-                    assertThat(event.getLevel()).isEqualTo(Level.toLevel(level));
-                    assertThat(event.getFormattedMessage()).isEqualTo("API failure: code=" + code + ", status=" + status);
-                });
-        assertThat(appender.list).allSatisfy(event -> {
-            assertThat(event.getFormattedMessage()).doesNotContain("sensitive-value", "private detail");
-            assertThat(event.getThrowableProxy()).isNull();
-        });
+        assertThat(appender.list)
+                .filteredOn(event -> event.getFormattedMessage().startsWith("API failure:"))
+                .singleElement()
+                .satisfies(
+                        event -> {
+                            assertThat(event.getLevel()).isEqualTo(Level.toLevel(level));
+                            assertThat(event.getFormattedMessage())
+                                    .isEqualTo("API failure: code=" + code + ", status=" + status);
+                        });
+        assertThat(appender.list)
+                .allSatisfy(
+                        event -> {
+                            assertThat(event.getFormattedMessage())
+                                    .doesNotContain("sensitive-value", "private detail");
+                            assertThat(event.getThrowableProxy()).isNull();
+                        });
     }
 
     @RestController
@@ -93,7 +112,8 @@ class GlobalExceptionHandlerTests {
 
         @GetMapping("/test/unexpected")
         public void unexpected() {
-            throw new IllegalStateException("private detail", new RuntimeException("sensitive-value"));
+            throw new IllegalStateException(
+                    "private detail", new RuntimeException("sensitive-value"));
         }
 
         @PostMapping("/test/input")

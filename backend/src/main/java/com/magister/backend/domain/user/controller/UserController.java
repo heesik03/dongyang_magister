@@ -7,16 +7,21 @@ import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.user.security.SessionAuthenticationService;
 import com.magister.backend.domain.user.service.UserService;
 import com.magister.backend.global.response.ApiResponse;
+
 import io.swagger.v3.oas.annotations.Operation;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import java.net.URI;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
 
 @RestController
 @RequestMapping("/api/user")
@@ -27,12 +32,15 @@ public class UserController {
 
     @Operation(summary = "회원가입")
     @PostMapping
-    public ResponseEntity<ApiResponse<UserResponse>> signup(@Valid @RequestBody SignupRequest request) {
+    public ResponseEntity<ApiResponse<UserResponse>> signup(
+            @Valid @RequestBody SignupRequest request) {
         return ResponseEntity.created(URI.create("/api/user/me"))
                 .body(ApiResponse.success(users.signup(request)));
     }
 
-    @Operation(summary = "CSRF 토큰 조회", description = "변경 요청에 headerName의 헤더로 token을 전달합니다. 로그인·로그아웃 후 재조회합니다.")
+    @Operation(
+            summary = "CSRF 토큰 조회",
+            description = "변경 요청에 headerName의 헤더로 token을 전달합니다. 로그인·로그아웃 후 재조회합니다.")
     @GetMapping("/csrf")
     public ApiResponse<CsrfResponse> csrf(CsrfToken token) {
         return ApiResponse.success(new CsrfResponse(token.getHeaderName(), token.getToken()));
@@ -40,8 +48,10 @@ public class UserController {
 
     @Operation(summary = "이메일 로그인", description = "세션 쿠키를 발급합니다. 1시간 미사용 시 만료됩니다.")
     @PostMapping("/login")
-    public ApiResponse<UserResponse> login(@Valid @RequestBody LoginRequest input,
-            HttpServletRequest request, HttpServletResponse response) {
+    public ApiResponse<UserResponse> login(
+            @Valid @RequestBody LoginRequest input,
+            HttpServletRequest request,
+            HttpServletResponse response) {
         return ApiResponse.success(sessions.login(input, request, response));
     }
 

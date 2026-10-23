@@ -90,3 +90,5 @@ Spring Boot 4.1에 맞는 `springdoc-openapi-starter-webmvc-ui:3.1.1`을 사용�
 .\gradlew.bat build
 .\gradlew.bat bootRun
 ```
+
+Java 코드는 google-java-format 1.28.0의 AOSP 스타일(4칸 들여쓰기)로 정리했습니다. 주요 인증 로직은 `SessionAuthenticationService`, DB 저장은 `UserService`, 접근 정책은 `SecurityConfig`에서 관리합니다. Controller는 입력 검증과 응답 조립을 담당합니다.

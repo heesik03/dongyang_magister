@@ -1,14 +1,16 @@
 package com.magister.backend.global.migration;
 
-import java.sql.Statement;
 import org.flywaydb.core.api.migration.BaseJavaMigration;
 import org.flywaydb.core.api.migration.Context;
+
+import java.sql.Statement;
 
 public class V1__create_users extends BaseJavaMigration {
     @Override
     public void migrate(Context context) throws Exception {
         try (Statement statement = context.getConnection().createStatement()) {
-            statement.execute("""
+            statement.execute(
+                    """
                     CREATE TABLE users (
                         id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                         email VARCHAR(254) NOT NULL,
