@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { WorkspaceStatus } from '../workspace/WorkspaceStatus'
+import { GENRES } from './workGenres'
 import { Dialog } from '../../shared/Dialog'
 import { Link, Navigate, NavLink, useParams } from 'react-router-dom'
 import { useWorksStore } from './useWorksStore'
@@ -9,6 +11,7 @@ import { TimelinePanel } from '../timeline/TimelinePanel'
 
 export function WorkPage() {
   const { workId, tab } = useParams()
+  const loaded = useWorksStore((state) => !!workId && state.loadedIds.includes(workId))
   const works = useWorksStore((state) => state.works)
   const loadWork = useWorksStore((state) => state.loadWork)
   const detailLoading = useWorksStore((state) => state.detailLoading)
@@ -41,7 +44,8 @@ export function WorkPage() {
       setSaving(false)
     }
   }
-  if (detailLoading && !work) return <p role="status">작품을 불러오고 있습니다.</p>
+  if ((!loaded && !detailError) || (detailLoading && !work))
+    return <p role="status">작품을 불러오고 있습니다.</p>
   if (detailError)
     return (
       <main className="page empty">
@@ -106,7 +110,11 @@ export function WorkPage() {
               </label>
               <label>
                 장르
-                <input name="genre" required maxLength={30} defaultValue={work.genre} />
+                <select name="genre" defaultValue={work.genre}>
+                  {[...new Set([...GENRES, work.genre])].map((genre) => (
+                    <option key={genre}>{genre}</option>
+                  ))}
+                </select>
               </label>
               <label>
                 시대·배경
@@ -143,6 +151,7 @@ export function WorkPage() {
           </NavLink>
         ))}
       </nav>
+      {work.source === 'server' && <WorkspaceStatus work={work} />}
       <div className="work-content">
         {tab === 'settings' ? (
           <SettingsPanel key={work.id} work={work} />

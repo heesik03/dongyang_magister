@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, test, vi } from 'vitest'
 import { useWorksStore } from '../src/features/works/useWorksStore'
+import { workspaceClient } from '../src/features/workspace/workspaceClient'
 import { workClient } from '../src/features/works/workClient'
 import { settingClient } from '../src/features/settings/settingClient'
 import { parseWork } from '../src/features/works/workResponse'
@@ -16,7 +17,10 @@ vi.mock('../src/features/works/workClient', async (importOriginal) => {
   }
 })
 vi.mock('../src/features/settings/settingClient', () => ({
-  settingClient: { list: vi.fn(), create: vi.fn(), update: vi.fn() },
+  settingClient: { list: vi.fn(), listAll: vi.fn(), create: vi.fn(), update: vi.fn() },
+}))
+vi.mock('../src/features/workspace/workspaceClient', () => ({
+  workspaceClient: { get: vi.fn(), save: vi.fn() },
 }))
 const remote: Work = {
   id: '1',
@@ -39,6 +43,19 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(workClient.get).mockResolvedValue(remote)
   vi.mocked(settingClient.list).mockResolvedValue(page)
+  vi.mocked(settingClient.listAll).mockResolvedValue([])
+  vi.mocked(workspaceClient.get).mockResolvedValue({
+    version: 0,
+    workVersion: 0,
+    updatedAt: '2026-10-25T00:00:00Z',
+    content: { chapters: [], analyses: [], events: [] },
+  })
+  vi.mocked(workspaceClient.save).mockImplementation(async (_id, version, _mutation, content) => ({
+    version: version + 1,
+    workVersion: version + 1,
+    updatedAt: '2026-10-25T00:00:00Z',
+    content,
+  }))
   useWorksStore.getState().initialize('writer@example.com')
 })
 
@@ -71,6 +88,14 @@ test('서버 작품 원고를 재접속 후 복원하고 서버 설정을 로컬
   })
   expect(useWorksStore.getState().works[0].title).toBe('서버 작품')
   expect(useWorksStore.getState().works[0].settings).toEqual([setting])
+  await useWorksStore.getState().flushWorkspace('1')
+  const stored = useWorksStore.getState().works[0]
+  vi.mocked(workspaceClient.get).mockResolvedValue({
+    version: 1,
+    workVersion: 1,
+    updatedAt: '2026-10-25T00:00:00Z',
+    content: { chapters: stored.chapters, analyses: stored.analyses, events: stored.events },
+  })
   useWorksStore.getState().initialize('writer@example.com')
   await useWorksStore.getState().loadWork('1')
   expect(useWorksStore.getState().works[0].chapters[0].content).toBe('새 원고')
@@ -108,22 +133,17 @@ test('버전 충돌 시 화면의 기존 설정을 변경하지 않는다', asyn
   expect(useWorksStore.getState().works[0].settings).toEqual([])
 })
 
-test('저장 실패 시 원고를 메모리에 보존한다', async () => {
+test('서버 저장 실패 시 원고를 메모리에 보존한다', async () => {
   await useWorksStore.getState().loadWork('1')
-  const original = Storage.prototype.setItem
-  Storage.prototype.setItem = () => {
-    throw new Error('quota')
-  }
-  try {
-    useWorksStore.getState().updateWork({
-      ...remote,
-      chapters: [{ id: '1', title: '1화', content: '보존할 내용', revision: 1 }],
-    })
-    expect(useWorksStore.getState().storageError).toContain('저장에 실패')
-    expect(useWorksStore.getState().works[0].chapters[0].content).toBe('보존할 내용')
-  } finally {
-    Storage.prototype.setItem = original
-  }
+  vi.mocked(workspaceClient.save).mockRejectedValue(new Error('서버 연결 실패'))
+  useWorksStore.getState().updateWork({
+    ...remote,
+    chapters: [{ id: '1', title: '1화', content: '보존할 내용', revision: 1 }],
+  })
+  await useWorksStore.getState().flushWorkspace('1')
+  expect(useWorksStore.getState().workspaceErrors['1']).toBe('서버 연결 실패')
+  expect(useWorksStore.getState().works[0].chapters[0].content).toBe('보존할 내용')
+  expect(useWorksStore.getState().dirtyIds).toContain('1')
 })
 
 test('서버 응답의 잘못된 ID와 설정 상태를 거절한다', () => {
@@ -172,4 +192,72 @@ test('뒤늦은 설정 조회가 이미 저장한 최신 버전을 덮어쓰지 
   })
   await useWorksStore.getState().loadSettings('1')
   expect(useWorksStore.getState().works[0].settings[0].title).toBe('최신 설정')
+})
+
+test('빠른 원고 입력은 서버 저장을 묶어서 실행한다', async () => {
+  vi.useFakeTimers()
+  try {
+    await useWorksStore.getState().loadWork('1')
+    for (let i = 1; i <= 20; i++)
+      useWorksStore.getState().updateWork({
+        ...remote,
+        chapters: [{ id: 'c', title: '1화', content: '문장'.repeat(i), revision: i }],
+      })
+    expect(workspaceClient.save).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(workspaceClient.save).toHaveBeenCalledTimes(1)
+    expect(useWorksStore.getState().dirtyIds).toEqual([])
+  } finally {
+    vi.useRealTimers()
+  }
+})
+test('다른 탭의 새 버전이 도착하면 입력을 보존하고 자동 저장을 멈춘다', async () => {
+  await useWorksStore.getState().loadWork('1')
+  useWorksStore.getState().updateWork({
+    ...remote,
+    chapters: [{ id: 'c', title: '1화', content: '내 원고', revision: 1 }],
+  })
+  useWorksStore.getState().handleRemoteSave('1', 2)
+  await useWorksStore.getState().flushWorkspace('1')
+  expect(workspaceClient.save).not.toHaveBeenCalled()
+  expect(useWorksStore.getState().conflicts).toContain('1')
+  expect(useWorksStore.getState().works[0].chapters[0].content).toBe('내 원고')
+})
+test('저장 중 입력한 새 원고는 첫 저장 응답으로 사라지지 않는다', async () => {
+  await useWorksStore.getState().loadWork('1')
+  let finish: (response: Awaited<ReturnType<typeof workspaceClient.save>>) => void = () => {}
+  vi.mocked(workspaceClient.save).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+  )
+  const first = { id: 'c', title: '1화', content: '첫 문장', revision: 1 }
+  useWorksStore.getState().updateWork({ ...remote, chapters: [first] })
+  const pending = useWorksStore.getState().flushWorkspace('1')
+  useWorksStore
+    .getState()
+    .updateWork({ ...remote, chapters: [{ ...first, content: '이어서 작성', revision: 2 }] })
+  finish({
+    version: 1,
+    workVersion: 1,
+    updatedAt: '2026-10-25T00:00:00Z',
+    content: { chapters: [first], analyses: [], events: [] },
+  })
+  await pending
+  expect(workspaceClient.save).toHaveBeenCalledTimes(2)
+  expect(useWorksStore.getState().works[0].chapters[0].content).toBe('이어서 작성')
+  expect(useWorksStore.getState().works[0].workspaceVersion).toBe(2)
+})
+test('빈 보관함 응답은 샘플로 대체하지 않고 서버 총 개수를 저장한다', async () => {
+  vi.mocked(workClient.list).mockResolvedValue({
+    ...page,
+    items: [remote],
+    size: 20,
+    totalElements: 25,
+    totalPages: 2,
+  })
+  await useWorksStore.getState().loadWorks()
+  expect(useWorksStore.getState().totalElements).toBe(25)
+  expect(useWorksStore.getState().listedIds).toEqual(['1'])
 })

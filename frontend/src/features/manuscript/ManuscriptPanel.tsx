@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { Chapter, Decision, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
 import { ReviewPanel } from '../review/ReviewPanel'
-import { runMockAnalysis } from '../review/mockAnalysis'
+import { analysisClient } from '../analysis/analysisClient'
+import { settingsChanged } from '../analysis/analysisState'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 
@@ -23,7 +24,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const [previousIds, setPreviousIds] = useState<string[]>([])
   const [consistency, setConsistency] = useState(true)
   const [motivation, setMotivation] = useState(true)
-  const [simulatedFailure, setSimulatedFailure] = useState(false)
+  const [consent, setConsent] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState('')
   const [view, setView] = useState('원고')
@@ -31,10 +32,10 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const [highlight, setHighlight] = useState(params.get('quote') || '')
   const [focusMode, setFocusMode] = useState(false)
   const editor = useRef<HTMLTextAreaElement>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const analysisRequest = useRef<AbortController | null>(null)
   useEffect(
     () => () => {
-      if (timer.current) clearTimeout(timer.current)
+      analysisRequest.current?.abort()
     },
     [],
   )
@@ -50,21 +51,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   }, [params, chapter?.id, chapter?.content])
   // 원고나 참고 설정이 달라지면 과거 분석에 작가 판단을 덧붙이지 않고 재검토를 유도한다.
   const stale =
-    !!analysis &&
-    (analysis.source !== chapter?.content ||
-      (analysis.settingsSnapshot &&
-        analysis.settingsSnapshot !==
-          JSON.stringify(
-            work.settings.filter(
-              (setting) => setting.status === '확정' && analysis.settingIds.includes(setting.id),
-            ),
-          )) ||
-      analysis.reviews.some(
-        (review) =>
-          work.settings.find((setting) => setting.id === review.settingId)?.content !==
-            review.evidence ||
-          work.settings.find((setting) => setting.id === review.settingId)?.status !== '확정',
-      ))
+    !!analysis && (analysis.source !== chapter?.content || settingsChanged(analysis, work.settings))
   function createChapter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const title = String(new FormData(event.currentTarget).get('title')).trim()
@@ -90,10 +77,19 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     })
     setHighlight('')
   }
-  // 현재 검토는 로컬 시연 규칙이다. 외부 AI 전송이나 서버 분석 저장은 수행하지 않는다.
-  function analyze() {
+  // 서버에 저장된 원고를 기준으로 작업을 접수한다. 외부 전송은 명시적으로 동의한 범위만 사용한다.
+  async function analyze() {
     if (!chapter?.content.trim()) {
       setError('원고를 먼저 입력해 주세요.')
+      return
+    }
+    if (work.source !== 'server') {
+      setError('서버에 저장된 작품에서 AI 검토를 실행해 주세요.')
+      return
+    }
+    if (!consent) {
+      setError('선택한 원고·설정의 Gemini 전송에 동의해 주세요.')
+      setOptionsOpen(true)
       return
     }
     if (!consistency && !motivation) {
@@ -107,30 +103,56 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       setOptionsOpen(true)
       return
     }
+    const controller = new AbortController()
+    analysisRequest.current?.abort()
+    analysisRequest.current = controller
     setOptionsOpen(false)
     setAnalyzing(true)
     setError('')
     setView('검토')
     setFocusMode(false)
-    timer.current = setTimeout(() => {
-      setAnalyzing(false)
-      if (simulatedFailure) {
-        setError(
-          '시연용 분석 실패입니다. 원고와 선택한 범위는 유지됩니다. 분석 설정에서 실패 시연을 해제하고 재시도해 주세요.',
-        )
-        return
-      }
-      const result = runMockAnalysis(work, chapter, {
-        settingIds,
-        previousIds,
-        consistency,
-        motivation,
-      })
+    try {
+      await useWorksStore.getState().flushWorkspace(work.id)
+      const state = useWorksStore.getState(),
+        latest = state.works.find((item) => item.id === work.id)
+      if (!latest || state.dirtyIds.includes(work.id))
+        throw new Error('원고를 먼저 서버에 저장해 주세요.')
+      const result = await analysisClient.run(
+        work.id,
+        {
+          chapterId: chapter.id,
+          workspaceVersion: latest.workspaceVersion ?? 0,
+          settingIds,
+          previousIds,
+          consistency,
+          motivation,
+        },
+        controller.signal,
+      )
+      if (controller.signal.aborted) return
+      const current = useWorksStore.getState().works.find((item) => item.id === work.id)
+      if (!current) return
       updateWork({
-        ...work,
-        analyses: [...work.analyses.filter((item) => item.chapterId !== chapter.id), result],
+        ...current,
+        analyses: [...current.analyses.filter((item) => item.chapterId !== chapter.id), result],
       })
-    }, 900)
+    } catch (failure) {
+      if (!controller.signal.aborted)
+        setError(failure instanceof Error ? failure.message : 'AI 검토에 실패했습니다.')
+    } finally {
+      if (!controller.signal.aborted) setAnalyzing(false)
+    }
+  }
+  async function cancelAnalysis() {
+    if (!chapter) return
+    try {
+      await analysisClient.cancel(work.id, chapter.id)
+      analysisRequest.current?.abort()
+      setAnalyzing(false)
+      setError('AI 검토를 취소했습니다.')
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : '취소 요청 실패')
+    }
   }
   // 작가 판단은 해당 원고의 검토 항목에만 적용하며 작품 전체의 예외로 확대하지 않는다.
   function decide(id: string, decision: Decision, note: string) {
@@ -168,6 +190,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   }
   return (
     <div className="manuscript-workspace">
+      {analyzing && <button onClick={() => void cancelAnalysis()}>AI 검토 취소</button>}
       <div className="manuscript-toolbar">
         <div className="chapter-select">
           <label>
@@ -199,7 +222,11 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         </div>
         <div className="toolbar-actions">
           <span className="save-status" role="status">
-            {storageError ? '저장 실패 · 입력 유지' : '브라우저에 자동 저장'}
+            {storageError
+              ? '저장 실패 · 입력 유지'
+              : work.source === 'server'
+                ? '서버에 자동 저장'
+                : '브라우저에 자동 저장'}
           </span>
           <button disabled={analyzing} onClick={() => setOptionsOpen(true)}>
             <Icon name="settings" />
@@ -207,7 +234,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           </button>
           <button className="primary" disabled={analyzing || !chapter} onClick={analyze}>
             <Icon name="spark" />
-            {analyzing ? '분석 중…' : 'AI 시연 분석'}
+            {analyzing ? '분석 중…' : 'AI 검토'}
           </button>
         </div>
       </div>
@@ -368,7 +395,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
               )}
             </fieldset>
             <fieldset>
-              <legend>이전 원고 · 범위 표시용</legend>
+              <legend>참고할 이전 원고</legend>
               {work.chapters
                 .filter((item) => item.id !== chapter?.id)
                 .map((item) => (
@@ -388,14 +415,14 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             <label className="check">
               <input
                 type="checkbox"
-                checked={simulatedFailure}
-                onChange={(event) => setSimulatedFailure(event.target.checked)}
+                checked={consent}
+                onChange={(event) => setConsent(event.target.checked)}
               />
-              분석 실패 상태 시연
+              선택한 원고·확정 설정·검토 판단을 Gemini로 전송하는 데 동의합니다.
             </label>
             <p className="notice small">
-              실제 AI 호출 없이 샘플 문장과 확정 설정을 비교합니다. 첫 샘플 작품의 2화에서 두 가지
-              검토 후보를 확인할 수 있습니다.
+              현재 원고와 선택한 이전 회차·확정 설정을 외부 AI에 전송합니다. 결과는 검토 후보이며
+              설정을 자동으로 변경하지 않습니다.
             </p>
             {error && (
               <p className="error" role="alert">

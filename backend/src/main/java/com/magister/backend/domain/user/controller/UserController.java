@@ -14,7 +14,6 @@ import com.magister.backend.global.response.ApiResult;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
@@ -34,15 +33,13 @@ public class UserController implements UserControllerDocs {
 
     @Override
     @PostMapping("/email/check")
-    public ApiResult<EmailCheckResponse> checkEmail(
-            @Valid @RequestBody EmailCheckRequest request) {
+    public ApiResult<EmailCheckResponse> checkEmail(@RequestBody EmailCheckRequest request) {
         return ApiResult.success(new EmailCheckResponse(users.isEmailAvailable(request.email())));
     }
 
     @Override
     @PostMapping
-    public ResponseEntity<ApiResult<UserResponse>> signup(
-            @Valid @RequestBody SignupRequest request) {
+    public ResponseEntity<ApiResult<UserResponse>> signup(@RequestBody SignupRequest request) {
         return ResponseEntity.created(URI.create("/api/user/me"))
                 .body(ApiResult.success(users.signup(request)));
     }
@@ -56,7 +53,7 @@ public class UserController implements UserControllerDocs {
     @Override
     @PostMapping("/login")
     public ApiResult<UserResponse> login(
-            @Valid @RequestBody LoginRequest input,
+            @RequestBody LoginRequest input,
             HttpServletRequest request,
             HttpServletResponse response) {
         return ApiResult.success(sessions.login(input, request, response));

@@ -46,8 +46,9 @@ export interface StoryEvent {
   chapterId: string
   quote: string
 }
-// 작품 정보·설정은 서버에 저장한다. 원고·분석·사건은 API 연결 전까지 브라우저 초안이다.
+// 작품 정보·설정은 서버에 저장한다. 원고·분석·사건은 별도 workspaceVersion으로 충돌을 검사한다.
 export interface Work {
+  workspaceVersion?: number
   source?: 'server' | 'local'
   version?: number
   id: string

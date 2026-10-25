@@ -1,4 +1,4 @@
-import { httpClient } from '../../shared/httpClient'
+import { httpClient, clearCsrfToken } from '../../shared/httpClient'
 import { readInteger, readRecord, readString } from '../../shared/responseReader'
 import type { User } from './authTypes'
 
@@ -32,9 +32,11 @@ export const authClient = {
         expireSessionOnUnauthorized: false,
       },
     )
+    clearCsrfToken()
     return parseUser(response)
   },
   async logout(): Promise<void> {
     await httpClient.post('/user/logout')
+    clearCsrfToken()
   },
 }

@@ -82,7 +82,7 @@ export function TimelinePanel({ work }: { work: Work }) {
         <div>
           <h2>이야기가 흘러온 시간</h2>
           <p className="small muted">
-            샘플 사건을 시간순으로 살펴보고, 시점과 원문을 직접 정리하세요.
+            등록한 사건을 시간순으로 살펴보고, 시점과 원문을 직접 정리하세요.
           </p>
         </div>
         <button className="primary" onClick={() => open('new')}>

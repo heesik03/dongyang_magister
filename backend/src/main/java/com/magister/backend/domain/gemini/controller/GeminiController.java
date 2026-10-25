@@ -6,8 +6,6 @@ import com.magister.backend.domain.gemini.dto.GeminiResponse;
 import com.magister.backend.domain.gemini.service.GeminiService;
 import com.magister.backend.global.response.ApiResult;
 
-import jakarta.validation.Valid;
-
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.MediaType;
@@ -25,7 +23,7 @@ public class GeminiController implements GeminiControllerDocs {
 
     @Override
     @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ApiResult<GeminiResponse> generate(@Valid @RequestBody GeminiRequest request) {
+    public ApiResult<GeminiResponse> generate(@RequestBody GeminiRequest request) {
         return ApiResult.success(geminiService.generate(request));
     }
 }

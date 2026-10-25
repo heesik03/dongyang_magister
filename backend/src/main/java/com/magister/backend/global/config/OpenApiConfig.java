@@ -13,8 +13,6 @@ import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.List;
-
 @Configuration(proxyBeanMethods = false)
 public class OpenApiConfig {
     @Bean
@@ -41,14 +39,7 @@ public class OpenApiConfig {
                     new Operation().summary("로그아웃").addTagsItem("User").responses(responses);
             logout.setDescription("CSRF 헤더가 필요합니다. 세션을 무효화하고 세션 쿠키를 삭제합니다.");
             api.path("/api/user/logout", new PathItem().post(logout));
-            SecurityRequirement requirement = new SecurityRequirement().addList("session");
-            for (String path : List.of("/api/user/me", "/api/user/logout", "/api/gemini")) {
-                if (api.getPaths().containsKey(path)) {
-                    for (Operation operation : api.getPaths().get(path).readOperations()) {
-                        operation.addSecurityItem(requirement);
-                    }
-                }
-            }
+            logout.addSecurityItem(new SecurityRequirement().addList("session"));
         };
     }
 }

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../auth/useAuthStore'
 import { useWorksStore } from './useWorksStore'
+import { GENRES } from './workGenres'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 
@@ -12,6 +13,7 @@ export function LibraryPage() {
   const loading = useWorksStore((state) => state.loading)
   const listError = useWorksStore((state) => state.listError)
   const listPage = useWorksStore((state) => state.listPage)
+  const totalElements = useWorksStore((state) => state.totalElements)
   const totalPages = useWorksStore((state) => state.totalPages)
   const loadWorks = useWorksStore((state) => state.loadWorks)
   const createWork = useWorksStore((state) => state.createWork)
@@ -114,7 +116,10 @@ export function LibraryPage() {
       </div>
       <div className="section-line">
         <h2>
-          나의 작품 <span className="muted small">{filtered.length}</span>
+          나의 작품{' '}
+          <span className="muted small">
+            {totalElements}개 중 {listedIds.length}개 불러옴
+          </span>
         </h2>
         <span className="small muted">최근 수정 순</span>
       </div>
@@ -228,11 +233,9 @@ export function LibraryPage() {
                 <label>
                   장르
                   <select name="genre">
-                    {['판타지', '로맨스', '현대 드라마', '역사', '미스터리', 'SF', '기타'].map(
-                      (item) => (
-                        <option key={item}>{item}</option>
-                      ),
-                    )}
+                    {GENRES.map((item) => (
+                      <option key={item}>{item}</option>
+                    ))}
                   </select>
                 </label>
                 <label>

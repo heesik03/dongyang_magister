@@ -62,14 +62,17 @@ public class WorkSetting {
     }
 
     public void assignWork(Work work) {
-        // 설정을 다른 작품으로 옮길 수 없도록 하고 역방향 컬렉션도 함께 유지한다.
-        if (this.work != null && this.work != work) {
+        Objects.requireNonNull(work);
+        // 같은 영속 엔티티의 프록시/실체를 재전달해도 관계를 중복 연결하지 않는다.
+        if (this.work != null) {
+            if (this.work == work
+                    || (this.work.getId() != null && this.work.getId().equals(work.getId())))
+                return;
             throw new IllegalStateException("설정이 속한 작품은 변경할 수 없습니다.");
         }
-        this.work = Objects.requireNonNull(work);
-        if (!work.getSettings().contains(this)) {
-            work.getSettings().add(this);
-        }
+        this.work = work;
+        // contains()는 LAZY 컬렉션 전체를 읽는다. 최초 연결 한 번만 수행해 중복을 방지한다.
+        work.getSettings().add(this);
     }
 
     public void update(String title, SettingKind kind, SettingStatus status, String content) {

@@ -1,3 +1,4 @@
+import { clearCsrfToken } from '../src/shared/httpClient'
 // @vitest-environment jsdom
 import { beforeEach, expect, test, vi } from 'vitest'
 
@@ -5,7 +6,10 @@ const { request } = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('axios', () => ({ default: { create: () => ({ request }) } }))
 import { authClient } from '../src/features/auth/authClient'
 
-beforeEach(() => request.mockReset())
+beforeEach(() => {
+  request.mockReset()
+  clearCsrfToken()
+})
 
 function csrfResponse() {
   return {

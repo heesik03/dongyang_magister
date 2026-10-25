@@ -1,4 +1,4 @@
-import type { Analysis, Chapter, Review, Work } from '../works/workTypes'
+import type { Analysis, Chapter, Review, Work } from '../../src/features/works/workTypes'
 
 export interface AnalysisOptions {
   settingIds: string[]

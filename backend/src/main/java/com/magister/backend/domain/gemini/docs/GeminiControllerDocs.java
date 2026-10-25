@@ -9,19 +9,20 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import jakarta.validation.Valid;
+
 @Tag(name = "Gemini", description = "로컬 개발용 Gemini 연결 확인 API")
+@SecurityRequirement(name = "session")
 public interface GeminiControllerDocs {
 
     @Operation(
             summary = "Gemini 텍스트 생성",
             description = "입력 최대 2,000자, 출력 최대 1,024토큰. 동시 1건, 호출 간격 최소 5초. 실제 Gemini API를 호출합니다.")
     @ApiResponses({
-        @ApiResponse(
-                responseCode = "200",
-                description = "텍스트 생성 성공",
-                useReturnTypeSchema = true),
+        @ApiResponse(responseCode = "200", description = "텍스트 생성 성공", useReturnTypeSchema = true),
         @ApiResponse(
                 responseCode = "400",
                 description = "입력 검증 또는 JSON 형식 오류",
@@ -65,5 +66,5 @@ public interface GeminiControllerDocs {
                                 mediaType = "application/json",
                                 schema = @Schema(implementation = ApiResult.class)))
     })
-    ApiResult<GeminiResponse> generate(GeminiRequest request);
+    ApiResult<GeminiResponse> generate(@Valid GeminiRequest request);
 }

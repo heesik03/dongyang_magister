@@ -65,18 +65,25 @@ public class Work {
     }
 
     public void assignOwner(User owner) {
-        // 소유권 이전은 지원하지 않으며, 생성 시 양쪽 객체의 관계를 함께 맞춘다.
-        if (this.owner != null && this.owner != owner) {
+        Objects.requireNonNull(owner);
+        // 같은 영속 엔티티의 프록시/실체를 재전달해도 관계를 중복 연결하지 않는다.
+        if (this.owner != null) {
+            if (this.owner == owner
+                    || (this.owner.getId() != null && this.owner.getId().equals(owner.getId())))
+                return;
             throw new IllegalStateException("작품 소유자는 변경할 수 없습니다.");
         }
-        this.owner = Objects.requireNonNull(owner);
-        if (!owner.getWorks().contains(this)) {
-            owner.getWorks().add(this);
-        }
+        this.owner = owner;
+        // contains()는 LAZY 컬렉션 전체를 읽는다. 최초 연결 한 번만 수행해 중복을 방지한다.
+        owner.getWorks().add(this);
     }
 
     public void addSetting(WorkSetting setting) {
         setting.assignWork(this);
+    }
+
+    public void touch() {
+        updatedAt = Instant.now();
     }
 
     public void update(String title, String genre, String era, String description) {

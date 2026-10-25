@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { runMockAnalysis } from '../src/features/review/mockAnalysis.ts'
+import { runMockAnalysis } from './fixtures/mockAnalysis.ts'
 import { createSampleWorks } from './fixtures/sampleWorks.ts'
 import { isWorks } from '../src/features/works/workStorage.ts'
 

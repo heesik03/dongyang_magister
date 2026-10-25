@@ -19,7 +19,24 @@ function ShellContent() {
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   const error = useAuthStore((state) => state.error)
-  const works = useWorksStore((state) => state.works)
+  const cachedWorks = useWorksStore((state) => state.works)
+  const shortcutIds = useWorksStore((state) => state.shortcutIds)
+  const shortcutError = useWorksStore((state) => state.shortcutError)
+  const works = cachedWorks.filter(
+    (work) => work.source !== 'server' || shortcutIds.includes(work.id),
+  )
+  const [logoutError, setLogoutError] = useState('')
+  async function leave() {
+    const state = useWorksStore.getState()
+    await Promise.all(state.dirtyIds.map((id) => state.flushWorkspace(id)))
+    if (useWorksStore.getState().dirtyIds.length) {
+      setLogoutError(
+        '저장되지 않은 입력이 있습니다. 저장 또는 복구본 다운로드 후 로그아웃해 주세요.',
+      )
+      return
+    }
+    await logout()
+  }
   const storageError = useWorksStore((state) => state.storageError)
   const retrySave = useWorksStore((state) => state.retrySave)
   const [collapsed, setCollapsed] = useState(false)
@@ -67,7 +84,7 @@ function ShellContent() {
               <strong>{user?.name} 작가님</strong>
               <span className="small muted">개인 작업 공간</span>
             </div>
-            <button className="icon-button" aria-label="로그아웃" onClick={logout}>
+            <button className="icon-button" aria-label="로그아웃" onClick={() => void leave()}>
               <Icon name="logout" />
             </button>
           </div>
@@ -87,11 +104,17 @@ function ShellContent() {
               나의 작업 공간 <span className="breadcrumb">/</span> Magister
             </span>
           </div>
-          <span className="demo-tag">원고·AI 시연</span>
+          <span className="demo-tag">개인 창작 작업 공간</span>
         </header>
-        {error && (
+        {(error || logoutError) && (
           <div role="alert" className="storage-error">
-            {error}
+            {error || logoutError}
+          </div>
+        )}
+        {shortcutError && (
+          <div role="alert">
+            작품 바로가기 조회 실패{' '}
+            <button onClick={() => void useWorksStore.getState().loadShortcuts()}>다시 시도</button>
           </div>
         )}
         {storageError && (
@@ -102,7 +125,8 @@ function ShellContent() {
         )}
         <Outlet />
         <footer className="app-footer">
-          원고는 이 브라우저에만 저장되며 외부로 전송되지 않습니다.
+          작품·설정·원고·판단·타임라인은 서버에 저장됩니다. AI 검토 실행 시 선택한 원고와 설정을
+          Gemini로 전송합니다.
         </footer>
       </div>
       {drawer && (

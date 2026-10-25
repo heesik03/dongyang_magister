@@ -102,6 +102,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpectedException(
             Exception exception, WebRequest request) {
+        // 공급자 예외 메시지/요청 본문은 기록하지 않고 타입과 코드 위치만 남긴다.
+        log.error(
+                "Unexpected API exception: type={}, location={}",
+                exception.getClass().getName(),
+                exception.getStackTrace().length == 0 ? "unknown" : exception.getStackTrace()[0]);
         ErrorCode error = CommonErrorCode.INTERNAL_SERVER_ERROR;
         return createResponseEntity(
                 ApiResult.failure(error), new HttpHeaders(), error.getHttpStatus(), request);

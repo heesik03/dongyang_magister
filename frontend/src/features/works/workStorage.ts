@@ -30,7 +30,8 @@ export function isWorks(value: unknown): value is Work[] {
           record(c) &&
           strings(c, ['id', 'title', 'content']) &&
           typeof c.revision === 'number' &&
-          Number.isInteger(c.revision),
+          Number.isSafeInteger(c.revision) &&
+          c.revision >= 1,
       ) &&
       arrayOf(
         work.events,
@@ -42,6 +43,11 @@ export function isWorks(value: unknown): value is Work[] {
           record(a) &&
           strings(a, ['chapterId', 'source', 'createdAt']) &&
           typeof a.revision === 'number' &&
+          Number.isSafeInteger(a.revision) &&
+          a.revision >= 1 &&
+          (a.settingsSnapshot === undefined ||
+            a.settingsSnapshot === null ||
+            typeof a.settingsSnapshot === 'string') &&
           arrayOf(a.settingIds, (id) => typeof id === 'string') &&
           arrayOf(a.previousIds, (id) => typeof id === 'string') &&
           arrayOf(

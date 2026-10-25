@@ -1,3 +1,4 @@
+import { clearCsrfToken } from '../src/shared/httpClient'
 // @vitest-environment jsdom
 import { beforeEach, expect, test, vi } from 'vitest'
 
@@ -37,7 +38,10 @@ function success(data: unknown) {
 function csrf() {
   return success({ headerName: 'X-CSRF-TOKEN', token: 'test-csrf' })
 }
-beforeEach(() => request.mockReset())
+beforeEach(() => {
+  request.mockReset()
+  clearCsrfToken()
+})
 
 test('작품 목록의 검색·페이지·취소 신호를 전달하고 정상 빈 결과를 유지한다', async () => {
   const signal = new AbortController().signal
@@ -86,7 +90,7 @@ test('작품별 설정 생성·수정에서 서버 코드와 설정 버전을 �
       data: { ...settingInput, kind: 'CHARACTER', status: 'CONFIRMED' },
     }),
   )
-  request.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(success({ ...setting, version: 5 }))
+  request.mockResolvedValueOnce(success({ ...setting, version: 5 }))
   await settingClient.update('1', created, settingInput)
   expect(request).toHaveBeenLastCalledWith(
     expect.objectContaining({
@@ -148,4 +152,41 @@ test('잘못된 설정 코드와 성공 응답 형식을 mock 결과로 대신�
   await expect(settingClient.list('1')).rejects.toThrow('설정 종류')
   request.mockResolvedValueOnce({ status: 200, data: { items: [work] } })
   await expect(workClient.list()).rejects.toThrow('서버 응답 형식')
+})
+
+test('설정이 100개를 넘어도 마지막 페이지까지 조회한다', async () => {
+  request
+    .mockResolvedValueOnce(
+      success({
+        items: Array.from({ length: 100 }, (_, index) => ({ ...setting, id: index + 1 })),
+        page: 0,
+        size: 100,
+        totalElements: 101,
+        totalPages: 2,
+      }),
+    )
+    .mockResolvedValueOnce(
+      success({
+        items: [{ ...setting, id: 101 }],
+        page: 1,
+        size: 100,
+        totalElements: 101,
+        totalPages: 2,
+      }),
+    )
+  const result = await settingClient.listAll('1')
+  expect(result).toHaveLength(101)
+  expect(result[100].id).toBe('101')
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({ params: expect.objectContaining({ page: 1, size: 100 }) }),
+  )
+})
+test('같은 세션에서는 CSRF 토큰 조회를 재사용한다', async () => {
+  request
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(success(work))
+    .mockResolvedValueOnce(success(work))
+  await workClient.create(work)
+  await workClient.update('1', work, 2)
+  expect(request.mock.calls.filter(([config]) => config.url === '/user/csrf')).toHaveLength(1)
 })

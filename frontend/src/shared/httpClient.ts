@@ -10,6 +10,14 @@ const transport = axios.create({
   timeout: 15000,
   validateStatus: () => true,
 })
+let csrfRevision = 0
+let csrfCache: { headerName: string; token: string } | undefined
+let csrfRequest: Promise<{ headerName: string; token: string }> | undefined
+export function clearCsrfToken() {
+  csrfRevision++
+  csrfCache = undefined
+  csrfRequest = undefined
+}
 export class ApiError extends Error {
   readonly status: number
   constructor(message: string, status: number) {
@@ -46,6 +54,7 @@ async function send(
 ): Promise<unknown> {
   const { expireSessionOnUnauthorized = true, ...config } = options
   const response = await transport.request<unknown>({ ...config, method, url: path, data, headers })
+  if (response.status === 401 || response.status === 403) clearCsrfToken()
   if (response.status < 200 || response.status >= 300) {
     if (response.status === 401 && expireSessionOnUnauthorized) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
@@ -58,17 +67,41 @@ async function send(
   }
   return body.data
 }
+async function getCsrfToken(
+  options: RequestOptions,
+): Promise<{ headerName: string; token: string }> {
+  if (csrfCache) return csrfCache
+  if (csrfRequest) return csrfRequest
+  const revision = csrfRevision
+  const pending = (async () => {
+    const raw = readRecord(
+      await send('GET', '/user/csrf', {
+        expireSessionOnUnauthorized: options.expireSessionOnUnauthorized,
+      }),
+    )
+    const headerName = readString(raw, 'headerName'),
+      token = readString(raw, 'token')
+    if (!headerName.trim() || !token.trim()) throw new Error('보안 토큰을 확인하지 못했습니다.')
+    const value = { headerName, token }
+    if (revision !== csrfRevision)
+      throw new Error('로그인 정보가 변경되었습니다. 다시 시도해 주세요.')
+    csrfCache = value
+    return value
+  })()
+  csrfRequest = pending
+  try {
+    return await pending
+  } finally {
+    if (csrfRequest === pending) csrfRequest = undefined
+  }
+}
 async function sendWithCsrf(
   method: 'POST' | 'PUT',
   path: string,
   data?: object,
   options: RequestOptions = {},
 ): Promise<unknown> {
-  // 로그인·로그아웃으로 세션이 바뀔 수 있으므로 변경 요청마다 현재 CSRF 토큰을 받는다.
-  const csrf = readRecord(await send('GET', '/user/csrf', options))
-  const headerName = readString(csrf, 'headerName')
-  const token = readString(csrf, 'token')
-  if (!headerName.trim() || !token.trim()) throw new Error('보안 토큰을 확인하지 못했습니다.')
+  const { headerName, token } = await getCsrfToken(options)
   return send(method, path, options, data, {
     'Content-Type': 'application/json',
     [headerName]: token,

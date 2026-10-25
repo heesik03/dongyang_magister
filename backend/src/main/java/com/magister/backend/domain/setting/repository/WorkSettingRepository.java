@@ -5,9 +5,13 @@ import com.magister.backend.domain.setting.entity.*;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.*;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface WorkSettingRepository extends JpaRepository<WorkSetting, Long> {
+    List<WorkSetting> findAllByWork_IdAndIdIn(Long workId, Collection<Long> ids);
+
     Optional<WorkSetting> findByIdAndWork_Id(Long id, Long workId);
 
     @Query(

@@ -14,6 +14,18 @@ const settingsPath = (workId: string) => '/work/' + encodeURIComponent(workId) +
 
 // 설정은 항상 작품에 속한다. 설정 ID만으로 조회·변경하는 경로는 제공하지 않는다.
 export const settingClient = {
+  async listAll(workId: string, signal?: AbortSignal): Promise<Setting[]> {
+    const items: Setting[] = []
+    let page = 0,
+      totalPages = 1
+    while (page < totalPages) {
+      const result = await settingClient.list(workId, { page, size: 100, signal })
+      items.push(...result.items)
+      totalPages = result.totalPages
+      page++
+    }
+    return items
+  },
   async list(
     workId: string,
     { kind = '전체', page = 0, size = 20, signal }: SettingListOptions = {},

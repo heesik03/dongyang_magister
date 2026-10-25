@@ -33,10 +33,15 @@ export function SettingsPanel({ work }: { work: Work }) {
     const data = new FormData(event.currentTarget)
     const title = String(data.get('title')).trim()
     const content = String(data.get('content'))
-    const kind = data.get('kind')
+    const inputKind = data.get('kind')
     const status = data.get('status')
     if (!title || !content.trim()) return
-    if (kind !== '인물' && kind !== '세계관' && kind !== '주요 사건' && kind !== '의도한 각색')
+    if (
+      inputKind !== '인물' &&
+      inputKind !== '세계관' &&
+      inputKind !== '주요 사건' &&
+      inputKind !== '의도한 각색'
+    )
       return
     if (status !== '확정' && status !== '아이디어' && status !== 'AI 후보') return
     setSaving(true)
@@ -44,13 +49,12 @@ export function SettingsPanel({ work }: { work: Work }) {
     try {
       const saved = await saveSetting(
         work,
-        { title, content, kind, status },
+        { title, content, kind: inputKind, status },
         editing && editing !== 'new' ? editing : undefined,
       )
       setSelectedId(saved.id)
-      setKind('전체')
       setEditing(null)
-      await loadSettings(work.id, '전체')
+      await loadSettings(work.id, kind)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : '설정을 저장하지 못했습니다.')
     } finally {

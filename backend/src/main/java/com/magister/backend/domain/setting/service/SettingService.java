@@ -28,6 +28,7 @@ public class SettingService {
         WorkSetting setting =
                 new WorkSetting(
                         work, request.title(), request.kind(), request.status(), request.content());
+        work.touch();
         return SettingResponse.from(settings.saveAndFlush(setting));
     }
 
@@ -53,11 +54,12 @@ public class SettingService {
     @Transactional
     public SettingResponse update(
             Long ownerId, Long workId, Long settingId, UpdateSettingRequest request) {
-        requireOwned(ownerId, workId);
+        Work work = requireOwned(ownerId, workId);
         WorkSetting setting = findSetting(workId, settingId);
         if (!setting.getVersion().equals(request.version()))
             throw new CustomException(WorkErrorCode.VERSION_CONFLICT);
         setting.update(request.title(), request.kind(), request.status(), request.content());
+        work.touch();
         settings.flush();
         return SettingResponse.from(setting);
     }
