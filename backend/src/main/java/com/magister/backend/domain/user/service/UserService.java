@@ -1,9 +1,9 @@
 package com.magister.backend.domain.user.service;
 
-import com.magister.backend.domain.user.UserErrorCode;
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.dto.UserResponse;
 import com.magister.backend.domain.user.entity.User;
+import com.magister.backend.domain.user.error.UserErrorCode;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.global.error.exception.CustomException;
 

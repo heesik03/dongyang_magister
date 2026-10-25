@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import type { Analysis, Decision, Review, Work } from '../works/types'
+import type { Analysis, Decision, Review, Work } from '../works/workTypes'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 
@@ -32,6 +32,7 @@ export function ReviewPanel({
         (filter === '미검토' ? review.decision === '미검토' : review.decision !== '미검토'),
     ) || []
   const selected = filtered.find((review) => review.id === selectedId) || filtered[0]
+  // 의도된 전개는 오류로 확정하지 않는다. 작가가 남긴 사유를 해당 후보에 함께 보관한다.
   function saveIntent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const note = String(new FormData(event.currentTarget).get('note')).trim()
@@ -46,7 +47,7 @@ export function ReviewPanel({
           <Icon name="spark" />
           검토 노트
         </h2>
-        <span className="badge info">AI 시연</span>
+        <span className="badge info">AI 검토</span>
       </div>
       <p className="small muted">근거를 읽고, 이야기의 의도를 알려 주세요.</p>
       <div role="status" aria-live="polite">
@@ -54,7 +55,7 @@ export function ReviewPanel({
           <div className="notice analyzing">
             <Icon name="spark" />
             <strong>선택한 원고와 설정을 비교하고 있어요.</strong>
-            <p className="small">샘플 검토 후보를 준비하는 중입니다.</p>
+            <p className="small">서버 작업 상태를 확인하고 있습니다.</p>
           </div>
         )}
       </div>
@@ -70,7 +71,7 @@ export function ReviewPanel({
           <h3>이야기를 함께 살펴볼까요?</h3>
           <p>
             확정 설정과 참고 범위를 고른 뒤<br />
-            시연 분석을 실행해 주세요.
+            AI 검토를 실행해 주세요.
           </p>
         </div>
       )}
@@ -99,7 +100,7 @@ export function ReviewPanel({
                 .map((id) => work.chapters.find((chapter) => chapter.id === id)?.title)
                 .join(', ') || '선택하지 않음'}
             </p>
-            <span>이전 원고는 범위 표시용이며 샘플 규칙의 비교 대상은 확정 설정입니다.</span>
+            <span>선택한 이전 원고와 확정 설정을 함께 참고한 결과입니다.</span>
           </div>
           {stale && (
             <p className="notice stale" role="status">
@@ -124,12 +125,12 @@ export function ReviewPanel({
               <h3>
                 {analysis.reviews.length
                   ? '이 상태의 항목이 없습니다'
-                  : '샘플 규칙과 일치하는 후보가 없어요'}
+                  : '확인된 검토 후보가 없어요'}
               </h3>
               <p>
                 {analysis.reviews.length
                   ? '다른 필터에서 검토 항목을 확인하세요.'
-                  : '이 결과는 고증·개연성 검토의 통과 판정이 아닙니다. 일반 원고는 실제 AI 연결 후 분석할 수 있습니다.'}
+                  : '이 결과는 고증·개연성 검토의 통과 판정이 아닙니다. 선택한 범위에 근거가 부족하면 AI가 후보를 제시하지 않을 수 있습니다.'}
               </p>
             </div>
           ) : (

@@ -38,8 +38,7 @@ class SignupControllerTests {
     @Test
     void stripsSurroundingWhitespaceBeforeValidation() throws Exception {
         var service = mock(UserService.class);
-        when(service.signup(any()))
-                .thenReturn(new UserResponse(1L, "writer@example.com", "작가"));
+        when(service.signup(any())).thenReturn(new UserResponse(1L, "writer@example.com", "작가"));
         var mvc =
                 MockMvcBuilders.standaloneSetup(new UserController(service, null))
                         .setControllerAdvice(new GlobalExceptionHandler())
@@ -49,7 +48,8 @@ class SignupControllerTests {
                         post("/api/user")
                                 .contentType("application/json")
                                 .content(
-                                        "{\"email\":\"  writer@example.com  \",\"name\":\"  작가  \",\"password\":\"Password1!\"}"))
+                                        "{\"email\":\"  writer@example.com  \",\"name\":\"  작가 "
+                                                + " \",\"password\":\"Password1!\"}"))
                 .andExpect(status().isCreated());
 
         verify(service).signup(new SignupRequest("writer@example.com", "작가", "Password1!"));

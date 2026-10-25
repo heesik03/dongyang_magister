@@ -1,12 +1,13 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { getReturnPath, useAuth } from './auth'
-import { ApiError, authApi } from './api'
+import { getReturnPath, useAuthStore } from './useAuthStore'
+import { authClient } from './authClient'
+import { ApiError } from '../../shared/httpClient'
 import { useEmailAvailability } from './useEmailAvailability'
 import { Icon } from '../../shared/Icon'
 
 export function AuthPage({ signup = false }: { signup?: boolean }) {
-  const { login } = useAuth()
+  const login = useAuthStore((state) => state.login)
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState('')
@@ -49,7 +50,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
     setError('')
     try {
       if (signup) {
-        await authApi.signup(name, email, password)
+        await authClient.signup(name, email, password)
         setPassword('')
         setConfirmation('')
         navigate('/login', {

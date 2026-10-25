@@ -1,39 +1,65 @@
-import { useState, type FormEvent } from 'react'
-import type { Setting, SettingKind, SettingStatus, Work } from '../works/types'
-import { useWorks } from '../works/store'
+import { useEffect, useState, type FormEvent } from 'react'
+import type { Setting, Work } from '../works/workTypes'
+import { useWorksStore } from '../works/useWorksStore'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 
 export function SettingsPanel({ work }: { work: Work }) {
-  const { updateWork } = useWorks()
+  const saveSetting = useWorksStore((state) => state.saveSetting)
+  const loadSettings = useWorksStore((state) => state.loadSettings)
+  const settingView = useWorksStore((state) => state.settingView)
   const [kind, setKind] = useState('전체')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    void loadSettings(work.id, kind)
+  }, [work.id, kind, loadSettings])
   const [selectedId, setSelectedId] = useState(work.settings[0]?.id || '')
   const [editing, setEditing] = useState<Setting | 'new' | null>(null)
-  const filtered = work.settings.filter((setting) => kind === '전체' || setting.kind === kind)
+  // 서버 페이지의 표시 순서는 유지하면서, 본문은 캐시에 병합된 최신 설정을 사용한다.
+  const filtered =
+    work.source === 'server'
+      ? settingView.workId === work.id && settingView.kind === kind
+        ? settingView.ids.flatMap((id) => {
+            const item = work.settings.find((setting) => setting.id === id)
+            return item ? [item] : []
+          })
+        : []
+      : work.settings.filter((setting) => kind === '전체' || setting.kind === kind)
   const selected = filtered.find((setting) => setting.id === selectedId) || filtered[0]
-  function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (saving) return
     const data = new FormData(event.currentTarget)
     const title = String(data.get('title')).trim()
-    const content = String(data.get('content')).trim()
-    if (!title || !content) return
-    const setting: Setting = {
-      id: editing && editing !== 'new' ? editing.id : crypto.randomUUID(),
-      title,
-      content,
-      kind: String(data.get('kind')) as SettingKind,
-      status: String(data.get('status')) as SettingStatus,
+    const content = String(data.get('content'))
+    const inputKind = data.get('kind')
+    const status = data.get('status')
+    if (!title || !content.trim()) return
+    if (
+      inputKind !== '인물' &&
+      inputKind !== '세계관' &&
+      inputKind !== '주요 사건' &&
+      inputKind !== '의도한 각색'
+    )
+      return
+    if (status !== '확정' && status !== '아이디어' && status !== 'AI 후보') return
+    setSaving(true)
+    setError('')
+    try {
+      const saved = await saveSetting(
+        work,
+        { title, content, kind: inputKind, status },
+        editing && editing !== 'new' ? editing : undefined,
+      )
+      setSelectedId(saved.id)
+      setEditing(null)
+      await loadSettings(work.id, kind)
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : '설정을 저장하지 못했습니다.')
+    } finally {
+      setSaving(false)
     }
-    updateWork({
-      ...work,
-      settings:
-        editing === 'new'
-          ? [...work.settings, setting]
-          : work.settings.map((item) => (item.id === setting.id ? setting : item)),
-    })
-    setSelectedId(setting.id)
-    setKind('전체')
-    setEditing(null)
   }
   const draft = editing && editing !== 'new' ? editing : null
   return (
@@ -62,6 +88,23 @@ export function SettingsPanel({ work }: { work: Work }) {
           </button>
         ))}
       </div>
+      {work.source === 'server' && settingView.loading && (
+        <p role="status">설정을 불러오고 있습니다.</p>
+      )}
+      {work.source === 'server' && settingView.error && (
+        <div role="alert" className="error">
+          {settingView.error}
+          <button onClick={() => void loadSettings(work.id, kind)}>다시 시도</button>
+        </div>
+      )}
+      {work.source === 'server' && settingView.page + 1 < settingView.totalPages && (
+        <button
+          disabled={settingView.loading}
+          onClick={() => void loadSettings(work.id, kind, settingView.page + 1)}
+        >
+          설정 더 불러오기
+        </button>
+      )}
       <div className="settings-layout">
         <div className="setting-list">
           {filtered.map((setting) => (
@@ -80,7 +123,7 @@ export function SettingsPanel({ work }: { work: Work }) {
               </span>
             </button>
           ))}
-          {!filtered.length && (
+          {!filtered.length && !settingView.loading && !settingView.error && (
             <div className="empty">
               <p>등록된 설정이 없습니다.</p>
               <button onClick={() => setEditing('new')}>첫 설정 등록</button>
@@ -113,47 +156,63 @@ export function SettingsPanel({ work }: { work: Work }) {
       {editing && (
         <Dialog
           title={editing === 'new' ? '설정 등록' : '설정 수정'}
-          onClose={() => setEditing(null)}
+          onClose={() => {
+            if (!saving) setEditing(null)
+          }}
         >
           <form className="stack" onSubmit={save}>
-            <label>
-              설정 이름
-              <input name="title" required maxLength={100} defaultValue={draft?.title} autoFocus />
-            </label>
-            <div className="form-grid">
+            <fieldset disabled={saving} className="form-fields">
               <label>
-                유형
-                <select name="kind" defaultValue={draft?.kind || '인물'}>
-                  {['인물', '세계관', '주요 사건', '의도한 각색'].map((item) => (
-                    <option key={item}>{item}</option>
-                  ))}
-                </select>
+                설정 이름
+                <input
+                  name="title"
+                  required
+                  maxLength={100}
+                  defaultValue={draft?.title}
+                  autoFocus
+                />
               </label>
+              <div className="form-grid">
+                <label>
+                  유형
+                  <select name="kind" defaultValue={draft?.kind || '인물'}>
+                    {['인물', '세계관', '주요 사건', '의도한 각색'].map((item) => (
+                      <option key={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  상태
+                  <select name="status" defaultValue={draft?.status || '확정'}>
+                    {['확정', '아이디어', 'AI 후보'].map((item) => (
+                      <option key={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <label>
-                상태
-                <select name="status" defaultValue={draft?.status || '확정'}>
-                  {['확정', '아이디어', 'AI 후보'].map((item) => (
-                    <option key={item}>{item}</option>
-                  ))}
-                </select>
+                설정 내용
+                <textarea
+                  name="content"
+                  required
+                  rows={6}
+                  maxLength={10000}
+                  defaultValue={draft?.content}
+                  placeholder="인물의 능력, 성격, 세계의 규칙을 기록하세요."
+                />
               </label>
-            </div>
-            <label>
-              설정 내용
-              <textarea
-                name="content"
-                required
-                rows={6}
-                defaultValue={draft?.content}
-                placeholder="인물의 능력, 성격, 세계의 규칙을 기록하세요."
-              />
-            </label>
-            <div className="dialog-actions">
-              <button type="button" onClick={() => setEditing(null)}>
-                취소
-              </button>
-              <button className="primary">설정 저장</button>
-            </div>
+              {error && (
+                <p role="alert" className="error">
+                  {error}
+                </p>
+              )}
+              <div className="dialog-actions">
+                <button type="button" onClick={() => setEditing(null)}>
+                  취소
+                </button>
+                <button className="primary">설정 저장</button>
+              </div>
+            </fieldset>
           </form>
         </Dialog>
       )}

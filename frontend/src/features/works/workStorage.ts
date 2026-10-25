@@ -1,0 +1,79 @@
+import type { Work } from './workTypes'
+
+function record(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+function strings(value: Record<string, unknown>, keys: string[]) {
+  return keys.every((key) => typeof value[key] === 'string')
+}
+function arrayOf(value: unknown, check: (entry: unknown) => boolean) {
+  return Array.isArray(value) && value.every(check)
+}
+// 브라우저에 남아 있는 원고와 판단 이력은 구조 검증 후에만 작업 공간으로 복원한다.
+export function isWorks(value: unknown): value is Work[] {
+  return arrayOf(
+    value,
+    (work) =>
+      record(work) &&
+      strings(work, ['id', 'title', 'genre', 'era', 'description', 'updatedAt']) &&
+      arrayOf(
+        work.settings,
+        (s) =>
+          record(s) &&
+          strings(s, ['id', 'title', 'content']) &&
+          ['인물', '세계관', '주요 사건', '의도한 각색'].includes(String(s.kind)) &&
+          ['확정', '아이디어', 'AI 후보'].includes(String(s.status)),
+      ) &&
+      arrayOf(
+        work.chapters,
+        (c) =>
+          record(c) &&
+          strings(c, ['id', 'title', 'content']) &&
+          typeof c.revision === 'number' &&
+          Number.isSafeInteger(c.revision) &&
+          c.revision >= 1,
+      ) &&
+      arrayOf(
+        work.events,
+        (e) => record(e) && strings(e, ['id', 'title', 'time', 'characters', 'chapterId', 'quote']),
+      ) &&
+      arrayOf(
+        work.analyses,
+        (a) =>
+          record(a) &&
+          strings(a, ['chapterId', 'source', 'createdAt']) &&
+          typeof a.revision === 'number' &&
+          Number.isSafeInteger(a.revision) &&
+          a.revision >= 1 &&
+          (a.settingsSnapshot === undefined ||
+            a.settingsSnapshot === null ||
+            typeof a.settingsSnapshot === 'string') &&
+          arrayOf(a.settingIds, (id) => typeof id === 'string') &&
+          arrayOf(a.previousIds, (id) => typeof id === 'string') &&
+          arrayOf(
+            a.reviews,
+            (r) =>
+              record(r) &&
+              strings(r, [
+                'id',
+                'quote',
+                'settingId',
+                'evidence',
+                'reason',
+                'suggestion',
+                'note',
+              ]) &&
+              ['설정 충돌 후보', '설명 보완'].includes(String(r.type)) &&
+              ['미검토', '수용', '보류', '의도된 설정'].includes(String(r.decision)),
+          ),
+      ),
+  )
+}
+
+export function readStoredWorks(key: string): Work[] {
+  const raw = localStorage.getItem(key)
+  if (!raw) return []
+  const value: unknown = JSON.parse(raw)
+  if (!isWorks(value)) throw new Error('저장된 데이터 형식이 올바르지 않습니다.')
+  return value
+}

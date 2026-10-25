@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { authApi } from './api'
+import { authClient } from './authClient'
 
 type Status = 'idle' | 'checking' | 'available' | 'unavailable' | 'error'
 
@@ -33,7 +33,7 @@ export function useEmailAvailability() {
     setStatus('checking')
     setMessage('이메일을 확인하고 있습니다.')
     try {
-      const available = await authApi.checkEmail(trimmed)
+      const available = await authClient.checkEmail(trimmed)
       // 입력을 바꾼 뒤 도착한 이전 이메일의 응답은 사용하지 않는다.
       if (version !== requestVersion.current) return
       setStatus(available ? 'available' : 'unavailable')

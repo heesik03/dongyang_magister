@@ -1,8 +1,11 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { getReturnPath, useAuth } from './auth'
+import { getReturnPath, useAuthStore } from './useAuthStore'
 
 export function ProtectedRoute() {
-  const { user, loading, error, retry } = useAuth()
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  const error = useAuthStore((state) => state.error)
+  const retry = useAuthStore((state) => state.retry)
   const location = useLocation()
   if (loading) return <p role="status">로그인 상태를 확인하고 있습니다.</p>
   if (error && !user)
@@ -20,7 +23,10 @@ export function ProtectedRoute() {
 }
 export function GuestRoute() {
   const location = useLocation()
-  const { user, loading, error, retry } = useAuth()
+  const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
+  const error = useAuthStore((state) => state.error)
+  const retry = useAuthStore((state) => state.retry)
   if (loading) return <p role="status">로그인 상태를 확인하고 있습니다.</p>
   if (error)
     return (

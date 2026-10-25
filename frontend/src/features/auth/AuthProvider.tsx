@@ -1,15 +1,16 @@
 import { useEffect, type ReactNode } from 'react'
-import { useAuth } from './auth'
+import { SESSION_EXPIRED_EVENT } from '../../shared/httpClient'
+import { useAuthStore } from './useAuthStore'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const controller = new AbortController()
-    const expire = () => useAuth.getState().expire()
-    window.addEventListener('auth-expired', expire)
-    void useAuth.getState().initialize(controller.signal)
+    const expire = () => useAuthStore.getState().expire()
+    window.addEventListener(SESSION_EXPIRED_EVENT, expire)
+    void useAuthStore.getState().initialize(controller.signal)
     return () => {
       controller.abort()
-      window.removeEventListener('auth-expired', expire)
+      window.removeEventListener(SESSION_EXPIRED_EVENT, expire)
     }
   }, [])
   return children

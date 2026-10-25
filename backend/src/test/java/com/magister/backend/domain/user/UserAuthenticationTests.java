@@ -1,10 +1,14 @@
 package com.magister.backend.domain.user;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.magister.backend.domain.gemini.dto.GeminiResponse;
+import com.magister.backend.domain.gemini.service.GeminiService;
 import com.magister.backend.domain.user.repository.UserRepository;
 
 import org.junit.jupiter.api.*;
@@ -12,11 +16,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import tools.jackson.databind.ObjectMapper;
 
-@org.springframework.test.context.ActiveProfiles("test")
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
 class UserAuthenticationTests {
@@ -24,8 +30,8 @@ class UserAuthenticationTests {
     @Autowired UserRepository users;
     @Autowired ObjectMapper json;
 
-    @org.springframework.test.context.bean.override.mockito.MockitoBean
-    com.magister.backend.domain.gemini.service.GeminiService gemini;
+    @MockitoBean
+    GeminiService gemini;
 
     @BeforeEach
     void clear() {
@@ -93,8 +99,8 @@ class UserAuthenticationTests {
                                 .contentType("application/json")
                                 .content("{\"prompt\":\"hello\"}"))
                 .andExpect(status().isForbidden());
-        org.mockito.Mockito.when(gemini.generate(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(new com.magister.backend.domain.gemini.dto.GeminiResponse("answer"));
+        when(gemini.generate(any()))
+                .thenReturn(new GeminiResponse("answer"));
         var fresh = mvc.perform(get("/api/user/csrf").session(session)).andReturn();
         String freshToken =
                 json.readTree(fresh.getResponse().getContentAsString())

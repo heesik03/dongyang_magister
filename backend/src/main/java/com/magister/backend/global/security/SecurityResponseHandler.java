@@ -1,7 +1,7 @@
 package com.magister.backend.global.security;
 
-import com.magister.backend.domain.user.UserErrorCode;
-import com.magister.backend.global.response.ApiResponse;
+import com.magister.backend.domain.user.error.UserErrorCode;
+import com.magister.backend.global.response.ApiResult;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -48,14 +48,14 @@ public class SecurityResponseHandler
     public void onLogoutSuccess(
             HttpServletRequest request, HttpServletResponse response, Authentication authentication)
             throws IOException {
-        write(response, HttpServletResponse.SC_OK, ApiResponse.success(null));
+        write(response, HttpServletResponse.SC_OK, ApiResult.success(null));
     }
 
     private void writeError(HttpServletResponse response, UserErrorCode code) throws IOException {
-        write(response, code.getHttpStatus().value(), ApiResponse.failure(code));
+        write(response, code.getHttpStatus().value(), ApiResult.failure(code));
     }
 
-    private void write(HttpServletResponse response, int status, ApiResponse<?> body)
+    private void write(HttpServletResponse response, int status, ApiResult<?> body)
             throws IOException {
         // 보안 필터의 예외는 ControllerAdvice에 도달하지 않으므로 같은 응답 계약으로 직접 직렬화한다.
         response.setStatus(status);

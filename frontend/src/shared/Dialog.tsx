@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Icon } from './Icon'
 
 export function Dialog({
@@ -10,6 +10,7 @@ export function Dialog({
   onClose: () => void
   children: ReactNode
 }) {
+  const titleId = useId()
   const ref = useRef<HTMLDialogElement>(null)
   const [dirty, setDirty] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
@@ -21,7 +22,9 @@ export function Dialog({
     const previous = document.activeElement
     const dialog = ref.current
     dialog?.showModal()
-    const firstInput = dialog?.querySelector('input, textarea, select')
+    const firstInput = dialog?.querySelector(
+      '[autofocus], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], button:not(:disabled), [tabindex="0"]',
+    )
     if (firstInput instanceof HTMLElement) firstInput.focus()
     return () => {
       dialog?.close()
@@ -31,7 +34,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      aria-labelledby="dialog-title"
+      aria-labelledby={titleId}
       onInputCapture={(event) => {
         if (event.target instanceof HTMLElement && event.target.closest('form')) setDirty(true)
       }}
@@ -41,7 +44,7 @@ export function Dialog({
       }}
     >
       <div className="dialog-heading">
-        <h2 id="dialog-title">{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button className="icon-button" aria-label="닫기" onClick={requestClose}>
           <Icon name="close" />
         </button>

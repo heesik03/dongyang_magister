@@ -1,64 +1,53 @@
-import { useState, type ReactNode } from 'react'
-import { WorksContext, isWorks } from './store'
-import { createSampleWorks } from './sample'
-import type { Work } from './types'
-
+import { useEffect, type ReactNode } from 'react'
+import { isRecord } from '../../shared/responseReader'
+import { useWorksStore } from './useWorksStore'
 export function WorksProvider({ email, children }: { email: string; children: ReactNode }) {
-  const storageKey = `magister.works.v1:${email}`
-  const [initial] = useState(() => {
-    try {
-      const raw = localStorage.getItem(storageKey)
-      if (!raw) return { works: createSampleWorks(), error: '' }
-      const value: unknown = JSON.parse(raw)
-      if (isWorks(value)) return { works: value, error: '' }
-      return {
-        works: [] as Work[],
-        error:
-          '저장된 데이터 형식을 읽을 수 없습니다. 기존 저장 내용은 유지하며 현재 변경은 메모리에만 보관합니다.',
+  const account = useWorksStore((state) => state.account)
+  useEffect(() => {
+    useWorksStore.getState().initialize(email)
+    void useWorksStore.getState().loadShortcuts()
+    function preserve() {
+      const state = useWorksStore.getState()
+      for (const id of state.dirtyIds) {
+        const work = state.works.find((item) => item.id === id)
+        try {
+          sessionStorage.setItem('magister.recovery:' + email + ':' + id, JSON.stringify(work))
+        } catch {
+          useWorksStore.setState({
+            storageError: '복구 정보 저장에 실패했습니다. 입력을 파일로 보관해 주세요.',
+          })
+        }
+        void state.flushWorkspace(id)
       }
-    } catch {
-      return {
-        works: [] as Work[],
-        error: '브라우저 저장 데이터를 읽지 못했습니다. 현재 변경은 메모리에만 보관합니다.',
+      state.retrySave()
+    }
+    function leave(event: BeforeUnloadEvent) {
+      if (useWorksStore.getState().dirtyIds.length) {
+        preserve()
+        event.preventDefault()
       }
     }
-  })
-  const [works, setWorks] = useState(initial.works)
-  const [storageError, setStorageError] = useState(initial.error)
-  function persist(nextWorks: Work[]) {
-    setWorks(nextWorks)
-    if (initial.error) return
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(nextWorks))
-      setStorageError('')
-    } catch {
-      setStorageError(
-        '브라우저 저장에 실패했습니다. 입력은 현재 화면에 유지됩니다. 저장 공간을 확인하고 다시 시도해 주세요.',
-      )
+    function remote(event: StorageEvent) {
+      if (event.key !== 'magister.workspace-saved:' + email || !event.newValue) return
+      try {
+        const value: unknown = JSON.parse(event.newValue)
+        if (isRecord(value) && typeof value.id === 'string' && typeof value.version === 'number')
+          useWorksStore.getState().handleRemoteSave(value.id, value.version)
+      } catch {
+        return
+      }
     }
-  }
-  function retrySave() {
-    if (initial.error) return
-    persist(works)
-  }
-  function updateWork(work: Work) {
-    persist(
-      works.map((item) =>
-        item.id === work.id ? { ...work, updatedAt: new Date().toISOString() } : item,
-      ),
-    )
-  }
-  return (
-    <WorksContext
-      value={{
-        works,
-        storageError,
-        retrySave,
-        updateWork,
-        addWork: (work) => persist([work, ...works]),
-      }}
-    >
-      {children}
-    </WorksContext>
-  )
+    window.addEventListener('pagehide', preserve)
+    window.addEventListener('beforeunload', leave)
+    window.addEventListener('storage', remote)
+    return () => {
+      preserve()
+      window.removeEventListener('pagehide', preserve)
+      window.removeEventListener('beforeunload', leave)
+      window.removeEventListener('storage', remote)
+      useWorksStore.getState().reset()
+    }
+  }, [email])
+  if (account !== email) return <p role="status">작품을 준비하고 있습니다.</p>
+  return children
 }

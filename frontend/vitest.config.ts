@@ -3,5 +3,5 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  test: { include: ['tests/*.test.mjs', 'tests/*.test.tsx'] },
+  test: { maxWorkers: 2, include: ['tests/**/*.test.{ts,tsx,mjs}'] },
 })
