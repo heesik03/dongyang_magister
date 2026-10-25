@@ -49,7 +49,7 @@ class SignupControllerTests {
                                 .contentType("application/json")
                                 .content(
                                         "{\"email\":\"  writer@example.com  \",\"name\":\"  작가 "
-                                            + " \",\"password\":\"Password1!\"}"))
+                                                + " \",\"password\":\"Password1!\"}"))
                 .andExpect(status().isCreated());
 
         verify(service).signup(new SignupRequest("writer@example.com", "작가", "Password1!"));

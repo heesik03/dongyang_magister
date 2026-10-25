@@ -29,12 +29,14 @@ class WorkApiTests {
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
     @Autowired WorkRepository works;
+    @Autowired com.magister.backend.domain.setting.repository.WorkSettingRepository settings;
     @Autowired ObjectMapper json;
     private UsernamePasswordAuthenticationToken owner;
     private UsernamePasswordAuthenticationToken other;
 
     @BeforeEach
     void prepare() {
+        settings.deleteAll();
         works.deleteAll();
         User first =
                 users.saveAndFlush(
@@ -115,5 +117,76 @@ class WorkApiTests {
                                 .contentType("application/json")
                                 .content(body().replace("새 작품", " ")))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void settingsRespectOwnershipScopeFiltersAndVersion() throws Exception {
+        long id =
+                json.readTree(
+                                mvc.perform(
+                                                post("/api/work")
+                                                        .with(authentication(owner))
+                                                        .with(csrf())
+                                                        .contentType("application/json")
+                                                        .content(body()))
+                                        .andReturn()
+                                        .getResponse()
+                                        .getContentAsString())
+                        .path("data")
+                        .path("id")
+                        .asLong();
+        String path = "/api/work/" + id + "/setting";
+        String settingBody =
+                "{\"title\":\"인물"
+                    + " 능력\",\"kind\":\"CHARACTER\",\"status\":\"CONFIRMED\",\"content\":\"마법 사용"
+                    + " 불가\"}";
+        String response =
+                mvc.perform(
+                                post(path)
+                                        .with(authentication(owner))
+                                        .with(csrf())
+                                        .contentType("application/json")
+                                        .content(settingBody))
+                        .andExpect(status().isCreated())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        long settingId = json.readTree(response).path("data").path("id").asLong();
+        mvc.perform(get(path).with(authentication(owner)).param("status", "IDEA"))
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+        mvc.perform(get(path + "/" + settingId).with(authentication(other)))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(path).with(authentication(other))).andExpect(status().isNotFound());
+        String update = settingBody.replace("불가", "가능").replace("}", ",\"version\":0}");
+        mvc.perform(
+                        put(path + "/" + settingId)
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content(update))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(1));
+        mvc.perform(
+                        put(path + "/" + settingId)
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content(update))
+                .andExpect(status().isConflict());
+        mvc.perform(
+                        post(path)
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content(settingBody.replace("CHARACTER", "UNKNOWN")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get(path).with(authentication(owner)).param("size", "0"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.paths['/api/work/{workId}/setting'].post.responses['201']")
+                                .exists())
+                .andExpect(jsonPath("$.paths['/api/user'].post.responses['409']").exists());
     }
 }
