@@ -1,5 +1,7 @@
 package com.magister.backend.domain.setting.entity;
 
+import com.magister.backend.domain.work.entity.Work;
+
 import jakarta.persistence.*;
 
 import lombok.AccessLevel;
@@ -20,8 +22,13 @@ public class WorkSetting {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "work_id", nullable = false, updatable = false)
-    private Long workId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "work_id",
+            nullable = false,
+            updatable = false,
+            foreignKey = @ForeignKey(name = "fk_settings_work"))
+    private Work work;
 
     @Column(nullable = false, length = 100)
     private String title;
@@ -48,9 +55,20 @@ public class WorkSetting {
     @Version private Long version;
 
     public WorkSetting(
-            Long workId, String title, SettingKind kind, SettingStatus status, String content) {
-        this.workId = workId;
+            Work work, String title, SettingKind kind, SettingStatus status, String content) {
+        assignWork(work);
         update(title, kind, status, content);
+    }
+
+    public void assignWork(Work work) {
+        // 설정을 다른 작품으로 옮길 수 없도록 하고 역방향 컬렉션도 함께 유지한다.
+        if (this.work != null && this.work != work) {
+            throw new IllegalStateException("설정이 속한 작품은 변경할 수 없습니다.");
+        }
+        this.work = java.util.Objects.requireNonNull(work);
+        if (!work.getSettings().contains(this)) {
+            work.getSettings().add(this);
+        }
     }
 
     public void update(String title, SettingKind kind, SettingStatus status, String content) {

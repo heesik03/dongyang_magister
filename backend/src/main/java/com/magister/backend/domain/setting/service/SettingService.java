@@ -4,6 +4,7 @@ import com.magister.backend.domain.setting.dto.*;
 import com.magister.backend.domain.setting.entity.*;
 import com.magister.backend.domain.setting.error.SettingErrorCode;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
+import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.repository.WorkRepository;
 import com.magister.backend.global.error.exception.CustomException;
@@ -23,14 +24,10 @@ public class SettingService {
 
     @Transactional
     public SettingResponse create(Long ownerId, Long workId, CreateSettingRequest request) {
-        requireOwned(ownerId, workId);
+        Work work = requireOwned(ownerId, workId);
         WorkSetting setting =
                 new WorkSetting(
-                        workId,
-                        request.title(),
-                        request.kind(),
-                        request.status(),
-                        request.content());
+                        work, request.title(), request.kind(), request.status(), request.content());
         return SettingResponse.from(settings.saveAndFlush(setting));
     }
 
@@ -65,15 +62,15 @@ public class SettingService {
         return SettingResponse.from(setting);
     }
 
-    private void requireOwned(Long ownerId, Long workId) {
+    private Work requireOwned(Long ownerId, Long workId) {
         // 비어 있는 설정 목록도 본인 작품인지 검사한 뒤 반환한다.
-        works.findByIdAndOwnerId(workId, ownerId)
+        return works.findByIdAndOwner_Id(workId, ownerId)
                 .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
     }
 
     private WorkSetting findSetting(Long workId, Long settingId) {
         // 다른 작품의 설정 ID를 끼워 넣는 요청도 차단한다.
-        return settings.findByIdAndWorkId(settingId, workId)
+        return settings.findByIdAndWork_Id(settingId, workId)
                 .orElseThrow(() -> new CustomException(SettingErrorCode.SETTING_NOT_FOUND));
     }
 }

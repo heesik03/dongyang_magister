@@ -17,7 +17,7 @@ public record SettingResponse(
     public static SettingResponse from(WorkSetting setting) {
         return new SettingResponse(
                 setting.getId(),
-                setting.getWorkId(),
+                setting.getWork().getId(),
                 setting.getTitle(),
                 setting.getKind(),
                 setting.getStatus(),

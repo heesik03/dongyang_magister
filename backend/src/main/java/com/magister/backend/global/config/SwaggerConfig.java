@@ -37,7 +37,8 @@ public class SwaggerConfig {
             ApiResponses responses = new ApiResponses();
             responses.addApiResponse("200", new ApiResponse().description("로그아웃 성공"));
             responses.addApiResponse("403", new ApiResponse().description("CSRF 토큰 누락 또는 만료"));
-            Operation logout = new Operation().summary("로그아웃").responses(responses);
+            Operation logout =
+                    new Operation().summary("로그아웃").addTagsItem("User").responses(responses);
             logout.setDescription("CSRF 헤더가 필요합니다. 세션을 무효화하고 세션 쿠키를 삭제합니다.");
             api.path("/api/user/logout", new PathItem().post(logout));
             SecurityRequirement requirement = new SecurityRequirement().addList("session");

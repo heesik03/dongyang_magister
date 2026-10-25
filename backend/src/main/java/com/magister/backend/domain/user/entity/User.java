@@ -1,10 +1,15 @@
 package com.magister.backend.domain.user.entity;
 
+import com.magister.backend.domain.work.entity.Work;
+
 import jakarta.persistence.*;
 
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(
@@ -25,6 +30,13 @@ public class User {
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
+
+    @OneToMany(mappedBy = "owner", fetch = FetchType.LAZY)
+    private List<Work> works = new ArrayList<>();
+
+    public void addWork(Work work) {
+        work.assignOwner(this);
+    }
 
     public User(String email, String name, String passwordHash) {
         this.email = email;

@@ -10,11 +10,11 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.Optional;
 
 public interface WorkRepository extends JpaRepository<Work, Long> {
-    Optional<Work> findByIdAndOwnerId(Long id, Long ownerId);
+    Optional<Work> findByIdAndOwner_Id(Long id, Long ownerId);
 
     @Query(
             """
-            select w from Work w where w.ownerId = :ownerId
+            select w from Work w where w.owner.id = :ownerId
             and (:keyword = '' or locate(lower(:keyword), lower(w.title)) > 0)
             and (:genre = '' or w.genre = :genre)
             """)

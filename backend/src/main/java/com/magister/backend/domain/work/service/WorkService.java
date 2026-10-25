@@ -1,5 +1,6 @@
 package com.magister.backend.domain.work.service;
 
+import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.work.dto.*;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
@@ -18,13 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class WorkService {
     private final WorkRepository works;
+    private final UserRepository users;
 
     @Transactional
     public WorkResponse create(Long ownerId, CreateWorkRequest request) {
         // 소유자는 요청 본문이 아닌 인증된 세션에서 전달받는다.
         Work work =
                 new Work(
-                        ownerId,
+                        users.getReferenceById(ownerId),
                         request.title(),
                         request.genre(),
                         request.era(),
@@ -60,7 +62,7 @@ public class WorkService {
     }
 
     private Work findOwned(Long ownerId, Long workId) {
-        return works.findByIdAndOwnerId(workId, ownerId)
+        return works.findByIdAndOwner_Id(workId, ownerId)
                 .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
     }
 }

@@ -1,6 +1,7 @@
 export type SettingKind = '인물' | '세계관' | '주요 사건' | '의도한 각색'
 export type SettingStatus = '확정' | '아이디어' | 'AI 후보'
 export interface Setting {
+  version?: number
   id: string
   title: string
   kind: SettingKind
@@ -44,6 +45,8 @@ export interface StoryEvent {
   quote: string
 }
 export interface Work {
+  source?: 'server' | 'local'
+  version?: number
   id: string
   title: string
   genre: string
