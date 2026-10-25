@@ -15,6 +15,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Entity
 @Table(name = "works")
@@ -68,7 +69,7 @@ public class Work {
         if (this.owner != null && this.owner != owner) {
             throw new IllegalStateException("작품 소유자는 변경할 수 없습니다.");
         }
-        this.owner = java.util.Objects.requireNonNull(owner);
+        this.owner = Objects.requireNonNull(owner);
         if (!owner.getWorks().contains(this)) {
             owner.getWorks().add(this);
         }

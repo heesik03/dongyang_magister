@@ -1,14 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth/auth'
-import { useWorks } from './store'
+import { useAuthStore } from '../auth/useAuthStore'
+import { useWorksStore } from './useWorksStore'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 
 export function LibraryPage() {
-  const { user } = useAuth()
-  const { works, listedIds, loading, listError, listPage, totalPages, loadWorks, createWork } =
-    useWorks()
+  const user = useAuthStore((state) => state.user)
+  const works = useWorksStore((state) => state.works)
+  const listedIds = useWorksStore((state) => state.listedIds)
+  const loading = useWorksStore((state) => state.loading)
+  const listError = useWorksStore((state) => state.listError)
+  const listPage = useWorksStore((state) => state.listPage)
+  const totalPages = useWorksStore((state) => state.totalPages)
+  const loadWorks = useWorksStore((state) => state.loadWorks)
+  const createWork = useWorksStore((state) => state.createWork)
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [genre, setGenre] = useState('전체')
@@ -68,11 +74,6 @@ export function LibraryPage() {
         <div>
           <h2>이야기의 세계를 차근차근 쌓아 보세요.</h2>
           <p>설정을 기록하고, 원고를 살펴보고, 다음 장면을 준비하는 공간입니다.</p>
-          {works.some((work) => work.id === 'moon-library') && (
-            <Link className="demo-link" to="/works/moon-library/manuscript">
-              샘플 작품으로 AI 검토 체험하기 →
-            </Link>
-          )}
         </div>
         <span className="badge green">작가의 판단이 먼저</span>
       </section>

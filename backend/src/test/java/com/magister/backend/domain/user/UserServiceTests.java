@@ -10,6 +10,7 @@ import com.magister.backend.domain.user.service.UserService;
 import com.magister.backend.global.error.exception.CustomException;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
 
@@ -21,7 +22,7 @@ class UserServiceTests {
         when(repository.saveAndFlush(any(User.class))).thenAnswer(call -> call.getArgument(0));
         new UserService(repository, encoder)
                 .signup(new SignupRequest("Writer@Example.com", "작가", "Password1!"));
-        var captor = org.mockito.ArgumentCaptor.forClass(User.class);
+        var captor = ArgumentCaptor.forClass(User.class);
         verify(repository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("writer@example.com");
         assertThat(encoder.matches("Password1!", captor.getValue().getPasswordHash())).isTrue();

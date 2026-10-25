@@ -1,8 +1,8 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { runMockAnalysis } from '../src/features/review/mockAnalysis.ts'
-import { createSampleWorks } from '../src/features/works/sample.ts'
-import { isWorks } from '../src/features/works/storage.ts'
+import { createSampleWorks } from './fixtures/sampleWorks.ts'
+import { isWorks } from '../src/features/works/workStorage.ts'
 
 const options = {
   settingIds: ['s-ian', 's-library'],

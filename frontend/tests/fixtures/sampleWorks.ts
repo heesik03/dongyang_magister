@@ -1,4 +1,4 @@
-import type { Work } from './types'
+import type { Work } from '../../src/features/works/workTypes'
 
 export function createSampleWorks(): Work[] {
   return [

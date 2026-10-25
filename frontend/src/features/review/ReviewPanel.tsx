@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import type { Analysis, Decision, Review, Work } from '../works/types'
+import type { Analysis, Decision, Review, Work } from '../works/workTypes'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 
@@ -32,6 +32,7 @@ export function ReviewPanel({
         (filter === '미검토' ? review.decision === '미검토' : review.decision !== '미검토'),
     ) || []
   const selected = filtered.find((review) => review.id === selectedId) || filtered[0]
+  // 의도된 전개는 오류로 확정하지 않는다. 작가가 남긴 사유를 해당 후보에 함께 보관한다.
   function saveIntent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const note = String(new FormData(event.currentTarget).get('note')).trim()

@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import type { StoryEvent, Work } from '../works/types'
-import { useWorks } from '../works/store'
+import type { StoryEvent, Work } from '../works/workTypes'
+import { useWorksStore } from '../works/useWorksStore'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 
 export function TimelinePanel({ work }: { work: Work }) {
-  const { updateWork } = useWorks()
+  const updateWork = useWorksStore((state) => state.updateWork)
   const [editing, setEditing] = useState<StoryEvent | 'new' | null>(null)
   const [chapterId, setChapterId] = useState(work.chapters[0]?.id || '')
   const draft = editing && editing !== 'new' ? editing : null
@@ -40,12 +40,14 @@ export function TimelinePanel({ work }: { work: Work }) {
     })
     setEditing(null)
   }
+  // 시점이 없는 사건을 임의로 시간순에 끼워 넣지 않고 별도 목록으로 표시한다.
   const known = work.events
     .filter((event) => event.time)
     .sort((a, b) => a.time.localeCompare(b.time, 'ko', { numeric: true }))
   const unknown = work.events.filter((event) => !event.time)
   function renderEvent(event: StoryEvent) {
     const chapter = work.chapters.find((item) => item.id === event.chapterId)
+    // 원고에서 인용문이 사라졌다면 기존 위치로 이동시키지 않고 근거 변경을 표시한다.
     const hasSource = chapter?.content.includes(event.quote) && !!event.quote
     return (
       <article className="event-card" key={event.id}>

@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
-public class SwaggerConfig {
+public class OpenApiConfig {
     @Bean
     public OpenAPI magisterOpenApi() {
         Info info = new Info().title("Magister API").version("0.0.1");

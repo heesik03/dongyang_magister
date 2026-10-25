@@ -1,16 +1,18 @@
 package com.magister.backend.global.error;
 
+import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.code.ErrorCode;
 import com.magister.backend.global.error.code.FrameworkErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
-import com.magister.backend.global.response.ApiResponse;
+import com.magister.backend.global.response.ApiResult;
 import com.magister.backend.global.response.FieldErrorDetail;
 
 import lombok.extern.slf4j.Slf4j;
 
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -34,15 +36,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers,
             HttpStatusCode statusCode,
             WebRequest request) {
-        ApiResponse<?> responseBody;
-        if (body instanceof ApiResponse<?> apiResponse) {
+        ApiResult<?> responseBody;
+        if (body instanceof ApiResult<?> apiResponse) {
             responseBody = apiResponse;
         } else {
             ErrorCode code =
                     statusCode.value() == 400
                             ? CommonErrorCode.INVALID_REQUEST
                             : new FrameworkErrorCode(statusCode);
-            responseBody = ApiResponse.failure(code);
+            responseBody = ApiResult.failure(code);
         }
         HttpHeaders responseHeaders = new HttpHeaders();
         responseHeaders.putAll(headers);
@@ -78,7 +80,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                         ? "올바르지 않은 값입니다."
                                                         : error.getDefaultMessage()))
                         .toList();
-        ApiResponse<Void> body = ApiResponse.failure(CommonErrorCode.VALIDATION_ERROR, errors);
+        ApiResult<Void> body = ApiResult.failure(CommonErrorCode.VALIDATION_ERROR, errors);
         return handleExceptionInternal(exception, body, headers, statusCode, request);
     }
 
@@ -87,14 +89,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             CustomException exception, WebRequest request) {
         ErrorCode error = exception.getErrorCode();
         return createResponseEntity(
-                ApiResponse.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
+                ApiResult.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
     }
 
-    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<Object> handleVersionConflict(WebRequest request) {
-        ErrorCode error = com.magister.backend.domain.work.error.WorkErrorCode.VERSION_CONFLICT;
+        ErrorCode error = WorkErrorCode.VERSION_CONFLICT;
         return createResponseEntity(
-                ApiResponse.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
+                ApiResult.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
     }
 
     @ExceptionHandler(Exception.class)
@@ -102,6 +104,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             Exception exception, WebRequest request) {
         ErrorCode error = CommonErrorCode.INTERNAL_SERVER_ERROR;
         return createResponseEntity(
-                ApiResponse.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
+                ApiResult.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
     }
 }

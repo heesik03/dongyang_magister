@@ -1,5 +1,6 @@
 export type SettingKind = '인물' | '세계관' | '주요 사건' | '의도한 각색'
 export type SettingStatus = '확정' | '아이디어' | 'AI 후보'
+// 확정 설정은 검토 기준이며, 아이디어와 AI 후보는 작가의 확정 전까지 구분한다.
 export interface Setting {
   version?: number
   id: string
@@ -26,6 +27,7 @@ export interface Review {
   decision: Decision
   note: string
 }
+// 분석 당시의 원고와 설정을 보관해 이후 수정으로 근거가 달라졌는지 판단한다.
 export interface Analysis {
   chapterId: string
   revision: number
@@ -44,6 +46,7 @@ export interface StoryEvent {
   chapterId: string
   quote: string
 }
+// 작품 정보·설정은 서버에 저장한다. 원고·분석·사건은 API 연결 전까지 브라우저 초안이다.
 export interface Work {
   source?: 'server' | 'local'
   version?: number

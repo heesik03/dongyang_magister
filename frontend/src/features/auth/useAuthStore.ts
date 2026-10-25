@@ -1,11 +1,8 @@
 import { create } from 'zustand'
-import { ApiError, authApi } from './api'
+import { authClient } from './authClient'
+import { ApiError } from '../../shared/httpClient'
+import type { User } from './authTypes'
 
-export interface User {
-  id: number
-  name: string
-  email: string
-}
 interface AuthState {
   user: User | null
   loading: boolean
@@ -16,8 +13,9 @@ interface AuthState {
   retry: () => void
   expire: () => void
 }
+// 로그아웃·세션 만료 이후 도착한 인증 조회로 사용자를 복원하지 않는다.
 let revision = 0
-export const useAuth = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
   error: '',
@@ -25,7 +23,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     const current = ++revision
     set({ loading: true, error: '' })
     try {
-      const user = await authApi.me(signal)
+      const user = await authClient.me(signal)
       if (!signal?.aborted && current === revision) set({ user, loading: false })
     } catch (error) {
       if (signal?.aborted || current !== revision) return
@@ -39,12 +37,12 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
   async login(email, password) {
     ++revision
-    const user = await authApi.login(email, password)
+    const user = await authClient.login(email, password)
     set({ user, loading: false, error: '' })
   },
   async logout() {
     try {
-      await authApi.logout()
+      await authClient.logout()
       get().expire()
     } catch {
       set({ error: '로그아웃하지 못했습니다. 다시 시도해 주세요.' })

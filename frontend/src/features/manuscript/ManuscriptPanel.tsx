@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import type { Chapter, Decision, Work } from '../works/types'
-import { useWorks } from '../works/store'
+import type { Chapter, Decision, Work } from '../works/workTypes'
+import { useWorksStore } from '../works/useWorksStore'
 import { ReviewPanel } from '../review/ReviewPanel'
 import { runMockAnalysis } from '../review/mockAnalysis'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 
 export function ManuscriptPanel({ work }: { work: Work }) {
-  const { updateWork, storageError } = useWorks()
+  const updateWork = useWorksStore((state) => state.updateWork)
+  const storageError = useWorksStore((state) => state.storageError)
   const [params, setParams] = useSearchParams()
   const chapter =
     work.chapters.find((item) => item.id === params.get('chapter')) ||
@@ -47,6 +48,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       element.scrollIntoView({ block: 'center' })
     }
   }, [params, chapter?.id, chapter?.content])
+  // 원고나 참고 설정이 달라지면 과거 분석에 작가 판단을 덧붙이지 않고 재검토를 유도한다.
   const stale =
     !!analysis &&
     (analysis.source !== chapter?.content ||
@@ -88,6 +90,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     })
     setHighlight('')
   }
+  // 현재 검토는 로컬 시연 규칙이다. 외부 AI 전송이나 서버 분석 저장은 수행하지 않는다.
   function analyze() {
     if (!chapter?.content.trim()) {
       setError('원고를 먼저 입력해 주세요.')
@@ -129,6 +132,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       })
     }, 900)
   }
+  // 작가 판단은 해당 원고의 검토 항목에만 적용하며 작품 전체의 예외로 확대하지 않는다.
   function decide(id: string, decision: Decision, note: string) {
     if (!analysis || stale) return
     updateWork({

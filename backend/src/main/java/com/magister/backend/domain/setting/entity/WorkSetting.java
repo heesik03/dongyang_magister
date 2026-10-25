@@ -12,6 +12,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.util.Objects;
 
 @Entity
 @Table(name = "work_settings")
@@ -65,7 +66,7 @@ public class WorkSetting {
         if (this.work != null && this.work != work) {
             throw new IllegalStateException("설정이 속한 작품은 변경할 수 없습니다.");
         }
-        this.work = java.util.Objects.requireNonNull(work);
+        this.work = Objects.requireNonNull(work);
         if (!work.getSettings().contains(this)) {
             work.getSettings().add(this);
         }

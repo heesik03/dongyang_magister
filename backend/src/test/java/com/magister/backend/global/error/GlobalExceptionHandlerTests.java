@@ -7,15 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
-
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
-import com.magister.backend.global.response.ApiResponse;
+import com.magister.backend.global.response.ApiResult;
 
 import jakarta.validation.Valid;
 
@@ -31,6 +26,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 class GlobalExceptionHandlerTests {
     private final Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
@@ -117,8 +117,8 @@ class GlobalExceptionHandlerTests {
         }
 
         @PostMapping("/test/input")
-        public ApiResponse<String> input(@Valid @RequestBody GeminiRequest request) {
-            return ApiResponse.success("ok");
+        public ApiResult<String> input(@Valid @RequestBody GeminiRequest request) {
+            return ApiResult.success("ok");
         }
     }
 }

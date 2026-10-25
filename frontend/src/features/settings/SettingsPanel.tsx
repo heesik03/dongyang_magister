@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { Setting, Work } from '../works/types'
-import { useWorks } from '../works/store'
+import type { Setting, Work } from '../works/workTypes'
+import { useWorksStore } from '../works/useWorksStore'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 
 export function SettingsPanel({ work }: { work: Work }) {
-  const { saveSetting, loadSettings, settingView } = useWorks()
+  const saveSetting = useWorksStore((state) => state.saveSetting)
+  const loadSettings = useWorksStore((state) => state.loadSettings)
+  const settingView = useWorksStore((state) => state.settingView)
   const [kind, setKind] = useState('전체')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -14,6 +16,7 @@ export function SettingsPanel({ work }: { work: Work }) {
   }, [work.id, kind, loadSettings])
   const [selectedId, setSelectedId] = useState(work.settings[0]?.id || '')
   const [editing, setEditing] = useState<Setting | 'new' | null>(null)
+  // 서버 페이지의 표시 순서는 유지하면서, 본문은 캐시에 병합된 최신 설정을 사용한다.
   const filtered =
     work.source === 'server'
       ? settingView.workId === work.id && settingView.kind === kind

@@ -17,6 +17,7 @@ import org.springdoc.core.properties.SpringDocConfigProperties;
 import org.springdoc.core.properties.SwaggerUiConfigProperties;
 import org.springdoc.core.properties.SwaggerUiOAuthProperties;
 import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
+import org.springdoc.webmvc.ui.SwaggerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -27,13 +28,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 @WebMvcTest(GeminiController.class)
-@Import(SwaggerConfig.class)
+@Import(OpenApiConfig.class)
 @ImportAutoConfiguration({
     SpringDocConfiguration.class,
     SpringDocConfigProperties.class,
     SpringDocSpecPropertiesConfiguration.class,
     SpringDocWebMvcConfiguration.class,
-    org.springdoc.webmvc.ui.SwaggerConfig.class,
+    SwaggerConfig.class,
     SwaggerUiConfigProperties.class,
     SwaggerUiOAuthProperties.class
 })
@@ -71,13 +72,13 @@ class SwaggerTests {
                 .andExpect(
                         jsonPath(
                                         "$.paths['/api/gemini'].post.responses['200'].content['application/json'].schema['$ref']")
-                                .value(containsString("ApiResponse")))
+                                .value(containsString("ApiResult")))
                 .andExpect(
                         jsonPath(
                                         "$.paths['/api/gemini'].post.responses['502'].content['application/json'].schema['$ref']")
-                                .value(containsString("ApiResponse")))
+                                .value(containsString("ApiResult")))
                 .andExpect(
-                        jsonPath("$.components.schemas.ApiResponse.properties.code.type")
+                        jsonPath("$.components.schemas.ApiResult.properties.code.type")
                                 .value("string"));
     }
 

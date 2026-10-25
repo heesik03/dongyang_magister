@@ -1,13 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { useAuth } from '../features/auth/auth'
+import { useAuthStore } from '../features/auth/useAuthStore'
 import { Icon } from './Icon'
 import { WorksProvider } from '../features/works/WorksProvider'
-import { useWorks } from '../features/works/store'
+import { useWorksStore } from '../features/works/useWorksStore'
 import { useState } from 'react'
 import { Dialog } from './Dialog'
 
 export function Shell() {
-  const { user } = useAuth()
+  const user = useAuthStore((state) => state.user)
   return (
     <WorksProvider key={user?.email} email={user?.email || ''}>
       <ShellContent />
@@ -16,8 +16,12 @@ export function Shell() {
 }
 
 function ShellContent() {
-  const { user, logout, error } = useAuth()
-  const { works, storageError, retrySave } = useWorks()
+  const user = useAuthStore((state) => state.user)
+  const logout = useAuthStore((state) => state.logout)
+  const error = useAuthStore((state) => state.error)
+  const works = useWorksStore((state) => state.works)
+  const storageError = useWorksStore((state) => state.storageError)
+  const retrySave = useWorksStore((state) => state.retrySave)
   const [collapsed, setCollapsed] = useState(false)
   const [drawer, setDrawer] = useState(false)
   return (

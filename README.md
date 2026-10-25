@@ -55,7 +55,7 @@ AI 결과는 확정 판정이 아닌 검토 후보입니다. 인물의 변화나
 | 데이터베이스 | MySQL 사용 예정, 드라이버 의존성 포함 |
 | AI | Google Gemini API 사용 예정 |
 
-프런트엔드는 로그인·회원가입, 작품·설정집·회차 원고 관리, AI 검토 시연과 작가 판단 저장, 사건 타임라인을 임시 데이터로 구현했습니다. 회원가입·이메일 로그인·로그아웃·내 정보 조회는 세션 인증 API에 연결했습니다. 세션은 1시간 미사용 시 만료되며 Gemini API도 인증이 필요합니다. 작품·원고 저장과 AI 검토 화면은 아직 브라우저 기반 시연입니다. 프런트엔드는 `frontend/`에서 `pnpm install --frozen-lockfile` 후 `pnpm dev`로 실행합니다.
+프런트엔드의 회원가입·이메일 로그인·로그아웃·내 정보 조회는 세션 인증 API에 연결했습니다. 세션은 1시간 미사용 시 만료되며 Gemini API도 인증이 필요합니다. 작품·설정집의 생성·조회·수정은 서버 API에 연결되어 있습니다. 원고·AI 검토·타임라인은 브라우저 기반 시연이며 실제 분석 API에 연결되지 않았습니다. 프런트엔드는 `frontend/`에서 `pnpm install --frozen-lockfile` 후 `pnpm dev`로 실행합니다.
 
 상세 요구사항과 일정은 [Notion 프로젝트 기획서](https://app.notion.com/p/_Magister-3eac29dbef40809b8150f5dc8e403d2e)에서 관리합니다.
 
@@ -108,3 +108,15 @@ magister/
     ├── gradlew
     └── gradlew.bat
 ```
+
+### 프런트엔드 API와 상태 구조
+
+- `shared/httpClient.ts`: `/api` 기본 경로, 세션 쿠키, CSRF, 공통 오류·응답 처리
+- `features/auth/authClient.ts`: 회원가입·로그인·로그아웃·현재 세션 조회
+- `features/works/workClient.ts`, `features/settings/settingClient.ts`: 작품 및 작품별 설정 요청
+- `workResponse.ts`, `settingResponse.ts`: 외부 응답 검증과 화면 모델 변환
+- `useAuthStore.ts`, `useWorksStore.ts`: 화면 간 공유 상태. 폼·선택·모달은 컴포넌트 상태로 관리
+
+목록 조회에는 `workClient.list({ keyword, genre, page, signal })`처럼 이름 있는 옵션을 사용합니다. 서버 응답을 타입 단언으로 통과시키지 않고 파서로 검증합니다. 작품·설정의 런타임 샘플 데이터는 없으며 API 실패 시 오류를 표시합니다. 이전 버전에서 사용자가 브라우저에 저장한 작품은 자동 업로드하지 않고 보존합니다.
+
+백엔드 공통 응답 클래스는 Swagger 애너테이션과 이름이 겹치지 않도록 `ApiResult`를 사용합니다. JSON 필드와 HTTP 경로는 유지되며 OpenAPI 컴포넌트의 응답 스키마 이름은 `ApiResult`로 변경되었습니다.

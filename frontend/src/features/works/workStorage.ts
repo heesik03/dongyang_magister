@@ -1,4 +1,4 @@
-import type { Work } from './types'
+import type { Work } from './workTypes'
 
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -9,6 +9,7 @@ function strings(value: Record<string, unknown>, keys: string[]) {
 function arrayOf(value: unknown, check: (entry: unknown) => boolean) {
   return Array.isArray(value) && value.every(check)
 }
+// 브라우저에 남아 있는 원고와 판단 이력은 구조 검증 후에만 작업 공간으로 복원한다.
 export function isWorks(value: unknown): value is Work[] {
   return arrayOf(
     value,
@@ -61,4 +62,12 @@ export function isWorks(value: unknown): value is Work[] {
           ),
       ),
   )
+}
+
+export function readStoredWorks(key: string): Work[] {
+  const raw = localStorage.getItem(key)
+  if (!raw) return []
+  const value: unknown = JSON.parse(raw)
+  if (!isWorks(value)) throw new Error('저장된 데이터 형식이 올바르지 않습니다.')
+  return value
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Dialog } from '../../shared/Dialog'
 import { Link, Navigate, NavLink, useParams } from 'react-router-dom'
-import { useWorks } from './store'
+import { useWorksStore } from './useWorksStore'
 import { SettingsPanel } from '../settings/SettingsPanel'
 import { Icon } from '../../shared/Icon'
 import { ManuscriptPanel } from '../manuscript/ManuscriptPanel'
@@ -9,7 +9,11 @@ import { TimelinePanel } from '../timeline/TimelinePanel'
 
 export function WorkPage() {
   const { workId, tab } = useParams()
-  const { works, loadWork, detailLoading, detailError, saveWorkInfo } = useWorks()
+  const works = useWorksStore((state) => state.works)
+  const loadWork = useWorksStore((state) => state.loadWork)
+  const detailLoading = useWorksStore((state) => state.detailLoading)
+  const detailError = useWorksStore((state) => state.detailError)
+  const saveWorkInfo = useWorksStore((state) => state.saveWorkInfo)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')

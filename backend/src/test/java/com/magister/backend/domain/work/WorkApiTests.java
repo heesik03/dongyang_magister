@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
+import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.security.LoginUser;
@@ -37,7 +38,7 @@ class WorkApiTests {
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
     @Autowired WorkRepository works;
-    @Autowired com.magister.backend.domain.setting.repository.WorkSettingRepository settings;
+    @Autowired WorkSettingRepository settings;
     @Autowired ObjectMapper json;
     @Autowired EntityManager entityManager;
     @Autowired TransactionTemplate transaction;
