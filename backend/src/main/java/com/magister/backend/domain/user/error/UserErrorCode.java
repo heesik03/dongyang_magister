@@ -1,4 +1,4 @@
-package com.magister.backend.domain.user;
+package com.magister.backend.domain.user.error;
 
 import com.magister.backend.global.error.code.ErrorCode;
 

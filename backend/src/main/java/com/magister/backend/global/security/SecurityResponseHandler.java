@@ -1,6 +1,6 @@
 package com.magister.backend.global.security;
 
-import com.magister.backend.domain.user.UserErrorCode;
+import com.magister.backend.domain.user.error.UserErrorCode;
 import com.magister.backend.global.response.ApiResponse;
 
 import jakarta.servlet.http.HttpServletRequest;

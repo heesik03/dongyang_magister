@@ -90,6 +90,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ApiResponse.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
     }
 
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    public ResponseEntity<Object> handleVersionConflict(WebRequest request) {
+        ErrorCode error = com.magister.backend.domain.work.error.WorkErrorCode.VERSION_CONFLICT;
+        return createResponseEntity(
+                ApiResponse.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpectedException(
             Exception exception, WebRequest request) {

@@ -1,0 +1,119 @@
+package com.magister.backend.domain.work;
+
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import com.magister.backend.domain.user.entity.User;
+import com.magister.backend.domain.user.repository.UserRepository;
+import com.magister.backend.domain.user.security.LoginUser;
+import com.magister.backend.domain.work.repository.WorkRepository;
+
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.List;
+
+@SpringBootTest(
+        properties = "spring.datasource.url=jdbc:h2:mem:work-api;MODE=MySQL;DB_CLOSE_DELAY=-1")
+@ActiveProfiles("test")
+@AutoConfigureMockMvc
+class WorkApiTests {
+    @Autowired MockMvc mvc;
+    @Autowired UserRepository users;
+    @Autowired WorkRepository works;
+    @Autowired ObjectMapper json;
+    private UsernamePasswordAuthenticationToken owner;
+    private UsernamePasswordAuthenticationToken other;
+
+    @BeforeEach
+    void prepare() {
+        works.deleteAll();
+        User first =
+                users.saveAndFlush(
+                        new User("owner-" + System.nanoTime() + "@example.com", "작가", "unused"));
+        User second =
+                users.saveAndFlush(
+                        new User("other-" + System.nanoTime() + "@example.com", "다른 작가", "unused"));
+        owner =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        new LoginUser(first.getId(), first.getEmail(), first.getName()),
+                        null,
+                        List.of());
+        other =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        new LoginUser(second.getId(), second.getEmail(), second.getName()),
+                        null,
+                        List.of());
+    }
+
+    private String body() {
+        return "{\"title\":\"새 작품\",\"genre\":\"판타지\",\"era\":\"중세\",\"description\":\"소개\"}";
+    }
+
+    @Test
+    void createListUpdateOwnershipAndVersion() throws Exception {
+        String result =
+                mvc.perform(
+                                post("/api/work")
+                                        .with(authentication(owner))
+                                        .with(csrf())
+                                        .contentType("application/json")
+                                        .content(body()))
+                        .andExpect(status().isCreated())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        long id = json.readTree(result).path("data").path("id").asLong();
+        mvc.perform(get("/api/work").with(authentication(owner)).param("keyword", "작품"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+        mvc.perform(get("/api/work/" + id).with(authentication(other)))
+                .andExpect(status().isNotFound());
+        String update = body().replace("새 작품", "수정된 작품").replace("}", ",\"version\":0}");
+        mvc.perform(
+                        put("/api/work/" + id)
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content(update))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(1));
+        mvc.perform(
+                        put("/api/work/" + id)
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content(update))
+                .andExpect(status().isConflict());
+        mvc.perform(get("/api/work/" + id).with(authentication(owner)))
+                .andExpect(jsonPath("$.data.title").value("수정된 작품"));
+    }
+
+    @Test
+    void rejectsInvalidAndUnauthenticatedRequests() throws Exception {
+        mvc.perform(get("/api/work")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/work").with(authentication(owner)).param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(
+                        post("/api/work")
+                                .with(authentication(owner))
+                                .contentType("application/json")
+                                .content(body()))
+                .andExpect(status().isForbidden());
+        mvc.perform(
+                        post("/api/work")
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content(body().replace("새 작품", " ")))
+                .andExpect(status().isBadRequest());
+    }
+}
