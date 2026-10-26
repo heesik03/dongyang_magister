@@ -1,6 +1,9 @@
 package com.magister.backend.domain.analysis.service.result;
 
 import com.magister.backend.domain.analysis.dto.AnalysisInput;
+import com.magister.backend.domain.analysis.dto.AnalysisOutput;
+import com.magister.backend.domain.analysis.dto.AnalysisOutput.Candidate;
+import com.magister.backend.domain.analysis.converter.AnalysisResultConverter;
 import com.magister.backend.domain.analysis.dto.AnalysisInput.SettingReference;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.AnalysisData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
@@ -32,20 +35,13 @@ public class AnalysisResultValidator {
     private static final int MAX_RESPONSE_CHARS = 1_000_000;
     private final ObjectMapper objectMapper;
     private final Validator validator;
+    private final AnalysisResultConverter resultConverter;
 
-    public record Candidate(
-            @NotNull @Pattern(regexp = "설정 충돌 후보|설명 보완") String type,
-            @NotBlank @Size(max = 10000) String quote,
-            @NotBlank @Size(max = 64) String settingId,
-            @NotBlank @Size(max = 4000) String reason,
-            @NotBlank @Size(max = 4000) String suggestion) {}
-
-    public record Output(@NotNull @Size(max = 100) List<@NotNull @Valid Candidate> reviews) {}
     private record EvidenceKey(String settingId, String quote, String evidence) {}
 
     /** 공급자 형식뿐 아니라 실제 원문·설정 ID와 옵션까지 검사한 뒤 결과로 변환한다. */
     public AnalysisData validate(String raw, AnalysisInput input) {
-        Output output = parse(raw);
+        AnalysisOutput output = parse(raw);
         Map<String, SettingReference> settingsById = input.settings().stream()
                 .collect(Collectors.toMap(SettingReference::id, Function.identity()));
         Map<EvidenceKey, ReviewData> decisionsByEvidence = new HashMap<>();
@@ -62,21 +58,15 @@ public class AnalysisResultValidator {
             // 같은 회차라도 근거가 달라지면 과거 판단을 자동 적용하지 않는다.
             Optional<ReviewData> previous = Optional.ofNullable(decisionsByEvidence.get(
                     new EvidenceKey(setting.id(), candidate.quote(), setting.content())));
-            reviews.add(new ReviewData(UUID.randomUUID().toString(), candidate.type(),
-                    candidate.quote(), setting.id(), setting.content(), candidate.reason(),
-                    candidate.suggestion(), previous.map(ReviewData::decision).orElse("미검토"),
-                    previous.map(ReviewData::note).orElse("")));
+            reviews.add(resultConverter.toReview(candidate, setting, previous));
         }
-        return new AnalysisData(input.chapter().id(), input.chapter().revision(),
-                input.chapter().content(), input.settings().stream().map(SettingReference::id).toList(),
-                input.previous().stream().map(ChapterData::id).toList(), reviews,
-                Instant.now().toString(), objectMapper.writeValueAsString(input.settings()));
+        return resultConverter.toResult(input, reviews);
     }
 
-    private Output parse(String raw) {
+    private AnalysisOutput parse(String raw) {
         try {
             if (raw == null || raw.length() > MAX_RESPONSE_CHARS) throw new IllegalArgumentException();
-            Output output = objectMapper.readValue(raw, Output.class);
+            AnalysisOutput output = objectMapper.readValue(raw, AnalysisOutput.class);
             if (!validator.validate(output).isEmpty()) throw new IllegalArgumentException();
             return output;
         } catch (RuntimeException error) {

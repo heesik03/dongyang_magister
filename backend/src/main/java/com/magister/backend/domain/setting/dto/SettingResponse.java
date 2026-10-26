@@ -13,17 +13,4 @@ public record SettingResponse(
         String content,
         Instant createdAt,
         Instant updatedAt,
-        Long version) {
-    public static SettingResponse from(WorkSetting setting) {
-        return new SettingResponse(
-                setting.getId(),
-                setting.getWork().getId(),
-                setting.getTitle(),
-                setting.getKind(),
-                setting.getStatus(),
-                setting.getContent(),
-                setting.getCreatedAt(),
-                setting.getUpdatedAt(),
-                setting.getVersion());
-    }
-}
+        Long version) {}

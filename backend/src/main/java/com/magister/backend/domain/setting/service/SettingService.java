@@ -1,12 +1,13 @@
 package com.magister.backend.domain.setting.service;
 
+import com.magister.backend.domain.setting.converter.SettingConverter;
 import com.magister.backend.domain.setting.dto.*;
 import com.magister.backend.domain.setting.entity.*;
 import com.magister.backend.domain.setting.error.SettingErrorCode;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
-import com.magister.backend.domain.work.repository.WorkRepository;
+import com.magister.backend.domain.work.service.WorkAccessService;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.response.PageResponse;
 
@@ -19,55 +20,49 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class SettingService {
-    private final WorkRepository works;
+    private final WorkAccessService workAccessService;
     private final WorkSettingRepository settings;
 
     @Transactional
     public SettingResponse create(Long ownerId, Long workId, CreateSettingRequest request) {
-        Work work = requireOwned(ownerId, workId);
+        Work work = workAccessService.lockOwned(ownerId, workId);
         WorkSetting setting =
                 new WorkSetting(
                         work, request.title(), request.kind(), request.status(), request.content());
         work.touch();
-        return SettingResponse.from(settings.saveAndFlush(setting));
+        return SettingConverter.toResponse(settings.saveAndFlush(setting));
     }
 
     @Transactional(readOnly = true)
     public PageResponse<SettingResponse> list(
             Long ownerId, Long workId, SettingKind kind, SettingStatus status, int page, int size) {
-        requireOwned(ownerId, workId);
+        workAccessService.requireOwned(ownerId, workId);
         return PageResponse.from(
                 settings.search(
                                 workId,
                                 kind,
                                 status,
                                 PageRequest.of(page, size, Sort.by("id").descending()))
-                        .map(SettingResponse::from));
+                        .map(SettingConverter::toResponse));
     }
 
     @Transactional(readOnly = true)
     public SettingResponse get(Long ownerId, Long workId, Long settingId) {
-        requireOwned(ownerId, workId);
-        return SettingResponse.from(findSetting(workId, settingId));
+        workAccessService.requireOwned(ownerId, workId);
+        return SettingConverter.toResponse(findSetting(workId, settingId));
     }
 
     @Transactional
     public SettingResponse update(
             Long ownerId, Long workId, Long settingId, UpdateSettingRequest request) {
-        Work work = requireOwned(ownerId, workId);
+        Work work = workAccessService.lockOwned(ownerId, workId);
         WorkSetting setting = findSetting(workId, settingId);
         if (!setting.getVersion().equals(request.version()))
             throw new CustomException(WorkErrorCode.VERSION_CONFLICT);
         setting.update(request.title(), request.kind(), request.status(), request.content());
         work.touch();
         settings.flush();
-        return SettingResponse.from(setting);
-    }
-
-    private Work requireOwned(Long ownerId, Long workId) {
-        // 비어 있는 설정 목록도 본인 작품인지 검사한 뒤 반환한다.
-        return works.findByIdAndOwner_Id(workId, ownerId)
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+        return SettingConverter.toResponse(setting);
     }
 
     private WorkSetting findSetting(Long workId, Long settingId) {

@@ -1,5 +1,6 @@
 package com.magister.backend.domain.user.service;
 
+import com.magister.backend.domain.user.converter.UserConverter;
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.dto.UserResponse;
 import com.magister.backend.domain.user.entity.User;
@@ -45,7 +46,7 @@ public class UserService {
         try {
             User user = new User(email, request.name().strip(), passwordHash);
             User saved = users.saveAndFlush(user);
-            return UserResponse.from(saved);
+            return UserConverter.toResponse(saved);
         } catch (DataIntegrityViolationException exception) {
             if (isEmailConstraintViolation(exception)) {
                 // 사전 중복 검사 이후 동시에 가입하는 경우도 DB 유일 제약으로 막는다.

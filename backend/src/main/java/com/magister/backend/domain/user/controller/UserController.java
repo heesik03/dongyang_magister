@@ -1,6 +1,7 @@
 package com.magister.backend.domain.user.controller;
 
 import com.magister.backend.domain.user.docs.UserControllerDocs;
+import com.magister.backend.domain.user.converter.UserConverter;
 import com.magister.backend.domain.user.dto.CsrfResponse;
 import com.magister.backend.domain.user.dto.EmailCheckRequest;
 import com.magister.backend.domain.user.dto.EmailCheckResponse;
@@ -34,7 +35,7 @@ public class UserController implements UserControllerDocs {
     @Override
     @PostMapping("/email/check")
     public ApiResult<EmailCheckResponse> checkEmail(@RequestBody EmailCheckRequest request) {
-        return ApiResult.success(new EmailCheckResponse(users.isEmailAvailable(request.email())));
+        return ApiResult.success(UserConverter.toEmailCheckResponse(users.isEmailAvailable(request.email())));
     }
 
     @Override
@@ -47,7 +48,7 @@ public class UserController implements UserControllerDocs {
     @Override
     @GetMapping("/csrf")
     public ApiResult<CsrfResponse> csrf(CsrfToken token) {
-        return ApiResult.success(new CsrfResponse(token.getHeaderName(), token.getToken()));
+        return ApiResult.success(UserConverter.toCsrfResponse(token));
     }
 
     @Override
@@ -62,6 +63,6 @@ public class UserController implements UserControllerDocs {
     @Override
     @GetMapping("/me")
     public ApiResult<UserResponse> me(@AuthenticationPrincipal LoginUser user) {
-        return ApiResult.success(new UserResponse(user.id(), user.email(), user.name()));
+        return ApiResult.success(UserConverter.toResponse(user));
     }
 }

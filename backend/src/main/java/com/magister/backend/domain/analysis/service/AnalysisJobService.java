@@ -12,9 +12,9 @@ import com.magister.backend.domain.analysis.service.execution.AnalysisDispatcher
 import com.magister.backend.domain.analysis.service.input.AnalysisInputFactory;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
-import com.magister.backend.domain.work.repository.WorkRepository;
+import com.magister.backend.domain.work.service.WorkAccessService;
 import com.magister.backend.domain.workspace.dto.WorkspaceResponse;
-import com.magister.backend.domain.workspace.service.WorkspaceService;
+import com.magister.backend.domain.workspace.service.WorkspaceSnapshotService;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 import lombok.RequiredArgsConstructor;
@@ -36,8 +36,8 @@ public class AnalysisJobService {
             List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING);
     private final AnalysisAdmissionRepository admissionRepository;
     private final AnalysisJobRepository analysisJobRepository;
-    private final WorkRepository workRepository;
-    private final WorkspaceService workspaceService;
+    private final WorkAccessService workAccessService;
+    private final WorkspaceSnapshotService snapshotService;
     private final AnalysisInputFactory inputFactory;
     private final AnalysisDispatcher dispatcher;
     private final AnalysisJobConverter converter;
@@ -50,8 +50,7 @@ public class AnalysisJobService {
     @Transactional
     public AnalysisJobResponse create(Long ownerId, Long workId, AnalysisRequest request) {
         admissionRepository.lockAdmission().orElseThrow();
-        Work work = workRepository.lockOwned(workId, ownerId)
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+        Work work = workAccessService.lockOwned(ownerId, workId);
         String requestBody = objectMapper.writeValueAsString(request);
         Optional<AnalysisJob> existingJob = analysisJobRepository
                 .findByWork_IdAndRequestId(workId, request.requestId());
@@ -63,7 +62,7 @@ public class AnalysisJobService {
                 || analysisJobRepository.countByStatusIn(ACTIVE_STATUSES) >= MAX_ACTIVE_JOBS) {
             throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
         }
-        WorkspaceResponse workspace = workspaceService.get(ownerId, workId);
+        WorkspaceResponse workspace = snapshotService.getForOwnedWork(work);
         AnalysisInput input = inputFactory.create(workId, request, workspace);
         String snapshot = objectMapper.writeValueAsString(input);
         if (snapshot.length() > MAX_SNAPSHOT_CHARS) invalid();
@@ -90,8 +89,7 @@ public class AnalysisJobService {
     /** 이미 종료된 상태는 유지하고 취소와 완료의 경합은 작업 행 잠금으로 직렬화한다. */
     @Transactional
     public AnalysisJobResponse cancel(Long ownerId, Long workId, String jobId) {
-        workRepository.findByIdAndOwner_Id(workId, ownerId)
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+        workAccessService.requireOwned(ownerId, workId);
         AnalysisJob job = analysisJobRepository.lockById(jobId)
                 .filter(item -> item.getWork().getId().equals(workId))
                 .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));

@@ -1,5 +1,6 @@
 package com.magister.backend.domain.work.service;
 
+import com.magister.backend.domain.work.converter.WorkConverter;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.work.dto.*;
 import com.magister.backend.domain.work.entity.Work;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class WorkService {
     private final WorkRepository works;
     private final UserRepository users;
+    private final WorkAccessService workAccessService;
 
     @Transactional
     public WorkResponse create(Long ownerId, CreateWorkRequest request) {
@@ -31,7 +33,7 @@ public class WorkService {
                         request.genre(),
                         request.era(),
                         request.description());
-        return WorkResponse.from(works.saveAndFlush(work));
+        return WorkConverter.toResponse(works.saveAndFlush(work));
     }
 
     @Transactional(readOnly = true)
@@ -42,27 +44,23 @@ public class WorkService {
                         page, size, Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id")));
         return PageResponse.from(
                 works.search(ownerId, keyword.strip(), genre.strip(), paging)
-                        .map(WorkResponse::from));
+                        .map(WorkConverter::toResponse));
     }
 
     @Transactional(readOnly = true)
     public WorkResponse get(Long ownerId, Long workId) {
-        return WorkResponse.from(findOwned(ownerId, workId));
+        return WorkConverter.toResponse(workAccessService.requireOwned(ownerId, workId));
     }
 
     @Transactional
     public WorkResponse update(Long ownerId, Long workId, UpdateWorkRequest request) {
-        Work work = findOwned(ownerId, workId);
+        Work work = workAccessService.lockOwned(ownerId, workId);
         if (!work.getVersion().equals(request.version()))
             throw new CustomException(WorkErrorCode.VERSION_CONFLICT);
         work.update(request.title(), request.genre(), request.era(), request.description());
         // @Version의 실제 DB 충돌 검사를 마친 후 최신 버전을 응답한다.
         works.flush();
-        return WorkResponse.from(work);
+        return WorkConverter.toResponse(work);
     }
 
-    private Work findOwned(Long ownerId, Long workId) {
-        return works.findByIdAndOwner_Id(workId, ownerId)
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
-    }
 }

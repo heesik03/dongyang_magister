@@ -1,5 +1,6 @@
 package com.magister.backend.domain.user.security;
 
+import com.magister.backend.domain.user.converter.UserConverter;
 import com.magister.backend.domain.user.dto.LoginRequest;
 import com.magister.backend.domain.user.dto.UserResponse;
 import com.magister.backend.domain.user.entity.User;
@@ -54,7 +55,7 @@ public class SessionAuthenticationService {
         SecurityContextHolder.setContext(context);
         // 현재 요청의 ThreadLocal 설정만으로는 다음 요청에 인증이 복원되지 않는다.
         contexts.saveContext(context, request, response);
-        return UserResponse.from(user);
+        return UserConverter.toResponse(user);
     }
 
     private Authentication authenticate(LoginRequest input) {

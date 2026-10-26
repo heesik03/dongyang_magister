@@ -1,6 +1,7 @@
 package com.magister.backend.domain.gemini.service;
 
 import com.magister.backend.domain.gemini.dto.*;
+import com.magister.backend.domain.gemini.converter.GeminiConverter;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
@@ -45,7 +46,7 @@ public class GeminiService {
     public GeminiResponse generate(GeminiRequest request) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         long owner = auth != null && auth.getPrincipal() instanceof LoginUser user ? user.id() : 0L;
-        return new GeminiResponse(generateForOwner(owner, request.prompt(), 1024));
+        return GeminiConverter.toResponse(generateForOwner(owner, request.prompt(), 1024));
     }
 
     public String analyze(Long owner, String prompt) {

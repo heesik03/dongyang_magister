@@ -1,6 +1,7 @@
 package com.magister.backend.domain.analysis.service.input;
 
 import com.magister.backend.domain.analysis.dto.AnalysisInput;
+import com.magister.backend.domain.analysis.converter.AnalysisInputConverter;
 import com.magister.backend.domain.analysis.dto.AnalysisInput.SettingReference;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.setting.entity.WorkSetting;
@@ -34,7 +35,7 @@ public class AnalysisInputFactory {
         List<Long> settingIds = parseSettingIds(request.settingIds());
         List<WorkSetting> settings = workSettingRepository.findAllByWork_IdAndIdIn(workId, settingIds);
         requestValidator.validateSettings(settings, settingIds.size());
-        List<SettingReference> references = settings.stream().map(this::toReference).toList();
+        List<SettingReference> references = settings.stream().map(AnalysisInputConverter::toReference).toList();
         Set<String> previousIds = new HashSet<>(request.previousIds());
         List<ChapterData> previous = content.chapters().stream()
                 .filter(item -> previousIds.contains(item.id()) && !item.id().equals(chapter.id()))
@@ -44,8 +45,7 @@ public class AnalysisInputFactory {
         List<ReviewData> decisions = content.analyses().stream()
                 .filter(item -> item.chapterId().equals(chapter.id()))
                 .flatMap(item -> item.reviews().stream()).toList();
-        return new AnalysisInput(chapter, references, previous, decisions,
-                request.consistency(), request.motivation());
+        return AnalysisInputConverter.toInput(chapter, references, previous, decisions, request);
     }
 
     private List<Long> parseSettingIds(List<String> values) {
@@ -56,14 +56,4 @@ public class AnalysisInputFactory {
         }
     }
 
-    private SettingReference toReference(WorkSetting setting) {
-        String kind = switch (setting.getKind()) {
-            case CHARACTER -> "인물";
-            case WORLD -> "세계관";
-            case MAJOR_EVENT -> "주요 사건";
-            case INTENDED_ADAPTATION -> "의도한 각색";
-        };
-        return new SettingReference(setting.getId().toString(), setting.getTitle(),
-                setting.getContent(), kind, "확정", setting.getVersion());
-    }
 }
