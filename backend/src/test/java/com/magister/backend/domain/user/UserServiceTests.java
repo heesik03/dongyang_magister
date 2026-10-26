@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.repository.UserRepository;
+import com.magister.backend.domain.user.repository.UserConstraintTranslator;
 import com.magister.backend.domain.user.service.UserService;
 import com.magister.backend.global.error.exception.CustomException;
 
@@ -15,6 +16,16 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
 
 class UserServiceTests {
+    @Test
+    void onlyKnownEmailUniqueConstraintIsTranslated() {
+        assertThat(UserConstraintTranslator.isDuplicateEmail(new DataIntegrityViolationException(
+                "Duplicate entry for key 'users.uk_users_email'"))).isTrue();
+        assertThat(UserConstraintTranslator.isDuplicateEmail(new DataIntegrityViolationException(
+                "Unique index violation PUBLIC.UK_USERS_EMAIL_INDEX_4"))).isTrue();
+        assertThat(UserConstraintTranslator.isDuplicateEmail(new DataIntegrityViolationException(
+                "Duplicate email for unique alternate_email"))).isFalse();
+    }
+
     @Test
     void hashesPasswordAndNormalizesEmail() {
         UserRepository repository = mock(UserRepository.class);

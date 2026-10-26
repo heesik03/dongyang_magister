@@ -14,6 +14,11 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -36,6 +41,17 @@ public class SecurityConfig {
     }
 
     @Bean
+    HttpSessionCsrfTokenRepository csrfTokenRepository() {
+        return new HttpSessionCsrfTokenRepository();
+    }
+
+    @Bean
+    SessionAuthenticationStrategy sessionAuthenticationStrategy(HttpSessionCsrfTokenRepository csrfTokens) {
+        return new CompositeSessionAuthenticationStrategy(List.of(
+                new ChangeSessionIdAuthenticationStrategy(), new CsrfAuthenticationStrategy(csrfTokens)));
+    }
+
+    @Bean
     CorsConfigurationSource corsConfigurationSource(
             @Value("${cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
                     List<String> allowedOrigins) {
@@ -55,11 +71,13 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             SecurityResponseHandler responses,
-            HttpSessionSecurityContextRepository contexts)
+            HttpSessionSecurityContextRepository contexts,
+            HttpSessionCsrfTokenRepository csrfTokens)
             throws Exception {
         // CSRF 기본값 유지: /api/user/csrf에서 마스킹된 토큰을 받아 헤더로 전달한다.
         // 저장소를 로그인 처리와 공유해 요청 사이에서 동일한 세션 인증을 복원한다.
         http.cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokens))
                 .securityContext(context -> context.securityContextRepository(contexts))
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(
