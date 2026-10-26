@@ -22,8 +22,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) {
         User user =
-                userRepository.findByEmail(EmailNormalizer.normalize(email))
+                userRepository
+                        .findByEmail(EmailNormalizer.normalize(email))
                         .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
-        return new AccountPrincipal(user.getId(), user.getEmail(), user.getName(), user.getPasswordHash());
+        return new AccountPrincipal(
+                user.getId(), user.getEmail(), user.getName(), user.getPasswordHash());
     }
 }

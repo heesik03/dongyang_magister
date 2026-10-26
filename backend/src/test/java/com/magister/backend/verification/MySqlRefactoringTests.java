@@ -12,8 +12,8 @@ import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.user.dto.SignupRequest;
-import com.magister.backend.domain.user.error.UserErrorCode;
 import com.magister.backend.domain.user.entity.User;
+import com.magister.backend.domain.user.error.UserErrorCode;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.service.UserService;
 import com.magister.backend.domain.work.entity.Work;
@@ -44,8 +44,8 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Timestamp;
 import java.sql.Connection;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +61,9 @@ import java.util.concurrent.TimeUnit;
 /** 기존 DB를 대상으로 실행하지 않는다. mysqlTest 태스크와 임시 스키마 이름이 모두 필요하다. */
 @SpringBootTest
 @ActiveProfiles("test")
-@EnabledIfEnvironmentVariable(named = "MAGISTER_MYSQL_TEST_SCHEMA", matches = "magister_refactor_[a-f0-9]{12}")
+@EnabledIfEnvironmentVariable(
+        named = "MAGISTER_MYSQL_TEST_SCHEMA",
+        matches = "magister_refactor_[a-f0-9]{12}")
 class MySqlRefactoringTests {
     @Autowired UserRepository users;
     @Autowired WorkRepository works;
@@ -98,26 +100,58 @@ class MySqlRefactoringTests {
 
     private record Fixture(Long ownerId, Long workId, Long settingId) {
         AnalysisRequest request() {
-            return new AnalysisRequest(UUID.randomUUID().toString(), "c1", 1,
-                    List.of(settingId.toString()), List.of(), true, true);
+            return new AnalysisRequest(
+                    UUID.randomUUID().toString(),
+                    "c1",
+                    1,
+                    List.of(settingId.toString()),
+                    List.of(),
+                    true,
+                    true);
         }
     }
 
     private Fixture fixture(Long existingOwner) {
-        Long ownerId = existingOwner == null
-                ? users.saveAndFlush(new User(UUID.randomUUID() + "@example.com", "author", "hash")).getId()
-                : existingOwner;
+        Long ownerId =
+                existingOwner == null
+                        ? users.saveAndFlush(
+                                        new User(
+                                                UUID.randomUUID() + "@example.com",
+                                                "author",
+                                                "hash"))
+                                .getId()
+                        : existingOwner;
 
-        return transaction.execute(status -> {
-            Work work = works.saveAndFlush(new Work(users.getReferenceById(ownerId), "work", "fantasy", "", ""));
-            Workspace workspace = new Workspace(work);
-            workspace.replace(json.writeValueAsString(new WorkspaceData(
-                    List.of(new ChapterData("c1", "chapter", "text", 1)), List.of(), List.of())), "initial");
-            workspaces.saveAndFlush(workspace);
-            Long settingId = settings.saveAndFlush(new WorkSetting(work, "rule", SettingKind.CHARACTER,
-                    SettingStatus.CONFIRMED, "evidence")).getId();
-            return new Fixture(ownerId, work.getId(), settingId);
-        });
+        return transaction.execute(
+                status -> {
+                    Work work =
+                            works.saveAndFlush(
+                                    new Work(
+                                            users.getReferenceById(ownerId),
+                                            "work",
+                                            "fantasy",
+                                            "",
+                                            ""));
+                    Workspace workspace = new Workspace(work);
+                    workspace.replace(
+                            json.writeValueAsString(
+                                    new WorkspaceData(
+                                            List.of(new ChapterData("c1", "chapter", "text", 1)),
+                                            List.of(),
+                                            List.of())),
+                            "initial");
+                    workspaces.saveAndFlush(workspace);
+                    Long settingId =
+                            settings.saveAndFlush(
+                                            new WorkSetting(
+                                                    work,
+                                                    "rule",
+                                                    SettingKind.CHARACTER,
+                                                    SettingStatus.CONFIRMED,
+                                                    "evidence"))
+                                    .getId();
+                    return new Fixture(ownerId, work.getId(), settingId);
+                });
     }
 
     @Test
@@ -130,7 +164,8 @@ class MySqlRefactoringTests {
         CyclicBarrier barrier = new CyclicBarrier(2);
 
         try (ExecutorService callers = Executors.newFixedThreadPool(2)) {
-            List<Future<Boolean>> results = callers.invokeAll(List.of(attempt(first, barrier), attempt(second, barrier)));
+            List<Future<Boolean>> results =
+                    callers.invokeAll(List.of(attempt(first, barrier), attempt(second, barrier)));
             List<Boolean> accepted = new ArrayList<>();
             for (Future<Boolean> result : results) {
                 accepted.add(result.get(10, TimeUnit.SECONDS));
@@ -156,23 +191,31 @@ class MySqlRefactoringTests {
     void simultaneousSignupTranslatesActualMySqlUniqueViolation() throws Exception {
         String email = UUID.randomUUID() + "@example.com";
         CyclicBarrier hashing = new CyclicBarrier(2);
-        doAnswer(invocation -> {
-            hashing.await(10, TimeUnit.SECONDS);
-            return invocation.callRealMethod();
-        }).when(passwordEncoder).encode(anyString());
+        doAnswer(
+                        invocation -> {
+                            hashing.await(10, TimeUnit.SECONDS);
+                            return invocation.callRealMethod();
+                        })
+                .when(passwordEncoder)
+                .encode(anyString());
 
-        Callable<Boolean> signup = () -> {
-            try {
-                userService.signup(new SignupRequest(email, "author", "Password1!"));
-                return true;
-            } catch (CustomException error) {
-                assertThat(error.getErrorCode()).isEqualTo(UserErrorCode.EMAIL_ALREADY_EXISTS);
-                return false;
-            }
-        };
+        Callable<Boolean> signup =
+                () -> {
+                    try {
+                        userService.signup(new SignupRequest(email, "author", "Password1!"));
+                        return true;
+                    } catch (CustomException error) {
+                        assertThat(error.getErrorCode())
+                                .isEqualTo(UserErrorCode.EMAIL_ALREADY_EXISTS);
+                        return false;
+                    }
+                };
         try (ExecutorService callers = Executors.newFixedThreadPool(2)) {
             List<Future<Boolean>> results = callers.invokeAll(List.of(signup, signup));
-            assertThat(List.of(results.get(0).get(10, TimeUnit.SECONDS), results.get(1).get(10, TimeUnit.SECONDS)))
+            assertThat(
+                            List.of(
+                                    results.get(0).get(10, TimeUnit.SECONDS),
+                                    results.get(1).get(10, TimeUnit.SECONDS)))
                     .containsExactlyInAnyOrder(true, false);
         }
     }
@@ -183,24 +226,50 @@ class MySqlRefactoringTests {
         List<Object[]> rows = new ArrayList<>();
         Timestamp now = Timestamp.from(Instant.now());
 
-        transaction.executeWithoutResult(status -> {
-            User owner = users.findById(target.ownerId()).orElseThrow();
-            for (int workIndex = 0; workIndex < 21; workIndex++) {
-                Long workId = workIndex == 0 ? target.workId()
-                        : works.saveAndFlush(new Work(owner, "comparison", "fantasy", "", "")).getId();
-                for (int settingIndex = 0; settingIndex < 100; settingIndex++) {
-                    rows.add(new Object[] {workId, "rule", settingIndex % 2 == 0 ? "CHARACTER" : "WORLD",
-                            "CONFIRMED", "evidence", now, now, 0});
-                }
-            }
-            jdbc.batchUpdate("INSERT INTO work_settings(work_id,title,kind,status,content,created_at,updated_at,version) "
-                    + "VALUES (?,?,?,?,?,?,?,?)", rows);
-        });
+        transaction.executeWithoutResult(
+                status -> {
+                    User owner = users.findById(target.ownerId()).orElseThrow();
+                    for (int workIndex = 0; workIndex < 21; workIndex++) {
+                        Long workId =
+                                workIndex == 0
+                                        ? target.workId()
+                                        : works.saveAndFlush(
+                                                        new Work(
+                                                                owner,
+                                                                "comparison",
+                                                                "fantasy",
+                                                                "",
+                                                                ""))
+                                                .getId();
+                        for (int settingIndex = 0; settingIndex < 100; settingIndex++) {
+                            rows.add(
+                                    new Object[] {
+                                        workId,
+                                        "rule",
+                                        settingIndex % 2 == 0 ? "CHARACTER" : "WORLD",
+                                        "CONFIRMED",
+                                        "evidence",
+                                        now,
+                                        now,
+                                        0
+                                    });
+                        }
+                    }
+                    jdbc.batchUpdate(
+                            "INSERT INTO work_settings(work_id,title,kind,status,content,created_at,updated_at,version) "
+                                    + "VALUES (?,?,?,?,?,?,?,?)",
+                            rows);
+                });
         jdbc.execute("ANALYZE TABLE work_settings");
 
-        String plan = jdbc.queryForObject("EXPLAIN ANALYZE SELECT id FROM work_settings "
-                        + "WHERE work_id=? AND kind=? AND id<? ORDER BY id DESC LIMIT 21",
-                String.class, target.workId(), "CHARACTER", Long.MAX_VALUE);
+        String plan =
+                jdbc.queryForObject(
+                        "EXPLAIN ANALYZE SELECT id,work_id,title,kind,status,content,created_at,updated_at,version FROM work_settings "
+                                + "WHERE work_id=? AND kind=? AND id<? ORDER BY id DESC LIMIT 21",
+                        String.class,
+                        target.workId(),
+                        "CHARACTER",
+                        Long.MAX_VALUE);
         assertThat(plan).contains("ix_settings_work_kind_id");
         assertThat(plan).contains("rows=21");
         System.out.println("SETTING_CURSOR_EXPLAIN\n" + plan);

@@ -26,7 +26,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class SessionAuthenticationService {
     private final AuthenticationManager authenticationManager;
-    private final HttpSessionSecurityContextRepository contexts;
+    private final HttpSessionSecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
 
     /** 인증 결과의 프로필로 세션을 만들고 세션 ID·CSRF 토큰을 함께 회전한다. */
@@ -50,7 +50,7 @@ public class SessionAuthenticationService {
         context.setAuthentication(sessionAuth);
         SecurityContextHolder.setContext(context);
         // 현재 요청의 ThreadLocal 설정만으로는 다음 요청에 인증이 복원되지 않는다.
-        contexts.saveContext(context, request, response);
+        securityContextRepository.saveContext(context, request, response);
         return UserConverter.toResponse(principal);
     }
 

@@ -6,9 +6,9 @@ import com.magister.backend.domain.setting.dto.UpdateSettingRequest;
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.user.security.LoginUser;
-import com.magister.backend.global.response.ApiResult;
-import com.magister.backend.global.pagination.OffsetPageResponse;
 import com.magister.backend.global.pagination.CursorPageResponse;
+import com.magister.backend.global.pagination.OffsetPageResponse;
+import com.magister.backend.global.response.ApiResult;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -28,20 +28,28 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Setting", description = "작품의 인물·세계관·주요 사건·의도한 각색과 확정 여부를 관리하는 설정집")
 @SecurityRequirement(name = "session")
 public interface SettingControllerDocs {
-    @Operation(summary = "설정 커서 목록", description = "소유자 전용 ID 내림차순 조회. size는 1~100이며 다른 작품·필터의 커서는 400으로 거절합니다. 다음 페이지는 nextCursor를 사용합니다.")
+    @Operation(
+            summary = "설정 커서 목록",
+            description =
+                    "소유자 전용 ID 내림차순 조회. size는 1~100이며 다른 작품·필터의 커서는 400으로 거절합니다. 다음 페이지는 nextCursor를 사용합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "설정 목록과 hasNext, nextCursor"),
         @ApiResponse(responseCode = "400", description = "유효하지 않은 커서 또는 페이지 크기"),
         @ApiResponse(responseCode = "401", description = "로그인 필요"),
         @ApiResponse(responseCode = "404", description = "소유한 작품 없음")
     })
-    ApiResult<CursorPageResponse<SettingResponse>> scroll(LoginUser user, @Positive Long workId,
-            SettingKind kind, SettingStatus status, String cursor, @Min(1) @Max(100) int size);
-
+    ApiResult<CursorPageResponse<SettingResponse>> scroll(
+            LoginUser user,
+            @Positive Long workId,
+            SettingKind kind,
+            SettingStatus status,
+            String cursor,
+            @Min(1) @Max(100) int size);
 
     @Operation(
             summary = "설정 등록",
-            description = """
+            description =
+                    """
                     **목적**
 
                     작품의 인물과 세계관 정보를 설정집에 기록하여 이후 원고 검토에 사용할 기준을 관리합니다.
@@ -74,40 +82,46 @@ public interface SettingControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "필수값·종류·상태·길이·작품 ID 또는 JSON 형식 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ResponseEntity<ApiResult<SettingResponse>> create(
             LoginUser user, @Positive Long workId, @Valid CreateSettingRequest request);
 
     @Operation(
             summary = "설정 목록",
-            description = """
+            description =
+                    """
                     **목적**
 
                     작품의 설정집을 살펴보고 원고 검토에 참고할 확정 설정을 찾습니다.
@@ -139,21 +153,24 @@ public interface SettingControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "작품 ID·종류·상태 또는 페이지 범위 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<OffsetPageResponse<SettingResponse>> list(
             LoginUser user,
@@ -165,7 +182,8 @@ public interface SettingControllerDocs {
 
     @Operation(
             summary = "설정 상세",
-            description = """
+            description =
+                    """
                     **목적**
 
                     설정의 구체적인 내용과 확정 여부를 확인하고 수정에 필요한 버전을 가져옵니다.
@@ -196,28 +214,31 @@ public interface SettingControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "작품·설정 ID 형식 또는 양수 조건 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품·설정 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
-    ApiResult<SettingResponse> get(
-            LoginUser user, @Positive Long workId, @Positive Long settingId);
+    ApiResult<SettingResponse> get(LoginUser user, @Positive Long workId, @Positive Long settingId);
 
     @Operation(
             summary = "설정 수정",
-            description = """
+            description =
+                    """
                     **목적**
 
                     작품 설정을 보완하거나 아이디어·AI 후보를 확정하여 이후 원고 검토의 기준을 조정합니다.
@@ -250,39 +271,45 @@ public interface SettingControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "필수값·종류·상태·길이·ID·version 또는 JSON 형식 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품·설정 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "409",
                 description = "설정 또는 작품의 수정 버전 충돌",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<SettingResponse> update(
             LoginUser user,

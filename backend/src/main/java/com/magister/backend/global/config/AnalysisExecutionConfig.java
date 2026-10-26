@@ -1,10 +1,10 @@
 package com.magister.backend.global.config;
 
-import com.magister.backend.global.config.AnalysisExecutionProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
+
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -15,7 +15,11 @@ import java.util.concurrent.TimeUnit;
 public class AnalysisExecutionConfig {
     @Bean(destroyMethod = "shutdownNow")
     public ThreadPoolExecutor analysisExecutor(AnalysisExecutionProperties properties) {
-        return new ThreadPoolExecutor(properties.getThreads(), properties.getThreads(), 0, TimeUnit.SECONDS,
+        return new ThreadPoolExecutor(
+                properties.getThreads(),
+                properties.getThreads(),
+                0,
+                TimeUnit.SECONDS,
                 new ArrayBlockingQueue<>(properties.getQueueCapacity()),
                 Thread.ofPlatform().name("analysis-worker-", 0).factory(),
                 new ThreadPoolExecutor.AbortPolicy());

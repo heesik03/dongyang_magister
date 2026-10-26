@@ -61,7 +61,8 @@ public class AuthRequestLimiter {
     private synchronized void recordAttempt(String path, String remoteAddress) {
         long now = clock.getAsLong();
         long windowNanos = properties.getWindow().toNanos();
-        if (now - lastCleanup >= windowNanos || windows.size() >= properties.getMaxTrackedClients()) {
+        if (now - lastCleanup >= windowNanos
+                || windows.size() >= properties.getMaxTrackedClients()) {
             windows.entrySet().removeIf(entry -> now - entry.getValue().started >= windowNanos);
             lastCleanup = now;
         }

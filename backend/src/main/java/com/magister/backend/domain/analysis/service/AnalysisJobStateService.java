@@ -18,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /** 외부 통신 없이 선점·상태 전환·lease 복구만 짧은 트랜잭션으로 처리한다. */
@@ -26,10 +27,14 @@ import java.util.Optional;
 public class AnalysisJobStateService {
     private final AnalysisJobRepository analysisJobRepository;
     private final ObjectMapper objectMapper;
-    private final AnalysisExecutionProperties properties;
-    private static final List<AnalysisJobStatus> ACTIVE = List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING);
-    private static final List<AnalysisJobStatus> TERMINAL = List.of(
-            AnalysisJobStatus.SUCCEEDED, AnalysisJobStatus.FAILED, AnalysisJobStatus.CANCELLED);
+    private final AnalysisExecutionProperties executionProperties;
+    private static final List<AnalysisJobStatus> ACTIVE =
+            List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING);
+    private static final List<AnalysisJobStatus> TERMINAL =
+            List.of(
+                    AnalysisJobStatus.SUCCEEDED,
+                    AnalysisJobStatus.FAILED,
+                    AnalysisJobStatus.CANCELLED);
 
     /** 트랜잭션 종료 후 워커가 사용할 값이다. 지연 로딩 엔티티는 스레드 경계로 넘기지 않는다. */
     public record Claim(Long ownerId, AnalysisInput input) {}
@@ -44,15 +49,19 @@ public class AnalysisJobStateService {
         AnalysisJob job = analysisJobRepository.lockById(jobId).orElseThrow();
 
         // 한 작업이 여러 실행기에 전달되더라도 배정된 프로세스만 공급자 호출을 시작한다.
-        if (job.getWorkerId() != null && !job.getWorkerId().equals(properties.getInstanceId())) {
+        if (job.getWorkerId() != null
+                && !job.getWorkerId().equals(executionProperties.getInstanceId())) {
             return Optional.empty();
         }
         if (!job.start()) {
             return Optional.empty();
         }
 
-        return Optional.of(new Claim(job.getWork().getOwner().getId(),
-                objectMapper.readValue(job.getInput(), AnalysisInput.class)));
+        return Optional.of(
+                new Claim(
+                        job.getWork().getOwner().getId(),
+                        Objects.requireNonNull(
+                                objectMapper.readValue(job.getInput(), AnalysisInput.class))));
     }
 
     /**
@@ -61,7 +70,9 @@ public class AnalysisJobStateService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void succeed(String jobId, AnalysisData result) {
-        analysisJobRepository.lockById(jobId).orElseThrow()
+        analysisJobRepository
+                .lockById(jobId)
+                .orElseThrow()
                 .succeed(objectMapper.writeValueAsString(result));
     }
 
@@ -85,23 +96,32 @@ public class AnalysisJobStateService {
         Instant now = Instant.now();
         // 취소·실제 종료된 작업과 이미 만료된 lease는 갱신 조건에서 제외해 되살리지 않는다.
         if (!localJobIds.isEmpty()) {
-            analysisJobRepository.renewLeases(properties.getInstanceId(), localJobIds, ACTIVE,
-                    now, now.plus(properties.getLeaseDuration()));
+            analysisJobRepository.renewLeases(
+                    executionProperties.getInstanceId(),
+                    localJobIds,
+                    ACTIVE,
+                    now,
+                    now.plus(executionProperties.getLeaseDuration()));
         }
 
         // 재시작 시 전체 작업을 실패시키지 않는다. bulk 갱신은 version도 올려 오래된 저장을 차단한다.
-        analysisJobRepository.failExpired(ACTIVE, AnalysisJobStatus.FAILED,
-                "작업 실행 연결이 종료되었습니다. 다시 요청해 주세요.", now);
+        analysisJobRepository.failExpired(
+                ACTIVE, AnalysisJobStatus.FAILED, "작업 실행 연결이 종료되었습니다. 다시 요청해 주세요.", now);
 
         // 기본값 0은 보존이다. 보존 기간과 멱등 키 유효기간을 정한 운영 설정에서만 삭제한다.
-        if (!properties.getRetention().isZero()) {
-            List<String> expired = analysisJobRepository.findExpiredResultIds(TERMINAL,
-                    now.minus(properties.getRetention()), PageRequest.of(0, 100));
+        if (!executionProperties.getRetention().isZero()) {
+            List<String> expired =
+                    analysisJobRepository.findExpiredResultIds(
+                            TERMINAL,
+                            now.minus(executionProperties.getRetention()),
+                            PageRequest.of(0, 100));
             if (!expired.isEmpty()) {
                 analysisJobRepository.deleteAllByIdInBatch(expired);
             }
         }
 
-        return localJobIds.isEmpty() ? List.of() : analysisJobRepository.findTerminalIds(localJobIds, ACTIVE);
+        return localJobIds.isEmpty()
+                ? List.of()
+                : analysisJobRepository.findTerminalIds(localJobIds, ACTIVE);
     }
 }

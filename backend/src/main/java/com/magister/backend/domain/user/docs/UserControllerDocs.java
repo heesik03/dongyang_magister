@@ -29,7 +29,8 @@ public interface UserControllerDocs {
 
     @Operation(
             summary = "이메일 중복 확인",
-            description = """
+            description =
+                    """
                     **목적**
 
                     회원가입 전에 입력한 이메일로 계정을 만들 수 있는지 안내합니다.
@@ -61,27 +62,31 @@ public interface UserControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "이메일 누락·형식·길이 또는 JSON 형식 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<EmailCheckResponse> checkEmail(@Valid EmailCheckRequest request);
 
     @Operation(
             summary = "회원가입",
-            description = """
+            description =
+                    """
                     **목적**
 
                     작품과 원고를 본인 계정에 보관할 수 있도록 작가 계정을 생성합니다.
@@ -115,33 +120,38 @@ public interface UserControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "이메일·필명·비밀번호 검증 또는 JSON 형식 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "409",
                 description = "이미 가입된 이메일",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ResponseEntity<ApiResult<UserResponse>> signup(@Valid SignupRequest request);
 
     @Operation(
             summary = "CSRF 토큰 조회",
-            description = """
+            description =
+                    """
                     **목적**
 
                     회원가입·로그인·작품 저장 등 상태를 변경하는 요청을 현재 세션에서 보낼 수 있도록 CSRF 토큰을 제공합니다.
@@ -174,7 +184,8 @@ public interface UserControllerDocs {
 
     @Operation(
             summary = "이메일 로그인",
-            description = """
+            description =
+                    """
                     **목적**
 
                     본인 계정으로 인증하여 작품·설정집·원고에 접근할 세션을 만듭니다.
@@ -207,37 +218,40 @@ public interface UserControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "이메일·비밀번호 검증 또는 JSON 형식 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "이메일 또는 비밀번호 불일치",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<UserResponse> login(
-            @Valid LoginRequest input,
-            HttpServletRequest request,
-            HttpServletResponse response);
+            @Valid LoginRequest input, HttpServletRequest request, HttpServletResponse response);
 
     @SecurityRequirement(name = "session")
     @Operation(
             summary = "내 정보 조회",
-            description = """
+            description =
+                    """
                     **목적**
 
                     현재 로그인한 작가를 확인하고 화면의 계정 정보를 표시합니다.
@@ -268,9 +282,10 @@ public interface UserControllerDocs {
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<UserResponse> me(LoginUser user);
 }

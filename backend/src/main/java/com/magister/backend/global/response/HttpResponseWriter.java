@@ -12,12 +12,14 @@ import java.io.IOException;
 public final class HttpResponseWriter {
     private HttpResponseWriter() {}
 
-    public static void failure(HttpServletResponse response, ObjectMapper objectMapper, ErrorCode code)
+    public static void failure(
+            HttpServletResponse response, ObjectMapper objectMapper, ErrorCode code)
             throws IOException {
         write(response, objectMapper, code.getHttpStatus().value(), ApiResult.failure(code));
     }
 
-    public static void write(HttpServletResponse response, ObjectMapper objectMapper, int status, ApiResult<?> body)
+    public static void write(
+            HttpServletResponse response, ObjectMapper objectMapper, int status, ApiResult<?> body)
             throws IOException {
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");

@@ -1,8 +1,8 @@
 package com.magister.backend.domain.gemini.docs;
 
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
-import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.gemini.dto.GeminiResponse;
+import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.response.ApiResult;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,7 +21,8 @@ public interface GeminiControllerDocs {
 
     @Operation(
             summary = "Gemini 텍스트 생성",
-            description = """
+            description =
+                    """
                     **목적**
 
                     서버에서 Gemini API로 텍스트 생성 요청을 보낼 수 있는지 확인합니다.
@@ -54,57 +55,66 @@ public interface GeminiControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "prompt 누락·공백·길이 또는 JSON 형식 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "429",
                 description = "사용자별 호출 간격·동시 호출 또는 서버 전체 호출 제한 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "502",
                 description = "Gemini 인증 실패·요청 거절 또는 유효하지 않은 응답",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "503",
                 description = "Gemini 호출 한도 초과·서비스 장애 또는 통신 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "504",
                 description = "Gemini 응답 시간 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "500",
                 description = "예상하지 못한 서버 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<GeminiResponse> generate(LoginUser user, @Valid GeminiRequest request);
 }

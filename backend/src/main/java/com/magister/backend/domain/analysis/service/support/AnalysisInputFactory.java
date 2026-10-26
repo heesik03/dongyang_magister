@@ -1,16 +1,16 @@
 package com.magister.backend.domain.analysis.service.support;
 
 import com.magister.backend.domain.analysis.converter.AnalysisConverter;
-import com.magister.backend.domain.analysis.dto.AnalysisInput.SettingReference;
 import com.magister.backend.domain.analysis.dto.AnalysisInput;
+import com.magister.backend.domain.analysis.dto.AnalysisInput.SettingReference;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.work.error.WorkErrorCode;
+import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ReviewData;
-import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceResponse;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
@@ -38,32 +38,42 @@ public class AnalysisInputFactory {
         validateRequest(request, workspace);
 
         WorkspaceData content = workspace.content();
-        ChapterData chapter = content.chapters().stream()
-                .filter(item -> item.id().equals(request.chapterId())).findFirst()
-                .orElseThrow(() -> new CustomException(CommonErrorCode.INVALID_REQUEST));
+        ChapterData chapter =
+                content.chapters().stream()
+                        .filter(item -> item.id().equals(request.chapterId()))
+                        .findFirst()
+                        .orElseThrow(() -> new CustomException(CommonErrorCode.INVALID_REQUEST));
         if (chapter.content().isBlank()) {
             throw new CustomException(CommonErrorCode.INVALID_REQUEST);
         }
 
         // 설정별 findById를 반복하지 않는다. 작품 조건을 포함한 IN 질의 후 누락 수까지 검사한다.
         List<Long> settingIds = parseSettingIds(request.settingIds());
-        List<WorkSetting> settings = workSettingRepository.findAllByWork_IdAndIdIn(workId, settingIds);
+        List<WorkSetting> settings =
+                workSettingRepository.findAllByWork_IdAndIdIn(workId, settingIds);
         validateSettings(settings, settingIds.size());
-        List<SettingReference> references = settings.stream().map(AnalysisConverter::toReference).toList();
+        List<SettingReference> references =
+                settings.stream().map(AnalysisConverter::toReference).toList();
 
         // Set으로 중복을 제거하고 현재 회차를 제외한다. 크기 비교로 존재하지 않는 선택도 검출한다.
         Set<String> previousIds = new HashSet<>(request.previousIds());
-        List<ChapterData> previous = content.chapters().stream()
-                .filter(item -> previousIds.contains(item.id()) && !item.id().equals(chapter.id()))
-                .toList();
+        List<ChapterData> previous =
+                content.chapters().stream()
+                        .filter(
+                                item ->
+                                        previousIds.contains(item.id())
+                                                && !item.id().equals(chapter.id()))
+                        .toList();
         if (previous.size() != previousIds.size()) {
             throw new CustomException(CommonErrorCode.INVALID_REQUEST);
         }
 
         // 이전 판단은 같은 회차의 원문·설정 근거가 일치하는 경우에만 결과 검증기가 재사용한다.
-        List<ReviewData> decisions = content.analyses().stream()
-                .filter(item -> item.chapterId().equals(chapter.id()))
-                .flatMap(item -> item.reviews().stream()).toList();
+        List<ReviewData> decisions =
+                content.analyses().stream()
+                        .filter(item -> item.chapterId().equals(chapter.id()))
+                        .flatMap(item -> item.reviews().stream())
+                        .toList();
 
         return AnalysisConverter.toInput(chapter, references, previous, decisions, request);
     }
@@ -90,7 +100,8 @@ public class AnalysisInputFactory {
     /** 요청한 설정이 모두 현재 작품에 존재하고 확정 상태인지 확인한다. */
     private void validateSettings(List<WorkSetting> settings, int expectedCount) {
         if (settings.size() != expectedCount
-                || settings.stream().anyMatch(setting -> setting.getStatus() != SettingStatus.CONFIRMED)) {
+                || settings.stream()
+                        .anyMatch(setting -> setting.getStatus() != SettingStatus.CONFIRMED)) {
             invalid();
         }
     }

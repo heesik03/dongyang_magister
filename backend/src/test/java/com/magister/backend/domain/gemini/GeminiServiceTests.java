@@ -3,6 +3,7 @@ package com.magister.backend.domain.gemini;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -10,20 +11,19 @@ import static org.mockito.Mockito.when;
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.domain.gemini.service.GeminiService;
 import com.magister.backend.domain.gemini.service.limit.GeminiRateLimiter;
+import com.magister.backend.domain.gemini.service.limit.GeminiRateLimiter.Reservation;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.gemini.GeminiClient;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import com.magister.backend.domain.gemini.service.limit.GeminiRateLimiter.Reservation;
-import static org.mockito.Mockito.never;
+import java.util.concurrent.atomic.AtomicLong;
 
 class GeminiServiceTests {
 
@@ -51,7 +51,8 @@ class GeminiServiceTests {
         when(client.generateText("second", 4096)).thenReturn("two");
         assertThat(service.analyze(1L, "first")).isEqualTo("one");
         assertThat(service.analyze(2L, "second")).isEqualTo("two");
-        assertThatThrownBy(() -> service.generate(1L, new GeminiRequest("first"))).isInstanceOf(CustomException.class);
+        assertThatThrownBy(() -> service.generate(1L, new GeminiRequest("first")))
+                .isInstanceOf(CustomException.class);
         now.addAndGet(5000000000L);
         when(client.generateText("failure", 4096)).thenThrow(new IllegalStateException("test"));
         assertThatThrownBy(() -> service.analyze(1L, "failure"))
@@ -69,10 +70,12 @@ class GeminiServiceTests {
         when(client.generateText("queued", 4096)).thenReturn("result");
         CountDownLatch entered = new CountDownLatch(1);
         try (ExecutorService caller = Executors.newSingleThreadExecutor()) {
-            Future<String> result = caller.submit(() -> {
-                entered.countDown();
-                return service.analyze(3L, "queued");
-            });
+            Future<String> result =
+                    caller.submit(
+                            () -> {
+                                entered.countDown();
+                                return service.analyze(3L, "queued");
+                            });
             assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
             verify(client, never()).generateText("queued", 4096);
             first.close();

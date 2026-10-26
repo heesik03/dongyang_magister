@@ -5,8 +5,11 @@ import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceResponse;
 import com.magister.backend.domain.workspace.entity.Workspace;
 import com.magister.backend.domain.workspace.service.support.WorkspaceCodec;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Component;
+
 import java.time.Instant;
 
 @Component
@@ -23,7 +26,10 @@ public class WorkspaceConverter {
     }
 
     public WorkspaceResponse toResponse(Workspace workspace, WorkspaceData content) {
-        return new WorkspaceResponse(workspace.getRevision(), content, workspace.getUpdatedAt(),
+        return new WorkspaceResponse(
+                workspace.getRevision(),
+                content,
+                workspace.getUpdatedAt(),
                 workspace.getWork().getVersion());
     }
 }

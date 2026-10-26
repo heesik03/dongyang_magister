@@ -1,20 +1,30 @@
 package com.magister.backend.domain.setting.controller;
 
-import com.magister.backend.global.pagination.OffsetPageResponse;
-import com.magister.backend.global.pagination.CursorPageRequest;
-import com.magister.backend.global.pagination.CursorPageResponse;
 import com.magister.backend.domain.setting.docs.SettingControllerDocs;
-import com.magister.backend.domain.setting.dto.*;
-import com.magister.backend.domain.setting.entity.*;
+import com.magister.backend.domain.setting.dto.CreateSettingRequest;
+import com.magister.backend.domain.setting.dto.SettingResponse;
+import com.magister.backend.domain.setting.dto.UpdateSettingRequest;
+import com.magister.backend.domain.setting.entity.SettingKind;
+import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.service.SettingService;
 import com.magister.backend.domain.user.security.LoginUser;
-import com.magister.backend.global.response.*;
+import com.magister.backend.global.pagination.CursorPageRequest;
+import com.magister.backend.global.pagination.CursorPageResponse;
+import com.magister.backend.global.pagination.OffsetPageResponse;
+import com.magister.backend.global.response.ApiResult;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 
@@ -59,13 +69,15 @@ public class SettingController implements SettingControllerDocs {
     @Override
     @GetMapping("/scroll")
     public ApiResult<CursorPageResponse<SettingResponse>> scroll(
-            @AuthenticationPrincipal LoginUser user, @PathVariable Long workId,
+            @AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId,
             @RequestParam(required = false) SettingKind kind,
             @RequestParam(required = false) SettingStatus status,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResult.success(settings.scroll(user.id(), workId, kind, status,
-                CursorPageRequest.of(cursor, size)));
+        return ApiResult.success(
+                settings.scroll(
+                        user.id(), workId, kind, status, CursorPageRequest.of(cursor, size)));
     }
 
     @Override

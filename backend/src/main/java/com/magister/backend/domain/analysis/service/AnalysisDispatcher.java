@@ -72,7 +72,10 @@ public class AnalysisDispatcher {
             try {
                 jobStateService.fail(jobId, "서버가 종료되었습니다. 다시 요청해 주세요.");
             } catch (RuntimeException error) {
-                log.warn("Shutdown state save failed: jobId={}, type={}", jobId, error.getClass().getSimpleName());
+                log.warn(
+                        "Shutdown state save failed: jobId={}, type={}",
+                        jobId,
+                        error.getClass().getSimpleName());
             }
             cancel(jobId);
         }
@@ -98,10 +101,11 @@ public class AnalysisDispatcher {
         private volatile boolean started;
 
         private TrackedTask(String jobId) {
-            super(() -> {
-                analysisWorker.execute(jobId);
-                return null;
-            });
+            super(
+                    () -> {
+                        analysisWorker.execute(jobId);
+                        return null;
+                    });
             this.jobId = jobId;
         }
 

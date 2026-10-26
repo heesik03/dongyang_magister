@@ -32,7 +32,8 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
     Optional<AnalysisJob> lockById(String id);
 
     /** 입력 원고·요청 본문을 제외하고 소유권도 동일 질의에서 확인한다. */
-    @Query("""
+    @Query(
+            """
             select j.id as id, j.status as status, j.error as error, j.result as result
             from AnalysisJob j
             where j.id = :jobId and j.work.id = :workId and j.work.owner.id = :ownerId
@@ -41,28 +42,40 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
 
     /** 실제 실행기에 남아 있는 자기 서버 작업만 갱신하며 만료된 lease를 되살리지 않는다. */
     @Modifying
-    @Query("""
+    @Query(
+            """
             update AnalysisJob j set j.leaseUntil = :until, j.version = j.version + 1
             where j.workerId = :workerId and j.id in :ids and j.status in :active
               and j.leaseUntil > :now
             """)
-    int renewLeases(String workerId, Collection<String> ids, Collection<AnalysisJobStatus> active,
-            Instant now, Instant until);
+    int renewLeases(
+            String workerId,
+            Collection<String> ids,
+            Collection<AnalysisJobStatus> active,
+            Instant now,
+            Instant until);
 
     /** 서버 시작 여부와 무관하게 lease가 만료된 미완료 작업만 복구한다. */
     @Modifying
-    @Query("""
+    @Query(
+            """
             update AnalysisJob j set j.status = :failed, j.error = :message,
               j.updatedAt = :now, j.version = j.version + 1
             where j.status in :active and (j.leaseUntil is null or j.leaseUntil <= :now)
             """)
-    int failExpired(Collection<AnalysisJobStatus> active, AnalysisJobStatus failed, String message, Instant now);
+    int failExpired(
+            Collection<AnalysisJobStatus> active,
+            AnalysisJobStatus failed,
+            String message,
+            Instant now);
 
     /** 다른 서버에서 취소된 로컬 작업도 실행기에 전파하기 위한 작은 ID 조회다. */
     @Query("select j.id from AnalysisJob j where j.id in :ids and j.status not in :active")
     List<String> findTerminalIds(Collection<String> ids, Collection<AnalysisJobStatus> active);
 
     /** 보존 기간 정리 시 원고 본문을 읽지 않고 제한된 수의 ID만 가져온다. */
-    @Query("select j.id from AnalysisJob j where j.status in :terminal and j.updatedAt < :before order by j.updatedAt, j.id")
-    List<String> findExpiredResultIds(Collection<AnalysisJobStatus> terminal, Instant before, Pageable limit);
+    @Query(
+            "select j.id from AnalysisJob j where j.status in :terminal and j.updatedAt < :before order by j.updatedAt, j.id")
+    List<String> findExpiredResultIds(
+            Collection<AnalysisJobStatus> terminal, Instant before, Pageable limit);
 }

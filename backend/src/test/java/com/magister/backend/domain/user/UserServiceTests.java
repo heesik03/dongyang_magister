@@ -1,12 +1,17 @@
 package com.magister.backend.domain.user;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.entity.User;
-import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.repository.UserConstraintTranslator;
+import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.service.UserService;
 import com.magister.backend.global.error.exception.CustomException;
 
@@ -18,12 +23,21 @@ import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
 class UserServiceTests {
     @Test
     void onlyKnownEmailUniqueConstraintIsTranslated() {
-        assertThat(UserConstraintTranslator.isDuplicateEmail(new DataIntegrityViolationException(
-                "Duplicate entry for key 'users.uk_users_email'"))).isTrue();
-        assertThat(UserConstraintTranslator.isDuplicateEmail(new DataIntegrityViolationException(
-                "Unique index violation PUBLIC.UK_USERS_EMAIL_INDEX_4"))).isTrue();
-        assertThat(UserConstraintTranslator.isDuplicateEmail(new DataIntegrityViolationException(
-                "Duplicate email for unique alternate_email"))).isFalse();
+        assertThat(
+                        UserConstraintTranslator.isDuplicateEmail(
+                                new DataIntegrityViolationException(
+                                        "Duplicate entry for key 'users.uk_users_email'")))
+                .isTrue();
+        assertThat(
+                        UserConstraintTranslator.isDuplicateEmail(
+                                new DataIntegrityViolationException(
+                                        "Unique index violation PUBLIC.UK_USERS_EMAIL_INDEX_4")))
+                .isTrue();
+        assertThat(
+                        UserConstraintTranslator.isDuplicateEmail(
+                                new DataIntegrityViolationException(
+                                        "Duplicate email for unique alternate_email")))
+                .isFalse();
     }
 
     @Test

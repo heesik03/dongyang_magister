@@ -1,11 +1,15 @@
 package com.magister.backend.global.security;
 
 import com.magister.backend.global.error.code.FrameworkErrorCode;
-import com.magister.backend.global.response.ApiResult;
 import com.magister.backend.global.response.HttpResponseWriter;
 
-import jakarta.servlet.*;
-import jakarta.servlet.http.*;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ReadListener;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletInputStream;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -15,17 +19,20 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import tools.jackson.databind.ObjectMapper;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class RequestSizeFilter extends OncePerRequestFilter {
     private static final int MAX_BYTES = 8 * 1024 * 1024;
-    private final ObjectMapper json;
+    private final ObjectMapper objectMapper;
 
-    public RequestSizeFilter(ObjectMapper json) {
-        this.json = json;
+    public RequestSizeFilter(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -76,8 +83,12 @@ public class RequestSizeFilter extends OncePerRequestFilter {
                             @Override
                             public void setReadListener(ReadListener listener) {
                                 try {
-                                    if (!isFinished()) listener.onDataAvailable();
-                                    if (isFinished()) listener.onAllDataRead();
+                                    if (!isFinished()) {
+                                        listener.onDataAvailable();
+                                    }
+                                    if (isFinished()) {
+                                        listener.onAllDataRead();
+                                    }
                                 } catch (IOException error) {
                                     listener.onError(error);
                                 }
@@ -95,6 +106,7 @@ public class RequestSizeFilter extends OncePerRequestFilter {
     }
 
     private void reject(HttpServletResponse response) throws IOException {
-        HttpResponseWriter.failure(response, json, new FrameworkErrorCode(HttpStatus.PAYLOAD_TOO_LARGE));
+        HttpResponseWriter.failure(
+                response, objectMapper, new FrameworkErrorCode(HttpStatus.CONTENT_TOO_LARGE));
     }
 }

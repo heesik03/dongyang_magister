@@ -1,11 +1,12 @@
 package com.magister.backend.domain.user.converter;
 
-import com.magister.backend.domain.user.dto.UserResponse;
-import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.dto.CsrfResponse;
 import com.magister.backend.domain.user.dto.EmailCheckResponse;
-import com.magister.backend.domain.user.security.LoginUser;
+import com.magister.backend.domain.user.dto.UserResponse;
+import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.security.AccountPrincipal;
+import com.magister.backend.domain.user.security.LoginUser;
+
 import org.springframework.security.web.csrf.CsrfToken;
 
 public final class UserConverter {

@@ -1,9 +1,7 @@
 package com.magister.backend.domain.setting.converter;
 
 import com.magister.backend.domain.setting.dto.SettingResponse;
-import com.magister.backend.domain.setting.entity.*;
-
-import java.time.Instant;
+import com.magister.backend.domain.setting.entity.WorkSetting;
 
 public final class SettingConverter {
     private SettingConverter() {}

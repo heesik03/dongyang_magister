@@ -1,17 +1,26 @@
 package com.magister.backend.domain.work.controller;
 
-import com.magister.backend.global.pagination.OffsetPageResponse;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.docs.WorkControllerDocs;
-import com.magister.backend.domain.work.dto.*;
+import com.magister.backend.domain.work.dto.CreateWorkRequest;
+import com.magister.backend.domain.work.dto.UpdateWorkRequest;
+import com.magister.backend.domain.work.dto.WorkResponse;
 import com.magister.backend.domain.work.service.WorkService;
-import com.magister.backend.global.response.*;
+import com.magister.backend.global.pagination.OffsetPageResponse;
+import com.magister.backend.global.response.ApiResult;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 

@@ -25,7 +25,7 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class SecurityResponseHandler
         implements AuthenticationEntryPoint, AccessDeniedHandler, LogoutSuccessHandler {
-    private final ObjectMapper json;
+    private final ObjectMapper objectMapper;
 
     @Override
     public void commence(
@@ -53,12 +53,12 @@ public class SecurityResponseHandler
     }
 
     private void writeError(HttpServletResponse response, UserErrorCode code) throws IOException {
-        HttpResponseWriter.failure(response, json, code);
+        HttpResponseWriter.failure(response, objectMapper, code);
     }
 
     private void write(HttpServletResponse response, int status, ApiResult<?> body)
             throws IOException {
         // 보안 필터의 예외는 ControllerAdvice에 도달하지 않으므로 같은 응답 계약으로 직접 직렬화한다.
-        HttpResponseWriter.write(response, json, status, body);
+        HttpResponseWriter.write(response, objectMapper, status, body);
     }
 }

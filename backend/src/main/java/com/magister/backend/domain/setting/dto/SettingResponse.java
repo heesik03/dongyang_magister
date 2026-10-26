@@ -1,6 +1,7 @@
 package com.magister.backend.domain.setting.dto;
 
-import com.magister.backend.domain.setting.entity.*;
+import com.magister.backend.domain.setting.entity.SettingKind;
+import com.magister.backend.domain.setting.entity.SettingStatus;
 
 import java.time.Instant;
 

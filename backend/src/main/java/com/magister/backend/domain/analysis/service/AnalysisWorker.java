@@ -40,7 +40,9 @@ public class AnalysisWorker {
 
             // 선점 트랜잭션이 끝난 뒤 호출한다. 슬롯 대기는 취소 인터럽트를 수용한다.
             stage = "provider";
-            String raw = geminiService.analyze(claim.ownerId(), resultProcessor.buildPrompt(claim.input()));
+            String raw =
+                    geminiService.analyze(
+                            claim.ownerId(), resultProcessor.buildPrompt(claim.input()));
 
             // 공급자 JSON이 정상이어도 원문·설정·요청 옵션과 맞지 않으면 결과로 채택하지 않는다.
             stage = "validation";
@@ -49,20 +51,26 @@ public class AnalysisWorker {
             stage = "completion";
             jobStateService.succeed(jobId, result);
         } catch (Exception error) {
-            String message = error instanceof CustomException custom
-                    ? custom.getErrorCode().getMessage()
-                    : "AI 검토 결과를 처리하지 못했습니다. 다시 시도해 주세요.";
+            String message =
+                    error instanceof CustomException custom
+                            ? custom.getErrorCode().getMessage()
+                            : "AI 검토 결과를 처리하지 못했습니다. 다시 시도해 주세요.";
 
             // 작업 ID와 단계로 진단하되 예외 메시지에 섞일 수 있는 원고·토큰은 로그에 남기지 않는다.
-            log.warn("Analysis job failed: jobId={}, stage={}, type={}",
-                    jobId, stage, error.getClass().getSimpleName());
+            log.warn(
+                    "Analysis job failed: jobId={}, stage={}, type={}",
+                    jobId,
+                    stage,
+                    error.getClass().getSimpleName());
 
             try {
                 jobStateService.fail(jobId, message);
             } catch (RuntimeException persistenceError) {
                 // 원고와 공급자 예외 전문은 기록하지 않는다. 복구 작업이 미완료 상태를 정리한다.
-                log.error("Analysis failure could not be saved: jobId={}, type={}",
-                        jobId, persistenceError.getClass().getSimpleName());
+                log.error(
+                        "Analysis failure could not be saved: jobId={}, type={}",
+                        jobId,
+                        persistenceError.getClass().getSimpleName());
                 throw persistenceError;
             }
         }

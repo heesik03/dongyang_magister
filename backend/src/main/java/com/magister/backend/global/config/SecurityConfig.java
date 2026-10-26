@@ -1,15 +1,15 @@
 package com.magister.backend.global.config;
 
-import com.magister.backend.global.security.SecurityResponseHandler;
-import com.magister.backend.global.security.AuthRateLimitFilter;
 import com.magister.backend.domain.user.security.AuthRequestLimiter;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.core.Ordered;
-import tools.jackson.databind.ObjectMapper;
+import com.magister.backend.global.security.AuthRateLimitFilter;
+import com.magister.backend.global.security.SecurityResponseHandler;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.*;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
@@ -19,15 +19,17 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
@@ -63,9 +65,12 @@ public class SecurityConfig {
     }
 
     @Bean
-    SessionAuthenticationStrategy sessionAuthenticationStrategy(HttpSessionCsrfTokenRepository csrfTokens) {
-        return new CompositeSessionAuthenticationStrategy(List.of(
-                new ChangeSessionIdAuthenticationStrategy(), new CsrfAuthenticationStrategy(csrfTokens)));
+    SessionAuthenticationStrategy sessionAuthenticationStrategy(
+            HttpSessionCsrfTokenRepository csrfTokens) {
+        return new CompositeSessionAuthenticationStrategy(
+                List.of(
+                        new ChangeSessionIdAuthenticationStrategy(),
+                        new CsrfAuthenticationStrategy(csrfTokens)));
     }
 
     @Bean

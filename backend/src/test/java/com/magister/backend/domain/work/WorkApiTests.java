@@ -1,9 +1,15 @@
 package com.magister.backend.domain.work;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
@@ -17,7 +23,8 @@ import com.magister.backend.domain.work.repository.WorkRepository;
 
 import jakarta.persistence.EntityManager;
 
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -196,8 +203,8 @@ class WorkApiTests {
         String path = "/api/work/" + id + "/setting";
         String settingBody =
                 "{\"title\":\"인물"
-                    + " 능력\",\"kind\":\"CHARACTER\",\"status\":\"CONFIRMED\",\"content\":\"마법 사용"
-                    + " 불가\"}";
+                        + " 능력\",\"kind\":\"CHARACTER\",\"status\":\"CONFIRMED\",\"content\":\"마법 사용"
+                        + " 불가\"}";
         String response =
                 mvc.perform(
                                 post(path)

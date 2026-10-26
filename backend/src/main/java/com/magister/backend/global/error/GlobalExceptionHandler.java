@@ -23,8 +23,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-import java.util.List;
 import java.sql.SQLException;
+import java.util.List;
 
 @RestControllerAdvice
 @Slf4j
@@ -109,7 +109,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "Unexpected API exception: type={}, location={}, sqlState={}, vendorCode={}",
                 exception.getClass().getName(),
                 exception.getStackTrace().length == 0 ? "unknown" : exception.getStackTrace()[0],
-                sqlFailure.state(), sqlFailure.vendorCode());
+                sqlFailure.state(),
+                sqlFailure.vendorCode());
         ErrorCode error = CommonErrorCode.INTERNAL_SERVER_ERROR;
         return createResponseEntity(
                 ApiResult.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
@@ -122,7 +123,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
             if (cause instanceof SQLException sqlException) {
                 String state = sqlException.getSQLState();
-                return new SqlFailure(state == null ? "unknown" : state, sqlException.getErrorCode());
+                return new SqlFailure(
+                        state == null ? "unknown" : state, sqlException.getErrorCode());
             }
         }
         return new SqlFailure("none", 0);

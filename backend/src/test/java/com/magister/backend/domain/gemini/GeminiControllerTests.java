@@ -1,6 +1,7 @@
 package com.magister.backend.domain.gemini;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -13,28 +14,28 @@ import com.magister.backend.domain.gemini.controller.GeminiController;
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.domain.gemini.dto.GeminiResponse;
 import com.magister.backend.domain.gemini.service.GeminiService;
+import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.error.GlobalExceptionHandler;
 import com.magister.backend.global.error.code.GeminiErrorCode;
 import com.magister.backend.global.error.exception.GeminiApiException;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
-import com.magister.backend.domain.user.security.LoginUser;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
-import java.util.List;
-import static org.mockito.ArgumentMatchers.eq;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
 
 class GeminiControllerTests {
 
@@ -47,9 +48,10 @@ class GeminiControllerTests {
 
     @BeforeEach
     void authenticate() {
-        SecurityContextHolder.getContext().setAuthentication(
-                UsernamePasswordAuthenticationToken.authenticated(
-                        new LoginUser(1L, "test@example.com", "test"), null, List.of()));
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        UsernamePasswordAuthenticationToken.authenticated(
+                                new LoginUser(1L, "test@example.com", "test"), null, List.of()));
     }
 
     @AfterEach
@@ -59,7 +61,8 @@ class GeminiControllerTests {
 
     @Test
     void returnsText() throws Exception {
-        when(service.generate(1L, new GeminiRequest("hello"))).thenReturn(new GeminiResponse("answer"));
+        when(service.generate(1L, new GeminiRequest("hello")))
+                .thenReturn(new GeminiResponse("answer"));
         mvc.perform(
                         post("/api/gemini")
                                 .contentType(MediaType.APPLICATION_JSON)

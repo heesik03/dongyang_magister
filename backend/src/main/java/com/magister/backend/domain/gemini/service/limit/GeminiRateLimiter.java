@@ -2,8 +2,10 @@ package com.magister.backend.domain.gemini.service.limit;
 
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,7 +45,9 @@ public class GeminiRateLimiter {
         validateOwner(ownerId);
         long now = clock.getAsLong();
         cleanup(now);
-        if (!available(ownerId, now)) throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
+        if (!available(ownerId, now)) {
+            throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
+        }
         return occupy(ownerId, now);
     }
 
@@ -51,10 +55,14 @@ public class GeminiRateLimiter {
     public synchronized Reservation awaitReservation(Long ownerId) {
         validateOwner(ownerId);
         while (true) {
-            if (Thread.currentThread().isInterrupted()) throw new CancellationException();
+            if (Thread.currentThread().isInterrupted()) {
+                throw new CancellationException();
+            }
             long now = clock.getAsLong();
             cleanup(now);
-            if (available(ownerId, now)) return occupy(ownerId, now);
+            if (available(ownerId, now)) {
+                return occupy(ownerId, now);
+            }
             try {
                 wait(100);
             } catch (InterruptedException error) {
@@ -80,14 +88,21 @@ public class GeminiRateLimiter {
     }
 
     private void cleanup(long now) {
-        if (now - lastCleanup < CLEANUP_INTERVAL_NANOS) return;
-        windows.entrySet().removeIf(entry -> !entry.getValue().busy
-                && now - entry.getValue().started > RETENTION_NANOS);
+        if (now - lastCleanup < CLEANUP_INTERVAL_NANOS) {
+            return;
+        }
+        windows.entrySet()
+                .removeIf(
+                        entry ->
+                                !entry.getValue().busy
+                                        && now - entry.getValue().started > RETENTION_NANOS);
         lastCleanup = now;
     }
 
     private void validateOwner(Long ownerId) {
-        if (ownerId == null || ownerId <= 0) throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+        if (ownerId == null || ownerId <= 0) {
+            throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+        }
     }
 
     public final class Reservation implements AutoCloseable {
@@ -101,7 +116,9 @@ public class GeminiRateLimiter {
         @Override
         public void close() {
             synchronized (GeminiRateLimiter.this) {
-                if (released) return;
+                if (released) {
+                    return;
+                }
                 released = true;
                 window.busy = false;
                 active--;

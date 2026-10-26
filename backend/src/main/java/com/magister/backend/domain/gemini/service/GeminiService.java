@@ -6,7 +6,9 @@ import com.magister.backend.domain.gemini.dto.GeminiResponse;
 import com.magister.backend.domain.gemini.service.limit.GeminiRateLimiter;
 import com.magister.backend.domain.gemini.service.limit.GeminiRateLimiter.Reservation;
 import com.magister.backend.global.gemini.GeminiClient;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 
 @Service

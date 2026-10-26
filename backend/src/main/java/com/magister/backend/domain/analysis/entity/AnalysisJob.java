@@ -2,10 +2,22 @@ package com.magister.backend.domain.analysis.entity;
 
 import com.magister.backend.domain.work.entity.Work;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+import java.time.Duration;
 import java.time.Instant;
 
 @Entity
@@ -13,6 +25,8 @@ import java.time.Instant;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AnalysisJob {
+    private static final Duration INITIAL_LEASE = Duration.ofMinutes(2);
+
     @Id
     @Column(length = 36)
     private String id;
@@ -63,7 +77,7 @@ public class AnalysisJob {
         status = AnalysisJobStatus.QUEUED;
         createdAt = Instant.now();
         updatedAt = createdAt;
-        leaseUntil = createdAt.plusSeconds(120);
+        leaseUntil = createdAt.plus(INITIAL_LEASE);
     }
 
     /** 실행 소유자와 만료 시각은 접수 시 한 번 배정하고 생존 작업만 갱신한다. */
@@ -92,6 +106,7 @@ public class AnalysisJob {
         updatedAt = Instant.now();
     }
 
+    /** 선점 전 오류도 실패 처리하되 완료·취소 결과는 보존한다. */
     public void fail(String error) {
         if (terminal()) {
             return;
@@ -101,6 +116,7 @@ public class AnalysisJob {
         updatedAt = Instant.now();
     }
 
+    /** 여러 번 취소해도 종료 상태와 종료 시각을 다시 변경하지 않는다. */
     public void cancel() {
         if (terminal()) {
             return;
@@ -109,6 +125,7 @@ public class AnalysisJob {
         updatedAt = Instant.now();
     }
 
+    /** 종료 상태는 워커의 늦은 결과·오류에 의해 다시 바뀌지 않는다. */
     public boolean terminal() {
         return status.terminal();
     }

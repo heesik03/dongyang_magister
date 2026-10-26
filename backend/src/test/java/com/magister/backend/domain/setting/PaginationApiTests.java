@@ -35,10 +35,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
-@SpringBootTest(properties = {
-    "spring.datasource.url=jdbc:h2:mem:pagination-api;MODE=MySQL;DB_CLOSE_DELAY=-1",
-    "spring.jpa.properties.hibernate.session_factory.statement_inspector=com.magister.backend.domain.setting.PaginationApiTests$SqlCapture"
-})
+@SpringBootTest(
+        properties = {
+            "spring.datasource.url=jdbc:h2:mem:pagination-api;MODE=MySQL;DB_CLOSE_DELAY=-1",
+            "spring.jpa.properties.hibernate.session_factory.statement_inspector=com.magister.backend.domain.setting.PaginationApiTests$SqlCapture"
+        })
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 public class PaginationApiTests {
@@ -56,25 +57,46 @@ public class PaginationApiTests {
 
     @BeforeEach
     void prepare() {
-        User user = users.saveAndFlush(new User(UUID.randomUUID() + "@example.com", "author", "hash"));
+        User user =
+                users.saveAndFlush(new User(UUID.randomUUID() + "@example.com", "author", "hash"));
         ownerId = user.getId();
-        owner = UsernamePasswordAuthenticationToken.authenticated(
-                new LoginUser(ownerId, user.getEmail(), user.getName()), null, List.of());
+        owner =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        new LoginUser(ownerId, user.getEmail(), user.getName()), null, List.of());
         characterIds = new ArrayList<>();
 
-        transaction.executeWithoutResult(status -> {
-            Work work = works.saveAndFlush(new Work(users.getReferenceById(ownerId), "work", "fantasy", "", ""));
-            workId = work.getId();
-            secondWorkId = works.saveAndFlush(new Work(work.getOwner(), "another", "fantasy", "", "")).getId();
-            for (int index = 0; index < 6; index++) {
-                SettingKind kind = index % 2 == 0 ? SettingKind.CHARACTER : SettingKind.WORLD;
-                Long id = settings.saveAndFlush(new WorkSetting(work, "rule", kind,
-                        SettingStatus.CONFIRMED, "evidence")).getId();
-                if (kind == SettingKind.CHARACTER) {
-                    characterIds.add(id);
-                }
-            }
-        });
+        transaction.executeWithoutResult(
+                status -> {
+                    Work work =
+                            works.saveAndFlush(
+                                    new Work(
+                                            users.getReferenceById(ownerId),
+                                            "work",
+                                            "fantasy",
+                                            "",
+                                            ""));
+                    workId = work.getId();
+                    secondWorkId =
+                            works.saveAndFlush(
+                                            new Work(work.getOwner(), "another", "fantasy", "", ""))
+                                    .getId();
+                    for (int index = 0; index < 6; index++) {
+                        SettingKind kind =
+                                index % 2 == 0 ? SettingKind.CHARACTER : SettingKind.WORLD;
+                        Long id =
+                                settings.saveAndFlush(
+                                                new WorkSetting(
+                                                        work,
+                                                        "rule",
+                                                        kind,
+                                                        SettingStatus.CONFIRMED,
+                                                        "evidence"))
+                                        .getId();
+                        if (kind == SettingKind.CHARACTER) {
+                            characterIds.add(id);
+                        }
+                    }
+                });
         characterIds.sort(Comparator.reverseOrder());
     }
 
@@ -84,13 +106,20 @@ public class PaginationApiTests {
         JsonNode first = page(null, "CHARACTER");
         List<String> firstQueries = List.copyOf(SqlCapture.QUERIES.get());
         assertThat(first.path("items").size()).isEqualTo(2);
-        assertThat(first.path("items").get(0).path("id").asLong()).isEqualTo(characterIds.getFirst());
+        assertThat(first.path("items").get(0).path("id").asLong())
+                .isEqualTo(characterIds.getFirst());
         assertThat(first.path("hasNext").asBoolean()).isTrue();
         assertThat(firstQueries).hasSize(2).noneMatch(sql -> sql.contains("count("));
 
-        transaction.executeWithoutResult(status -> settings.saveAndFlush(new WorkSetting(
-                works.findById(workId).orElseThrow(), "new rule", SettingKind.CHARACTER,
-                SettingStatus.CONFIRMED, "evidence")));
+        transaction.executeWithoutResult(
+                status ->
+                        settings.saveAndFlush(
+                                new WorkSetting(
+                                        works.findById(workId).orElseThrow(),
+                                        "new rule",
+                                        SettingKind.CHARACTER,
+                                        SettingStatus.CONFIRMED,
+                                        "evidence")));
 
         SqlCapture.QUERIES.get().clear();
         JsonNode last = page(first.path("nextCursor").asString(), "CHARACTER");
@@ -104,46 +133,72 @@ public class PaginationApiTests {
     @Test
     void cursorRejectsOtherFiltersWorksInvalidInputAndUnauthorizedOwner() throws Exception {
         String cursor = page(null, "CHARACTER").path("nextCursor").asString();
-        mvc.perform(get(path(workId)).with(authentication(owner)).param("kind", "WORLD").param("cursor", cursor))
+        mvc.perform(
+                        get(path(workId))
+                                .with(authentication(owner))
+                                .param("kind", "WORLD")
+                                .param("cursor", cursor))
                 .andExpect(status().isBadRequest());
-        mvc.perform(get(path(secondWorkId)).with(authentication(owner)).param("kind", "CHARACTER").param("cursor", cursor))
+        mvc.perform(
+                        get(path(secondWorkId))
+                                .with(authentication(owner))
+                                .param("kind", "CHARACTER")
+                                .param("cursor", cursor))
                 .andExpect(status().isBadRequest());
         mvc.perform(get(path(workId)).with(authentication(owner)).param("cursor", "invalid"))
                 .andExpect(status().isBadRequest());
         mvc.perform(get(path(workId)).with(authentication(owner)).param("size", "101"))
                 .andExpect(status().isBadRequest());
+        mvc.perform(
+                        get("/api/work")
+                                .with(authentication(owner))
+                                .param("page", "2147483647")
+                                .param("size", "100"))
+                .andExpect(status().isBadRequest());
 
-        UsernamePasswordAuthenticationToken other = UsernamePasswordAuthenticationToken.authenticated(
-                new LoginUser(-1L, "other@example.com", "other"), null, List.of());
+        UsernamePasswordAuthenticationToken other =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        new LoginUser(-1L, "other@example.com", "other"), null, List.of());
         mvc.perform(get(path(workId)).with(authentication(other))).andExpect(status().isNotFound());
         mvc.perform(get(path(workId))).andExpect(status().isUnauthorized());
     }
 
     @Test
     void workOffsetQueryCountDoesNotGrowWithPageSize() throws Exception {
-        transaction.executeWithoutResult(status -> {
-            User user = users.findById(ownerId).orElseThrow();
-            for (int index = 0; index < 20; index++) {
-                works.save(new Work(user, "additional " + index, "fantasy", "", ""));
-            }
-        });
+        transaction.executeWithoutResult(
+                status -> {
+                    User user = users.findById(ownerId).orElseThrow();
+                    for (int index = 0; index < 20; index++) {
+                        works.save(new Work(user, "additional " + index, "fantasy", "", ""));
+                    }
+                });
 
         for (int size : List.of(5, 10)) {
             SqlCapture.QUERIES.get().clear();
-            mvc.perform(get("/api/work").with(authentication(owner)).param("size", Integer.toString(size)))
+            mvc.perform(
+                            get("/api/work")
+                                    .with(authentication(owner))
+                                    .param("size", Integer.toString(size)))
                     .andExpect(status().isOk());
             assertThat(SqlCapture.QUERIES.get()).hasSize(2);
         }
     }
 
     private JsonNode page(String cursor, String kind) throws Exception {
-        MockHttpServletRequestBuilder request = get(path(workId)).with(authentication(owner))
-                .param("kind", kind).param("size", "2");
+        MockHttpServletRequestBuilder request =
+                get(path(workId))
+                        .with(authentication(owner))
+                        .param("kind", kind)
+                        .param("size", "2");
         if (cursor != null) {
             request.param("cursor", cursor);
         }
-        String body = mvc.perform(request)
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String body =
+                mvc.perform(request)
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
         return json.readTree(body).path("data");
     }
 

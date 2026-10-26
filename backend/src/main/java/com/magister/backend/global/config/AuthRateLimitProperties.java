@@ -18,16 +18,28 @@ import java.time.Duration;
 @Validated
 @ConfigurationProperties("auth.rate-limit")
 public class AuthRateLimitProperties {
-    @Min(1) private int loginAttempts = 20;
-    @Min(1) private int signupAttempts = 20;
-    @Min(1) private int emailChecks = 60;
-    @Min(1) private int maxTrackedClients = 10_000;
-    @Min(1) @Max(64) private int concurrentHashes = 4;
+    @Min(1)
+    private int loginAttempts = 20;
+
+    @Min(1)
+    private int signupAttempts = 20;
+
+    @Min(1)
+    private int emailChecks = 60;
+
+    @Min(1)
+    private int maxTrackedClients = 10_000;
+
+    @Min(1)
+    @Max(64)
+    private int concurrentHashes = 4;
+
     @NotNull private Duration window = Duration.ofMinutes(1);
 
     @AssertTrue(message = "window must be between 1 second and 1 hour")
     public boolean isWindowValid() {
-        return window != null && window.compareTo(Duration.ofSeconds(1)) >= 0
+        return window != null
+                && window.compareTo(Duration.ofSeconds(1)) >= 0
                 && window.compareTo(Duration.ofHours(1)) <= 0;
     }
 }

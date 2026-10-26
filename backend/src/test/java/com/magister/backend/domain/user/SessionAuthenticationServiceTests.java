@@ -31,22 +31,35 @@ class SessionAuthenticationServiceTests {
     @Test
     void sessionStoresOnlyPublicIdentityFromAuthenticationResult() {
         AuthenticationManager manager = mock(AuthenticationManager.class);
-        AccountPrincipal account = new AccountPrincipal(42L, "writer@example.com", "author", "private-hash");
-        when(manager.authenticate(any())).thenReturn(UsernamePasswordAuthenticationToken.authenticated(
-                account, null, account.getAuthorities()));
-        SessionAuthenticationService service = new SessionAuthenticationService(manager,
-                new HttpSessionSecurityContextRepository(), new ChangeSessionIdAuthenticationStrategy());
+        AccountPrincipal account =
+                new AccountPrincipal(42L, "writer@example.com", "author", "private-hash");
+        when(manager.authenticate(any()))
+                .thenReturn(
+                        UsernamePasswordAuthenticationToken.authenticated(
+                                account, null, account.getAuthorities()));
+        SessionAuthenticationService service =
+                new SessionAuthenticationService(
+                        manager,
+                        new HttpSessionSecurityContextRepository(),
+                        new ChangeSessionIdAuthenticationStrategy());
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        UserResponse result = service.login(new LoginRequest("writer@example.com", "Password1!"), request, response);
+        UserResponse result =
+                service.login(
+                        new LoginRequest("writer@example.com", "Password1!"), request, response);
 
-        SecurityContext stored = (SecurityContext) request.getSession().getAttribute(
-                HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
-        assertThat(stored.getAuthentication().getPrincipal()).isEqualTo(
-                new LoginUser(42L, "writer@example.com", "author"));
+        SecurityContext stored =
+                (SecurityContext)
+                        request.getSession()
+                                .getAttribute(
+                                        HttpSessionSecurityContextRepository
+                                                .SPRING_SECURITY_CONTEXT_KEY);
+        assertThat(stored.getAuthentication().getPrincipal())
+                .isEqualTo(new LoginUser(42L, "writer@example.com", "author"));
         assertThat(stored.getAuthentication().getCredentials()).isNull();
         assertThat(result).isEqualTo(new UserResponse(42L, "writer@example.com", "author"));
-        assertThat(stored.getAuthentication().getPrincipal().toString()).doesNotContain("private-hash");
+        assertThat(stored.getAuthentication().getPrincipal().toString())
+                .doesNotContain("private-hash");
     }
 }

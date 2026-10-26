@@ -1,6 +1,7 @@
 package com.magister.backend.global.migration;
 
-import org.flywaydb.core.api.migration.*;
+import org.flywaydb.core.api.migration.BaseJavaMigration;
+import org.flywaydb.core.api.migration.Context;
 
 import java.sql.Statement;
 

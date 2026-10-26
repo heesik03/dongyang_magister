@@ -4,8 +4,8 @@ import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.dto.CreateWorkRequest;
 import com.magister.backend.domain.work.dto.UpdateWorkRequest;
 import com.magister.backend.domain.work.dto.WorkResponse;
-import com.magister.backend.global.response.ApiResult;
 import com.magister.backend.global.pagination.OffsetPageResponse;
+import com.magister.backend.global.response.ApiResult;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -29,7 +29,8 @@ public interface WorkControllerDocs {
 
     @Operation(
             summary = "작품 생성",
-            description = """
+            description =
+                    """
                     **목적**
 
                     설정집과 회차 원고를 작품별로 분리하여 관리할 창작 작업 공간을 만듭니다.
@@ -60,34 +61,39 @@ public interface WorkControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "필수값 누락, 길이 제한 초과 또는 JSON 형식 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ResponseEntity<ApiResult<WorkResponse>> create(
             LoginUser user, @Valid CreateWorkRequest request);
 
     @Operation(
             summary = "내 작품 목록",
-            description = """
+            description =
+                    """
                     **목적**
 
                     작업을 이어갈 작품을 찾고 최근 편집한 작품부터 확인합니다.
@@ -120,15 +126,17 @@ public interface WorkControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "검색어 100자·장르 30자 초과 또는 페이지 범위 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<OffsetPageResponse<WorkResponse>> list(
             LoginUser user,
@@ -139,7 +147,8 @@ public interface WorkControllerDocs {
 
     @Operation(
             summary = "작품 상세",
-            description = """
+            description =
+                    """
                     **목적**
 
                     선택한 작품의 기본 정보를 확인하고 편집에 사용할 현재 버전을 가져옵니다.
@@ -170,27 +179,31 @@ public interface WorkControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "작품 ID 형식 또는 양수 조건 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<WorkResponse> get(LoginUser user, @Positive Long workId);
 
     @Operation(
             summary = "작품 수정",
-            description = """
+            description =
+                    """
                     **목적**
 
                     작품의 기본 정보를 변경하면서 다른 편집에서 저장한 내용을 덮어쓰지 않도록 보호합니다.
@@ -222,39 +235,45 @@ public interface WorkControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "필수값·길이·작품 ID·version 또는 JSON 형식 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "409",
                 description = "작품 수정 버전 충돌",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<WorkResponse> update(
             LoginUser user, @Positive Long workId, @Valid UpdateWorkRequest request);

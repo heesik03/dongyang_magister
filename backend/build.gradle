@@ -50,6 +50,9 @@ tasks.register('mysqlTest', Test) {
     group = 'verification'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
+    // 외부 DB의 현재 상태는 Gradle 입력 스냅샷으로 판단할 수 없다.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
     useJUnitPlatform()
     filter { includeTestsMatching 'com.magister.backend.verification.MySqlRefactoringTests' }
     doFirst {

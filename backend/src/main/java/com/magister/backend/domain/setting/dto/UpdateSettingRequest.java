@@ -1,8 +1,12 @@
 package com.magister.backend.domain.setting.dto;
 
-import com.magister.backend.domain.setting.entity.*;
+import com.magister.backend.domain.setting.entity.SettingKind;
+import com.magister.backend.domain.setting.entity.SettingStatus;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 public record UpdateSettingRequest(
         @NotBlank @Size(max = 100) String title,

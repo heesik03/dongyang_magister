@@ -1,20 +1,40 @@
 package com.magister.backend.domain.workspace;
 
-import org.springframework.test.web.servlet.MvcResult;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.magister.backend.domain.analysis.dto.*;
+import com.magister.backend.domain.analysis.dto.AnalysisInput;
+import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
+import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisWorker;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
-import com.magister.backend.domain.setting.entity.*;
+import com.magister.backend.domain.setting.entity.SettingKind;
+import com.magister.backend.domain.setting.entity.SettingStatus;
+import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.repository.UserRepository;
@@ -29,7 +49,9 @@ import com.magister.backend.global.gemini.GeminiClient;
 import jakarta.persistence.EntityManager;
 
 import org.hibernate.Hibernate;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -37,13 +59,16 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -237,7 +262,7 @@ class WorkspaceApiTests {
                                                     .isActualTransactionActive())
                                     .isFalse();
                             return "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"그는 마법을"
-                                       + " 시전했다.\",\"settingId\":\""
+                                    + " 시전했다.\",\"settingId\":\""
                                     + settingId
                                     + "\",\"reason\":\"능력 변화 설명 확인\",\"suggestion\":\"계기를"
                                     + " 보완하세요.\"}]}";
@@ -311,7 +336,7 @@ class WorkspaceApiTests {
                         () ->
                                 resultValidator.validate(
                                         "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"없는"
-                                            + " 원문\",\"settingId\":\"1\",\"reason\":\"이유\",\"suggestion\":\"방향\"}]}",
+                                                + " 원문\",\"settingId\":\"1\",\"reason\":\"이유\",\"suggestion\":\"방향\"}]}",
                                         input))
                 .isInstanceOf(CustomException.class);
     }

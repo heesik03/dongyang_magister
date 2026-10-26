@@ -1,7 +1,7 @@
 package com.magister.backend.domain.user.controller;
 
-import com.magister.backend.domain.user.docs.UserControllerDocs;
 import com.magister.backend.domain.user.converter.UserConverter;
+import com.magister.backend.domain.user.docs.UserControllerDocs;
 import com.magister.backend.domain.user.dto.CsrfResponse;
 import com.magister.backend.domain.user.dto.EmailCheckRequest;
 import com.magister.backend.domain.user.dto.EmailCheckResponse;
@@ -21,7 +21,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 
@@ -35,7 +39,8 @@ public class UserController implements UserControllerDocs {
     @Override
     @PostMapping("/email/check")
     public ApiResult<EmailCheckResponse> checkEmail(@RequestBody EmailCheckRequest request) {
-        return ApiResult.success(UserConverter.toEmailCheckResponse(users.isEmailAvailable(request.email())));
+        return ApiResult.success(
+                UserConverter.toEmailCheckResponse(users.isEmailAvailable(request.email())));
     }
 
     @Override

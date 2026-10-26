@@ -1,7 +1,5 @@
 package com.magister.backend.domain.work.dto;
 
-import com.magister.backend.domain.work.entity.Work;
-
 import java.time.Instant;
 
 public record WorkResponse(

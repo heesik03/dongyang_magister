@@ -25,7 +25,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 
     /** 본문 해석·비밀번호 해싱 전에 인증 요청의 빈도와 실제 동시 작업 수를 제한한다. */
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    protected void doFilterInternal(
+            HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         if (!limiter.appliesTo(request.getMethod(), request.getRequestURI())) {
             chain.doFilter(request, response);

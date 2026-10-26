@@ -10,7 +10,9 @@ import com.magister.backend.domain.workspace.entity.Workspace;
 import com.magister.backend.domain.workspace.repository.WorkspaceRepository;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,11 +25,15 @@ public class WorkspacePersistenceService {
 
     /** 직렬화·순수 검증이 끝난 요청의 잠금·버전·멱등성·저장만 처리한다. */
     @Transactional
-    public WorkspaceResponse save(Long ownerId, Long workId, SaveWorkspaceRequest request, String content) {
+    public WorkspaceResponse save(
+            Long ownerId, Long workId, SaveWorkspaceRequest request, String content) {
         Work work = workAccessService.lockOwned(ownerId, workId);
-        Workspace workspace = workspaceRepository.findById(workId).orElseGet(() -> new Workspace(work));
+        Workspace workspace =
+                workspaceRepository.findById(workId).orElseGet(() -> new Workspace(work));
         if (request.mutationId().equals(workspace.getMutationId())) {
-            if (!content.equals(workspace.getContent())) throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+            if (!content.equals(workspace.getContent())) {
+                throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+            }
             return converter.toResponse(workspace, request.content());
         }
         if (workspace.getRevision() != request.version()) {

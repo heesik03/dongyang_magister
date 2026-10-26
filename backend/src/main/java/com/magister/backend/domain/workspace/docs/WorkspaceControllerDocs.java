@@ -22,7 +22,8 @@ public interface WorkspaceControllerDocs {
 
     @Operation(
             summary = "작품 원고·검토·타임라인 조회",
-            description = """
+            description =
+                    """
                     **목적**
 
                     작품 편집을 이어갈 수 있도록 저장해 둔 원고와 검토 기록을 한 번에 불러옵니다.
@@ -55,27 +56,31 @@ public interface WorkspaceControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "작품 ID 형식 또는 양수 조건 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<WorkspaceResponse> get(LoginUser user, @Positive Long workId);
 
     @Operation(
             summary = "작품 편집 문서 저장",
-            description = """
+            description =
+                    """
                     **목적**
 
                     회차 원고, 검토 근거, 작가의 판단과 사건 정보를 함께 보관하여 작품 편집을 이어갈 수 있도록 합니다.
@@ -115,39 +120,45 @@ public interface WorkspaceControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "문서 구조·길이·참조 관계·판단 사유 오류 또는 mutationId 재사용 내용 불일치",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "409",
                 description = "작업공간 버전 또는 동시 수정 충돌",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<WorkspaceResponse> save(
             LoginUser user, @Positive Long workId, @Valid SaveWorkspaceRequest request);

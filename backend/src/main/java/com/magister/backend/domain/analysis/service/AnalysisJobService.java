@@ -67,8 +67,8 @@ public class AnalysisJobService {
 
         // 응답 유실로 재전송된 요청은 작업 수 제한보다 먼저 찾아 중복 과금·실행을 막는다.
         String requestBody = objectMapper.writeValueAsString(request);
-        Optional<AnalysisJob> existingJob = analysisJobRepository
-                .findByWork_IdAndRequestId(workId, request.requestId());
+        Optional<AnalysisJob> existingJob =
+                analysisJobRepository.findByWork_IdAndRequestId(workId, request.requestId());
 
         if (existingJob.isPresent()) {
             if (!existingJob.get().getRequestBody().equals(requestBody)) {
@@ -79,7 +79,8 @@ public class AnalysisJobService {
 
         // 이 검사는 공통 접수 잠금을 보유한 상태에서만 원자적인 예약 의미를 가진다.
         if (analysisJobRepository.countByWork_Owner_IdAndStatusIn(ownerId, ACTIVE_STATUSES) >= 1
-                || analysisJobRepository.countByStatusIn(ACTIVE_STATUSES) >= executionProperties.getMaxActiveJobs()) {
+                || analysisJobRepository.countByStatusIn(ACTIVE_STATUSES)
+                        >= executionProperties.getMaxActiveJobs()) {
             throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
         }
 
@@ -92,19 +93,28 @@ public class AnalysisJobService {
         }
 
         // 실행 프로세스가 사라지면 heartbeat가 끊겨 이 lease를 기준으로 미완료 작업을 복구한다.
-        AnalysisJob job = new AnalysisJob(UUID.randomUUID().toString(), work, request.requestId(), requestBody, snapshot);
-        job.assignLease(executionProperties.getInstanceId(), Instant.now().plus(executionProperties.getLeaseDuration()));
+        AnalysisJob job =
+                new AnalysisJob(
+                        UUID.randomUUID().toString(),
+                        work,
+                        request.requestId(),
+                        requestBody,
+                        snapshot);
+        job.assignLease(
+                executionProperties.getInstanceId(),
+                Instant.now().plus(executionProperties.getLeaseDuration()));
         analysisJobRepository.saveAndFlush(job);
 
         String jobId = job.getId();
 
         // 저장이 롤백된 작업은 실행하지 않는다. 접수 거절은 Dispatcher가 별도 커밋으로 기록한다.
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                dispatcher.submit(jobId);
-            }
-        });
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        dispatcher.submit(jobId);
+                    }
+                });
 
         return converter.toResponse(job);
     }
@@ -116,8 +126,10 @@ public class AnalysisJobService {
      */
     @Transactional(readOnly = true)
     public AnalysisJobResponse get(Long ownerId, Long workId, String jobId) {
-        return converter.toResponse(analysisJobRepository.findOwnedView(jobId, workId, ownerId)
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND)));
+        return converter.toResponse(
+                analysisJobRepository
+                        .findOwnedView(jobId, workId, ownerId)
+                        .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND)));
     }
 
     /**
@@ -130,20 +142,23 @@ public class AnalysisJobService {
         workAccessService.requireOwned(ownerId, workId);
 
         // 사용자 소유 작품을 확인해도 해당 작업이 바로 그 작품에 속하는지는 별도로 검사해야 한다.
-        AnalysisJob job = analysisJobRepository.lockById(jobId)
-                .filter(item -> item.getWork().getId().equals(workId))
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+        AnalysisJob job =
+                analysisJobRepository
+                        .lockById(jobId)
+                        .filter(item -> item.getWork().getId().equals(workId))
+                        .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
 
         job.cancel();
 
         if (job.getStatus() == AnalysisJobStatus.CANCELLED) {
             // DB 취소가 커밋되기 전에 워커를 인터럽트하면 실패가 먼저 기록될 수 있다.
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    dispatcher.cancel(jobId);
-                }
-            });
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            dispatcher.cancel(jobId);
+                        }
+                    });
         }
 
         return converter.toResponse(job);

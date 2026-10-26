@@ -26,7 +26,8 @@ public interface AnalysisControllerDocs {
 
     @Operation(
             summary = "비동기 AI 검토 접수",
-            description = """
+            description =
+                    """
                     **목적**
 
                     저장한 회차 원고를 작품의 확정 설정 및 선택한 참고 회차와 비교하여 설정 충돌 가능성과 설명을 보완할 부분을 찾습니다.
@@ -63,52 +64,60 @@ public interface AnalysisControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "분석 옵션·원고·참고 범위·입력 크기 오류 또는 requestId 재사용 내용 불일치",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "409",
                 description = "작업공간 버전 또는 동시 수정 충돌",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "429",
                 description = "대기·실행 중인 작업 수 제한 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ResponseEntity<ApiResult<AnalysisJobResponse>> create(
             LoginUser user, @Positive Long workId, @Valid AnalysisRequest request);
 
     @Operation(
             summary = "AI 작업 상태·결과 조회",
-            description = """
+            description =
+                    """
                     **목적**
 
                     접수한 검토의 진행 상황을 확인하고 완료된 검토 후보와 근거를 가져옵니다.
@@ -142,30 +151,32 @@ public interface AnalysisControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "작품 ID 또는 작업 ID 형식·길이 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품·작업 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<AnalysisJobResponse> get(
-            LoginUser user,
-            @Positive Long workId,
-            @NotBlank @Size(max = 36) String id);
+            LoginUser user, @Positive Long workId, @NotBlank @Size(max = 36) String id);
 
     @Operation(
             summary = "AI 작업 취소",
-            description = """
+            description =
+                    """
                     **목적**
 
                     더 이상 필요하지 않은 검토 작업의 실행 또는 결과 반영을 중단합니다.
@@ -198,36 +209,39 @@ public interface AnalysisControllerDocs {
         @ApiResponse(
                 responseCode = "400",
                 description = "작품 ID 또는 작업 ID 형식·길이 오류",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "401",
                 description = "로그인 필요 또는 세션 만료",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "403",
                 description = "CSRF 토큰 누락 또는 검증 실패",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "404",
                 description = "작품·작업 없음 또는 접근 불가",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class))),
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
         @ApiResponse(
                 responseCode = "413",
                 description = "요청 본문 8 MiB 초과",
-                content = @Content(
-                        mediaType = "application/json",
-                        schema = @Schema(implementation = ApiResult.class)))
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<AnalysisJobResponse> cancel(
-            LoginUser user,
-            @Positive Long workId,
-            @NotBlank @Size(max = 36) String id);
+            LoginUser user, @Positive Long workId, @NotBlank @Size(max = 36) String id);
 }

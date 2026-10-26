@@ -7,8 +7,9 @@ import java.util.regex.Pattern;
 
 /** 공급자별 무결성 예외의 알려진 제약 이름만 업무 오류로 번역한다. */
 public final class UserConstraintTranslator {
-    private static final Pattern EMAIL_CONSTRAINT = Pattern.compile(
-            "(?i)(?<![a-z0-9_])(?:[a-z0-9_]+\\.)?uk_users_email(?:_index_[a-z0-9]+)?(?![a-z0-9_])");
+    private static final Pattern EMAIL_CONSTRAINT =
+            Pattern.compile(
+                    "(?i)(?<![a-z0-9_])(?:[a-z0-9_]+\\.)?uk_users_email(?:_index_[a-z0-9]+)?(?![a-z0-9_])");
 
     private UserConstraintTranslator() {}
 
