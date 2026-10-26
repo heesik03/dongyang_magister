@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/** 분석 접수·조회·취소의 업무 경계다. 스레드 실행과 개별 상태 저장은 별도 빈에 위임한다. */
 @Service
 @RequiredArgsConstructor
 public class AnalysisJobService {
@@ -49,15 +50,22 @@ public class AnalysisJobService {
     private final ObjectMapper objectMapper;
 
     /**
-     * 같은 작품의 requestId와 요청 본문은 기존 작업을 반환한다.
-     * 공통 접수 행 -> 작품 순서로 잠가 서로 다른 작품의 동시 접수도 한도를 지킨다.
+     * 선택한 원고·확정 설정의 현재 스냅샷을 저장하고 커밋 후 분석을 접수한다.
+     * 동일 작품의 requestId와 같은 요청은 종료 여부와 관계없이 기존 작업을 반환한다.
+     * 같은 키의 다른 요청, 오래된 Workspace 버전, 작업 수 초과는 새 작업을 만들지 않고 거절한다.
+     *
+     * @param ownerId 요청 본문이 아닌 인증된 세션에서 얻은 사용자 ID
+     * @return 접수 시점의 작업 상태. 실제 실행·접수 실패는 이후 상태 조회에 반영된다.
      */
     @Transactional
     public AnalysisJobResponse create(Long ownerId, Long workId, AnalysisRequest request) {
+        // 작품만 잠그면 한 사용자의 서로 다른 작품 요청이 동시에 한도 검사를 통과할 수 있다.
+        // 모든 신규 접수는 공통 행 -> 작품 순서로 잠가 count와 insert를 같은 임계 구역에 둔다.
         admissionRepository.lockAdmission().orElseThrow();
 
         Work work = workAccessService.lockOwned(ownerId, workId);
 
+        // 응답 유실로 재전송된 요청은 작업 수 제한보다 먼저 찾아 중복 과금·실행을 막는다.
         String requestBody = objectMapper.writeValueAsString(request);
         Optional<AnalysisJob> existingJob = analysisJobRepository
                 .findByWork_IdAndRequestId(workId, request.requestId());
@@ -69,11 +77,13 @@ public class AnalysisJobService {
             return converter.toResponse(existingJob.get());
         }
 
+        // 이 검사는 공통 접수 잠금을 보유한 상태에서만 원자적인 예약 의미를 가진다.
         if (analysisJobRepository.countByWork_Owner_IdAndStatusIn(ownerId, ACTIVE_STATUSES) >= 1
                 || analysisJobRepository.countByStatusIn(ACTIVE_STATUSES) >= executionProperties.getMaxActiveJobs()) {
             throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
         }
 
+        // 이미 소유권과 잠금을 확인한 Work를 재사용한다. 저장 후 원고가 바뀌어도 이번 입력은 고정된다.
         WorkspaceResponse workspace = snapshotService.getForOwnedWork(work);
         AnalysisInput input = inputFactory.create(workId, request, workspace);
         String snapshot = objectMapper.writeValueAsString(input);
@@ -81,6 +91,7 @@ public class AnalysisJobService {
             invalid();
         }
 
+        // 실행 프로세스가 사라지면 heartbeat가 끊겨 이 lease를 기준으로 미완료 작업을 복구한다.
         AnalysisJob job = new AnalysisJob(UUID.randomUUID().toString(), work, request.requestId(), requestBody, snapshot);
         job.assignLease(executionProperties.getInstanceId(), Instant.now().plus(executionProperties.getLeaseDuration()));
         analysisJobRepository.saveAndFlush(job);
@@ -98,18 +109,27 @@ public class AnalysisJobService {
         return converter.toResponse(job);
     }
 
-    /** 입력 원고를 읽거나 쓰기 잠금을 획득하지 않는 소유자 전용 상태 조회다. */
+    /**
+     * 작업·작품·소유자를 하나의 조회 조건으로 확인하고 상태 응답에 필요한 필드만 읽는다.
+     * 반복 폴링이 완료·취소를 막지 않도록 쓰기 잠금을 사용하지 않으며 입력 원고도 읽지 않는다.
+     * 다른 작품의 작업 ID와 존재하지 않는 작업은 같은 WORK_NOT_FOUND로 응답한다.
+     */
     @Transactional(readOnly = true)
     public AnalysisJobResponse get(Long ownerId, Long workId, String jobId) {
         return converter.toResponse(analysisJobRepository.findOwnedView(jobId, workId, ownerId)
                 .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND)));
     }
 
-    /** 이미 종료된 상태는 유지하고 취소와 완료의 경합은 작업 행 잠금으로 직렬화한다. */
+    /**
+     * 소유한 작품의 미완료 작업을 취소한다. 완료·실패 등 이미 종료된 상태는 보존한다.
+     * 작업 행 잠금으로 완료 저장과 순서를 정한 뒤, 취소 커밋 후 실행기에 인터럽트를 요청한다.
+     * 다른 서버의 실행기는 주기 상태 확인으로 취소를 반영하며 공급자의 과금 중단까지 보장하지 않는다.
+     */
     @Transactional
     public AnalysisJobResponse cancel(Long ownerId, Long workId, String jobId) {
         workAccessService.requireOwned(ownerId, workId);
 
+        // 사용자 소유 작품을 확인해도 해당 작업이 바로 그 작품에 속하는지는 별도로 검사해야 한다.
         AnalysisJob job = analysisJobRepository.lockById(jobId)
                 .filter(item -> item.getWork().getId().equals(workId))
                 .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));

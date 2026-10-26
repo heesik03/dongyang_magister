@@ -16,6 +16,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+/** DB 커밋 후의 제출·취소·종료와 로컬 실행 객체의 생명주기를 관리한다. */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -25,7 +26,11 @@ public class AnalysisDispatcher {
     private final AnalysisJobStateService jobStateService;
     private final Map<String, TrackedTask> tasks = new ConcurrentHashMap<>();
 
-    /** 접수 커밋 후 호출한다. 거절도 독립 트랜잭션으로 실패 처리한다. */
+    /**
+     * 커밋된 작업 ID를 실행기에 제출하고 동일 ID의 로컬 중복 제출은 생략한다.
+     * 큐 포화·종료로 거절되면 등록을 제거하고 별도 트랜잭션으로 FAILED를 확정한다.
+     * 엔티티를 람다로 넘기지 않아 다른 스레드가 기존 영속성 컨텍스트에 접근하지 않게 한다.
+     */
     public void submit(String jobId) {
         TrackedTask task = new TrackedTask(jobId);
         if (tasks.putIfAbsent(jobId, task) != null) {
@@ -40,7 +45,11 @@ public class AnalysisDispatcher {
         }
     }
 
-    /** 대기는 큐에서 제거하고 실행 중 작업에는 인터럽트를 요청한다. 공급자 중단을 보장하지는 않는다. */
+    /**
+     * 대기 작업은 실제 큐에서 제거하고 실행 중 작업에는 인터럽트를 요청한다.
+     * SDK가 인터럽트를 무시하면 호출이 끝날 때까지 실행 등록과 공급자 슬롯을 유지한다.
+     * DB 취소가 커밋된 뒤 호출해야 워커의 실패 저장보다 CANCELLED가 먼저 확정된다.
+     */
     public void cancel(String jobId) {
         TrackedTask task = tasks.get(jobId);
         if (task == null) {
@@ -83,6 +92,7 @@ public class AnalysisDispatcher {
         jobStateService.maintain(activeJobIds()).forEach(this::cancel);
     }
 
+    /** Future의 논리적 완료와 실제 실행 종료가 다른 취소 상황을 구분한다. */
     private final class TrackedTask extends FutureTask<Void> {
         private final String jobId;
         private volatile boolean started;
@@ -108,6 +118,7 @@ public class AnalysisDispatcher {
 
         @Override
         protected void done() {
+            // 시작 전 취소는 run()이 호출되지 않을 수 있으므로 여기서 등록을 정리한다.
             if (!started) {
                 tasks.remove(jobId, this);
             }
