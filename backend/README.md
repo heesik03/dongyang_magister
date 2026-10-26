@@ -68,6 +68,10 @@ Spring Boot 4.1에 맞는 `springdoc-openapi-starter-webmvc-ui:3.1.1`을 사용�
 
 `backend/`에서 `.\gradlew.bat test`와 `.\gradlew.bat build`를 실행한다. 일반 통합 테스트는 격리된 H2 MySQL 모드와 가짜 Gemini 설정·SDK 테스트 대역을 사용하며 실제 Gemini API 호출이나 과금이 발생하지 않는다. 실제 MySQL 잠금·실행 계획과 공급자 연동은 별도로 검증한다.
 
+MySQL 검증은 별도로 준비한 임시 DB만 사용한다. `MAGISTER_MYSQL_TEST_SCHEMA`에 `magister_refactor_` 뒤 12자리 소문자 16진수 이름을 지정하고 `.\gradlew.bat mysqlTest`를 실행한다. 테스트는 해당 DB에 마이그레이션·검증 데이터를 생성하며 일반 `test`에서는 제외된다. 연결 비밀번호는 로컬 `.env`의 `DB_PASSWORD`에서 읽고 출력하지 않는다. 검증 후에는 자신이 만든 임시 DB만 정리한다.
+
+Hibernate JDBC 오류 전문은 중복 이메일 등 입력값을 포함할 수 있어 직접 출력하지 않는다. 애플리케이션 예외 처리기가 오류 코드·타입·코드 위치·SQLState·벤더 오류 번호를 기록하며 비밀번호·원고·SQL 전문은 기록하지 않는다.
+
 ## 사용자·세션 인증
 
 - `POST /api/user/email/check`: 가입 전 이메일 중복 확인 (`available` 반환, CSRF 필요)

@@ -70,3 +70,9 @@ server:
         http-only: true
         same-site: lax
         secure: ${SESSION_COOKIE_SECURE:false}
+
+logging:
+  level:
+    # JDBC 오류 전문에는 중복 이메일 등 입력값이 포함될 수 있다. 애플리케이션은 코드·SQLState만 기록한다.
+    org.hibernate.orm.jdbc.error: OFF
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF

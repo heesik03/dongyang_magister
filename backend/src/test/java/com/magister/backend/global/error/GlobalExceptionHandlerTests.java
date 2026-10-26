@@ -16,6 +16,9 @@ import jakarta.validation.Valid;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
+import java.sql.SQLException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.LoggerFactory;
@@ -84,6 +87,16 @@ class GlobalExceptionHandlerTests {
         assertSafeFailureLog(expectedCode, 400, "WARN");
     }
 
+    @Test
+    void databaseFailureLogsOnlySqlStateAndVendorCode() throws Exception {
+        mvc.perform(get("/test/database"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"));
+        assertSafeFailureLog("INTERNAL_SERVER_ERROR", 500, "ERROR");
+        assertThat(appender.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
+                .contains("sqlState=23000", "vendorCode=1062"));
+    }
+
     private void assertSafeFailureLog(String code, int status, String level) {
         assertThat(appender.list)
                 .filteredOn(event -> event.getFormattedMessage().startsWith("API failure:"))
@@ -105,6 +118,12 @@ class GlobalExceptionHandlerTests {
 
     @RestController
     static class TestController {
+        @GetMapping("/test/database")
+        public void database() {
+            throw new DataIntegrityViolationException("private detail",
+                    new SQLException("sensitive-value", "23000", 1062));
+        }
+
         @GetMapping("/test/limited")
         public void limited() {
             throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);

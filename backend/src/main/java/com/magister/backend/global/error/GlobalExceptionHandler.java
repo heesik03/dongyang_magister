@@ -24,6 +24,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.List;
+import java.sql.SQLException;
 
 @RestControllerAdvice
 @Slf4j
@@ -103,12 +104,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<Object> handleUnexpectedException(
             Exception exception, WebRequest request) {
         // 공급자 예외 메시지/요청 본문은 기록하지 않고 타입과 코드 위치만 남긴다.
+        SqlFailure sqlFailure = sqlFailure(exception);
         log.error(
-                "Unexpected API exception: type={}, location={}",
+                "Unexpected API exception: type={}, location={}, sqlState={}, vendorCode={}",
                 exception.getClass().getName(),
-                exception.getStackTrace().length == 0 ? "unknown" : exception.getStackTrace()[0]);
+                exception.getStackTrace().length == 0 ? "unknown" : exception.getStackTrace()[0],
+                sqlFailure.state(), sqlFailure.vendorCode());
         ErrorCode error = CommonErrorCode.INTERNAL_SERVER_ERROR;
         return createResponseEntity(
                 ApiResult.failure(error), new HttpHeaders(), error.getHttpStatus(), request);
+    }
+
+    private record SqlFailure(String state, int vendorCode) {}
+
+    /** DB 오류 전문 대신 드라이버의 안전한 식별 코드만 진단 정보로 추출한다. */
+    private SqlFailure sqlFailure(Throwable exception) {
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sqlException) {
+                String state = sqlException.getSQLState();
+                return new SqlFailure(state == null ? "unknown" : state, sqlException.getErrorCode());
+            }
+        }
+        return new SqlFailure("none", 0);
     }
 }

@@ -42,4 +42,21 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    exclude '**/MySqlRefactoringTests.class'
+}
+
+tasks.register('mysqlTest', Test) {
+    description = 'Run refactoring contracts against an explicitly named isolated MySQL schema'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter { includeTestsMatching 'com.magister.backend.verification.MySqlRefactoringTests' }
+    doFirst {
+        String schema = providers.environmentVariable('MAGISTER_MYSQL_TEST_SCHEMA').getOrElse('')
+        if (!(schema ==~ /magister_refactor_[a-f0-9]{12}/)) {
+            throw new GradleException('Set MAGISTER_MYSQL_TEST_SCHEMA to an isolated magister_refactor_<12 hex> schema')
+        }
+        environment 'MAGISTER_MYSQL_TEST_SCHEMA', schema
+    }
 }
