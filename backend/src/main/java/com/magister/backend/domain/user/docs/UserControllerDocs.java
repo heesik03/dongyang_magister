@@ -53,6 +53,7 @@ public interface UserControllerDocs {
                     로그인 없이 사용할 수 있지만 CSRF 헤더가 필요합니다. 먼저 GET /api/user/csrf를 호출하고 동일한 세션을 유지해야 합니다.
                     """)
     @ApiResponses({
+        @ApiResponse(responseCode = "429", description = "인증 시도 또는 해싱 동시 작업 한도 초과"),
         @ApiResponse(
                 responseCode = "200",
                 description = "이메일 사용 가능 여부 확인 성공",
@@ -106,6 +107,7 @@ public interface UserControllerDocs {
                     로그인 없이 사용할 수 있지만 CSRF 헤더가 필요합니다.
                     """)
     @ApiResponses({
+        @ApiResponse(responseCode = "429", description = "인증 시도 또는 해싱 동시 작업 한도 초과"),
         @ApiResponse(
                 responseCode = "201",
                 description = "회원가입 성공; 사용자 정보 반환",
@@ -197,6 +199,7 @@ public interface UserControllerDocs {
                     로그인 전에도 사용할 수 있지만 CSRF 헤더가 필요합니다.
                     """)
     @ApiResponses({
+        @ApiResponse(responseCode = "429", description = "인증 시도 또는 해싱 동시 작업 한도 초과"),
         @ApiResponse(
                 responseCode = "200",
                 description = "로그인 성공; 사용자 정보와 인증된 세션 제공",

@@ -2,6 +2,7 @@ package com.magister.backend.global.security;
 
 import com.magister.backend.global.error.code.FrameworkErrorCode;
 import com.magister.backend.global.response.ApiResult;
+import com.magister.backend.global.response.HttpResponseWriter;
 
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
@@ -18,7 +19,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class RequestSizeFilter extends OncePerRequestFilter {
     private static final int MAX_BYTES = 8 * 1024 * 1024;
     private final ObjectMapper json;
@@ -94,11 +95,6 @@ public class RequestSizeFilter extends OncePerRequestFilter {
     }
 
     private void reject(HttpServletResponse response) throws IOException {
-        response.setStatus(413);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        json.writeValue(
-                response.getOutputStream(),
-                ApiResult.failure(new FrameworkErrorCode(HttpStatus.PAYLOAD_TOO_LARGE)));
+        HttpResponseWriter.failure(response, json, new FrameworkErrorCode(HttpStatus.PAYLOAD_TOO_LARGE));
     }
 }

@@ -2,6 +2,7 @@ package com.magister.backend.global.security;
 
 import com.magister.backend.domain.user.error.UserErrorCode;
 import com.magister.backend.global.response.ApiResult;
+import com.magister.backend.global.response.HttpResponseWriter;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -52,14 +53,12 @@ public class SecurityResponseHandler
     }
 
     private void writeError(HttpServletResponse response, UserErrorCode code) throws IOException {
-        write(response, code.getHttpStatus().value(), ApiResult.failure(code));
+        HttpResponseWriter.failure(response, json, code);
     }
 
     private void write(HttpServletResponse response, int status, ApiResult<?> body)
             throws IOException {
         // 보안 필터의 예외는 ControllerAdvice에 도달하지 않으므로 같은 응답 계약으로 직접 직렬화한다.
-        response.setStatus(status);
-        response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(json.writeValueAsString(body));
+        HttpResponseWriter.write(response, json, status, body);
     }
 }

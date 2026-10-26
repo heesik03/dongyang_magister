@@ -1,6 +1,12 @@
 package com.magister.backend.global.config;
 
 import com.magister.backend.global.security.SecurityResponseHandler;
+import com.magister.backend.global.security.AuthRateLimitFilter;
+import com.magister.backend.domain.user.security.AuthRequestLimiter;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.core.Ordered;
+import tools.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.*;
@@ -26,7 +32,18 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 @Configuration
+@EnableConfigurationProperties(AuthRateLimitProperties.class)
 public class SecurityConfig {
+    @Bean
+    FilterRegistrationBean<AuthRateLimitFilter> authRateLimitFilter(
+            AuthRequestLimiter limiter, ObjectMapper objectMapper) {
+        FilterRegistrationBean<AuthRateLimitFilter> registration =
+                new FilterRegistrationBean<>(new AuthRateLimitFilter(limiter, objectMapper));
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        registration.addUrlPatterns("/api/user", "/api/user/login", "/api/user/email/check");
+        return registration;
+    }
+
     @Bean
     AuthenticationManager authenticationManager(
             UserDetailsService users, PasswordEncoder passwords) {
