@@ -8,6 +8,8 @@ import { SettingsPanel } from '../src/features/settings/SettingsPanel'
 import { useWorksStore } from '../src/features/works/useWorksStore'
 import { settingsChanged } from '../src/features/analysis/analysisState'
 import type { Work, Analysis } from '../src/features/works/workTypes'
+import { WorkspaceStatus } from '../src/features/workspace/WorkspaceStatus'
+import { chapterClient } from '../src/features/manuscript/chapterClient'
 const base = useWorksStore.getState()
 const setting = {
   id: '1',
@@ -48,7 +50,52 @@ beforeEach(() => {
     this.removeAttribute('open')
   }
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
+
+test('충돌 복구는 서버 원고와 초안을 보여준 뒤 작가가 선택한 버전으로 진행한다', async () => {
+  const draft = {
+    id: 'c',
+    title: '1화',
+    content: '화면의 초안',
+    revision: 2,
+    version: 0,
+    chapterNo: 1,
+  }
+  const current = { ...work, chapters: [draft] }
+  const server = {
+    ...draft,
+    content: '서버의 원고',
+    version: 1,
+    updatedAt: work.updatedAt,
+    workVersion: 1,
+  }
+  vi.spyOn(chapterClient, 'listAll').mockResolvedValue([server])
+  const resolve = vi.fn(),
+    flush = vi.fn().mockResolvedValue(undefined)
+  useWorksStore.setState({
+    works: [current],
+    conflicts: ['1'],
+    dirtyIds: ['1'],
+    resolveChapterConflict: resolve,
+    flushWorkspace: flush,
+  })
+  render(<WorkspaceStatus work={current} />)
+  fireEvent.click(screen.getByRole('button', { name: '충돌 원고 비교·복구' }))
+  await screen.findByRole('dialog', { name: '충돌 원고 비교' })
+  expect((screen.getByLabelText('현재 입력 · 1화') as HTMLTextAreaElement).value).toBe(
+    '화면의 초안',
+  )
+  expect((screen.getByLabelText('서버 원고 · 1화') as HTMLTextAreaElement).value).toBe(
+    '서버의 원고',
+  )
+  expect(resolve).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '이 회차를 내 입력으로 저장' }))
+  expect(resolve).toHaveBeenCalledWith('1', server)
+  expect(flush).toHaveBeenCalledWith('1')
+})
 test('입력창이 없는 모달도 포커스를 받고 제목 ID가 중복되지 않는다', () => {
   render(
     <>

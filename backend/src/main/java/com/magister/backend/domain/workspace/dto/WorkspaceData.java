@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
-// 원고·검토 근거·작가 판단·사건을 작품별 편집 버전으로 함께 저장한다.
+// 호환 응답은 회차 테이블의 원고를 합친다. workspace의 영속 JSON에는 검토·판단·사건만 저장한다.
 public record WorkspaceData(
         @NotNull @Size(max = 100) List<@NotNull @Valid ChapterData> chapters,
         @NotNull @Size(max = 100) List<@NotNull @Valid AnalysisData> analyses,

@@ -11,6 +11,9 @@ import { Icon } from '../../shared/Icon'
 export function ManuscriptPanel({ work }: { work: Work }) {
   const updateWork = useWorksStore((state) => state.updateWork)
   const storageError = useWorksStore((state) => state.storageError)
+  const saving = useWorksStore((state) => state.savingIds.includes(work.id))
+  const dirty = useWorksStore((state) => state.dirtyIds.includes(work.id))
+  const saveError = useWorksStore((state) => state.workspaceErrors[work.id])
   const [params, setParams] = useSearchParams()
   const chapter =
     work.chapters.find((item) => item.id === params.get('chapter')) ||
@@ -121,6 +124,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         work.id,
         {
           chapterId: chapter.id,
+          chapterRevision: latest.chapters.find((item) => item.id === chapter.id)?.revision,
           workspaceVersion: latest.workspaceVersion ?? 0,
           settingIds,
           previousIds,
@@ -222,11 +226,15 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         </div>
         <div className="toolbar-actions">
           <span className="save-status" role="status">
-            {storageError
+            {storageError || saveError
               ? '저장 실패 · 입력 유지'
-              : work.source === 'server'
-                ? '서버에 자동 저장'
-                : '브라우저에 자동 저장'}
+              : saving
+                ? '서버 저장 중…'
+                : dirty
+                  ? '저장 대기 · 입력 유지'
+                  : work.source === 'server'
+                    ? '서버에 자동 저장'
+                    : '브라우저에 자동 저장'}
           </span>
           <button disabled={analyzing} onClick={() => setOptionsOpen(true)}>
             <Icon name="settings" />
@@ -281,7 +289,22 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                   </select>
                 </label>
               </div>
-              <h2>{chapter.title}</h2>
+              <label>
+                회차 제목
+                <input
+                  value={chapter.title}
+                  maxLength={100}
+                  disabled={analyzing}
+                  onChange={(event) =>
+                    updateWork({
+                      ...work,
+                      chapters: work.chapters.map((item) =>
+                        item.id === chapter.id ? { ...item, title: event.target.value } : item,
+                      ),
+                    })
+                  }
+                />
+              </label>
               <p className="small muted">원고를 자유롭게 붙여넣고 다듬어 보세요.</p>
               {highlight && chapter.content.includes(highlight) && (
                 <div className="source-highlight" role="status">
@@ -298,6 +321,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                   disabled={analyzing}
                   style={{ fontSize }}
                   value={chapter.content}
+                  maxLength={200000}
                   onChange={(event) => write(event.target.value)}
                   placeholder="이곳에서 이야기를 시작하세요. 한국어 원고를 붙여넣을 수도 있어요."
                 />
@@ -397,7 +421,10 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             <fieldset>
               <legend>참고할 이전 원고</legend>
               {work.chapters
-                .filter((item) => item.id !== chapter?.id)
+                .filter(
+                  (_item, index) =>
+                    index < work.chapters.findIndex((item) => item.id === chapter?.id),
+                )
                 .map((item) => (
                   <label className="check" key={item.id}>
                     <input

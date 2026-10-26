@@ -7,6 +7,8 @@ vi.mock('axios', () => ({ default: { create: () => ({ request }) } }))
 import { workClient } from '../src/features/works/workClient'
 import { settingClient } from '../src/features/settings/settingClient'
 import { authClient } from '../src/features/auth/authClient'
+import { chapterClient, parseChapter } from '../src/features/manuscript/chapterClient'
+import { workspaceClient } from '../src/features/workspace/workspaceClient'
 import { SESSION_EXPIRED_EVENT } from '../src/shared/httpClient'
 
 const work = {
@@ -41,6 +43,88 @@ function csrf() {
 beforeEach(() => {
   request.mockReset()
   clearCsrfToken()
+  chapterClient.reset()
+})
+
+const chapter = {
+  id: 'c1',
+  title: '1화',
+  content: '원고',
+  chapterNo: 1,
+  revision: 1,
+  version: 0,
+  updatedAt: '2026-10-26T00:00:00Z',
+  workVersion: 1,
+}
+test('회차 생성과 수정은 각각의 경로와 회차 버전을 사용한다', async () => {
+  request.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(success(chapter))
+  await chapterClient.save('1', { id: 'c1', title: '1화', content: '원고', revision: 1 })
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      method: 'POST',
+      url: '/work/1/chapter',
+      data: expect.objectContaining({ id: 'c1', title: '1화', content: '원고' }),
+    }),
+  )
+  request.mockResolvedValueOnce(success({ ...chapter, version: 1, revision: 2 }))
+  await chapterClient.save('1', chapter)
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      method: 'PUT',
+      url: '/work/1/chapter/c1',
+      data: expect.objectContaining({ version: 0 }),
+    }),
+  )
+})
+
+test('응답이 유실된 원고 저장 재시도는 동일 mutationId와 기준 버전을 사용한다', async () => {
+  request.mockResolvedValueOnce(csrf()).mockRejectedValueOnce(new Error('응답 유실'))
+  await expect(chapterClient.save('1', chapter)).rejects.toThrow('응답 유실')
+  const firstRequest: unknown = request.mock.calls[1][0]
+  request.mockResolvedValueOnce(success({ ...chapter, version: 1 }))
+  await chapterClient.save('1', chapter)
+  expect(request.mock.calls[2][0]).toEqual(firstRequest)
+})
+
+test('회차 목록은 모든 페이지를 가져오고 잘못된 응답은 거절한다', async () => {
+  request
+    .mockResolvedValueOnce(
+      success({ items: [chapter], page: 0, size: 20, totalElements: 2, totalPages: 2 }),
+    )
+    .mockResolvedValueOnce(
+      success({
+        items: [{ ...chapter, id: 'c2', chapterNo: 2 }],
+        page: 1,
+        size: 20,
+        totalElements: 2,
+        totalPages: 2,
+      }),
+    )
+  expect((await chapterClient.listAll('1')).map((item) => item.id)).toEqual(['c1', 'c2'])
+  expect(() => parseChapter({ ...chapter, version: -1 })).toThrow()
+  expect(() => parseChapter({ ...chapter, content: null })).toThrow()
+})
+
+test('판단·사건 저장 요청은 원고 본문을 workspace로 다시 전송하지 않는다', async () => {
+  request.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(
+    success({
+      version: 1,
+      workVersion: 1,
+      content: { chapters: [], analyses: [], events: [] },
+      updatedAt: chapter.updatedAt,
+    }),
+  )
+  await workspaceClient.save('1', 0, 'decision', { chapters: [chapter], analyses: [], events: [] })
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      data: {
+        version: 0,
+        mutationId: 'decision',
+        separateChapters: true,
+        content: { chapters: [], analyses: [], events: [] },
+      },
+    }),
+  )
 })
 
 test('작품 목록의 검색·페이지·취소 신호를 전달하고 정상 빈 결과를 유지한다', async () => {

@@ -18,6 +18,8 @@ import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisJobStateService;
 import com.magister.backend.domain.analysis.service.AnalysisWorker;
+import com.magister.backend.domain.chapter.entity.Chapter;
+import com.magister.backend.domain.chapter.repository.ChapterRepository;
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
@@ -69,6 +71,7 @@ import java.util.concurrent.TimeUnit;
         })
 @ActiveProfiles("test")
 public class AnalysisJobLifecycleTests {
+    @Autowired ChapterRepository chapterRepository;
     @Autowired UserRepository users;
     @Autowired WorkRepository works;
     @Autowired WorkSettingRepository settings;
@@ -117,14 +120,11 @@ public class AnalysisJobLifecycleTests {
                                             "",
                                             ""));
                     Workspace workspace = new Workspace(work);
+                    chapterRepository.saveAndFlush(
+                            new Chapter(work, "c1", 1, "chapter", "original text", 1, "initial"));
                     workspace.replace(
                             json.writeValueAsString(
-                                    new WorkspaceData(
-                                            List.of(
-                                                    new ChapterData(
-                                                            "c1", "chapter", "original text", 1)),
-                                            List.of(),
-                                            List.of())),
+                                    new WorkspaceData(List.of(), List.of(), List.of())),
                             "initial");
                     workspaces.saveAndFlush(workspace);
                     Long settingId =

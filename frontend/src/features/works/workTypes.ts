@@ -10,6 +10,8 @@ export interface Setting {
   content: string
 }
 export interface Chapter {
+  version?: number
+  chapterNo?: number
   id: string
   title: string
   content: string
@@ -46,7 +48,7 @@ export interface StoryEvent {
   chapterId: string
   quote: string
 }
-// 작품 정보·설정은 서버에 저장한다. 원고·분석·사건은 별도 workspaceVersion으로 충돌을 검사한다.
+// 회차 원고는 각 version으로, 검토 판단·사건은 workspaceVersion으로 저장 충돌을 검사한다.
 export interface Work {
   workspaceVersion?: number
   source?: 'server' | 'local'

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { workClient, type WorkInput } from './workClient'
 import { settingClient, type SettingInput } from '../settings/settingClient'
 import { workspaceClient } from '../workspace/workspaceClient'
+import { chapterClient, chapterSignature, type SavedChapter } from '../manuscript/chapterClient'
 import { ApiError } from '../../shared/httpClient'
 import { readStoredWorks, isWorks } from './workStorage'
 import { mergeWorkByVersion, mergeSettingsByVersion } from './workCache'
@@ -50,6 +51,8 @@ interface WorksState {
   flushWorkspace: (id: string) => Promise<void>
   reloadWorkspace: (id: string) => Promise<void>
   handleRemoteSave: (id: string, version: number) => void
+  handleRemoteChapterSave: (id: string, chapterId: string, version: number) => Promise<void>
+  resolveChapterConflict: (id: string, server: SavedChapter) => void
   recoverDraft: (id: string) => void
 }
 const emptyView: SettingView = {
@@ -93,6 +96,19 @@ let legacyDrafts: Work[] = []
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
 const flights = new Map<string, Promise<void>>()
 const mutations = new Map<string, { body: string; id: string; version: number }>()
+const chapterSnapshots = new Map<string, Map<string, string>>()
+const workspaceDirty = new Set<string>()
+function rememberChapters(work: Work) {
+  chapterSnapshots.set(
+    work.id,
+    new Map(work.chapters.map((chapter) => [chapter.id, chapterSignature(chapter)])),
+  )
+}
+function pendingChapters(work: Work) {
+  return work.chapters.filter(
+    (chapter) => chapterSnapshots.get(work.id)?.get(chapter.id) !== chapterSignature(chapter),
+  )
+}
 const message = (error: unknown) =>
   error instanceof Error ? error.message : '요청에 실패했습니다. 다시 시도해 주세요.'
 const contentOf = (work: Work) => ({
@@ -135,6 +151,9 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     timers.clear()
     flights.clear()
     mutations.clear()
+    chapterSnapshots.clear()
+    workspaceDirty.clear()
+    chapterClient.reset()
     legacyDrafts = []
     legacyBlocked = false
     legacyDirty = false
@@ -222,20 +241,31 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     detailRequest = controller
     set({ detailLoading: true })
     try {
-      const [work, settings, workspace] = await Promise.all([
+      const [work, settings, workspace, chapters] = await Promise.all([
         workClient.get(id, controller.signal),
         settingClient.listAll(id, controller.signal),
         workspaceClient.get(id, controller.signal),
+        chapterClient.listAll(id, controller.signal),
       ])
       if (revision !== accountRevision || controller.signal.aborted) return
       const cached = get().works.find((item) => item.id === id)
+      if (get().dirtyIds.includes(id)) {
+        set({ detailLoading: false })
+        return
+      }
       const full = {
         ...work,
         ...workspace.content,
+        chapters,
         workspaceVersion: workspace.version,
-        version: workspace.workVersion,
+        version: Math.max(
+          workspace.workVersion,
+          work.version ?? 0,
+          ...chapters.map((chapter) => chapter.workVersion),
+        ),
         settings: mergeSettingsByVersion(cached?.settings || [], settings),
       }
+      rememberChapters(full)
       set({
         works: mergeWorkByVersion(get().works, full),
         loadedIds: [...new Set([...get().loadedIds, id])],
@@ -375,6 +405,20 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         : { ...work, updatedAt: new Date().toISOString() }
     set({ works: mergeWorkByVersion(get().works, next) })
     if (next.source === 'server') {
+      if (
+        (current.analyses !== next.analyses || current.events !== next.events) &&
+        JSON.stringify([current.analyses, current.events]) !==
+          JSON.stringify([next.analyses, next.events])
+      )
+        workspaceDirty.add(next.id)
+      try {
+        sessionStorage.setItem(
+          'magister.recovery:' + get().account + ':' + next.id,
+          JSON.stringify(next),
+        )
+      } catch {
+        set({ storageError: '복구 정보 저장에 실패했습니다. 입력을 파일로 보관해 주세요.' })
+      }
       set({ dirtyIds: [...new Set([...get().dirtyIds, next.id])] })
       clearTimeout(timers.get(next.id))
       timers.set(
@@ -399,47 +443,94 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     const task = (async () => {
       const work = get().works.find((item) => item.id === id)
       if (!work) return
-      const content = contentOf(work),
-        body = JSON.stringify(content),
-        previous = mutations.get(id)
-      const mutation =
-        previous?.body === body
-          ? previous
-          : { body, id: crypto.randomUUID(), version: work.workspaceVersion ?? 0 }
-      mutations.set(id, mutation)
       set({
         savingIds: [...get().savingIds, id],
         workspaceErrors: { ...get().workspaceErrors, [id]: '' },
       })
       try {
-        const response = await workspaceClient.save(id, mutation.version, mutation.id, content)
-        if (revision !== accountRevision) return
-        const latest = get().works.find((item) => item.id === id)
-        if (!latest) return
-        const unchanged =
-          latest.chapters === work.chapters &&
-          latest.analyses === work.analyses &&
-          latest.events === work.events
-        set({
-          works: get().works.map((item) =>
-            item.id === id
-              ? {
-                  ...item,
-                  workspaceVersion: response.version,
-                  version: response.workVersion,
-                  updatedAt: response.updatedAt,
-                }
-              : item,
-          ),
-          dirtyIds: unchanged ? get().dirtyIds.filter((key) => key !== id) : get().dirtyIds,
-        })
-        mutations.delete(id)
+        // 각 회차의 저장 버전만 전달한다. 판단·다른 회차를 저장해도 원고의 기준 버전은 유지된다.
+        for (const chapter of pendingChapters(work)) {
+          const saved = await chapterClient.save(id, chapter)
+          if (revision !== accountRevision) return
+          const snapshots = chapterSnapshots.get(id) || new Map<string, string>()
+          snapshots.set(chapter.id, chapterSignature(chapter))
+          chapterSnapshots.set(id, snapshots)
+          set({
+            works: get().works.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    version: Math.max(item.version ?? 0, saved.workVersion),
+                    updatedAt: saved.updatedAt,
+                    chapters: item.chapters.map((current) =>
+                      current.id !== chapter.id
+                        ? current
+                        : chapterSignature(current) === chapterSignature(chapter)
+                          ? saved
+                          : { ...current, version: saved.version, chapterNo: saved.chapterNo },
+                    ),
+                  }
+                : item,
+            ),
+          })
+          try {
+            localStorage.setItem(
+              'magister.chapter-saved:' + account,
+              JSON.stringify({ id, chapterId: saved.id, version: saved.version }),
+            )
+          } catch {
+            set({ storageError: '서버 저장은 완료했지만 다른 탭에 알리지 못했습니다.' })
+          }
+        }
+        if (workspaceDirty.has(id)) {
+          const latest = get().works.find((item) => item.id === id)
+          if (!latest) return
+          const content = contentOf(latest),
+            body = JSON.stringify([content.analyses, content.events]),
+            previous = mutations.get(id)
+          const mutation =
+            previous?.body === body
+              ? previous
+              : { body, id: crypto.randomUUID(), version: latest.workspaceVersion ?? 0 }
+          mutations.set(id, mutation)
+          const response = await workspaceClient.save(id, mutation.version, mutation.id, content)
+          if (revision !== accountRevision) return
+          const current = get().works.find((item) => item.id === id)
+          if (!current) return
+          if (current.analyses === content.analyses && current.events === content.events)
+            workspaceDirty.delete(id)
+          set({
+            works: get().works.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    workspaceVersion: response.version,
+                    version: Math.max(item.version ?? 0, response.workVersion),
+                    updatedAt: response.updatedAt,
+                  }
+                : item,
+            ),
+          })
+          mutations.delete(id)
+          try {
+            localStorage.setItem(
+              'magister.workspace-saved:' + account,
+              JSON.stringify({ id, version: response.version }),
+            )
+          } catch {
+            set({ storageError: '서버 저장은 완료했지만 다른 탭에 알리지 못했습니다.' })
+          }
+        }
+        const current = get().works.find((item) => item.id === id)
+        const unchanged = current && !pendingChapters(current).length && !workspaceDirty.has(id)
+        if (unchanged) set({ dirtyIds: get().dirtyIds.filter((key) => key !== id) })
         try {
-          sessionStorage.removeItem('magister.recovery:' + account + ':' + id)
-          localStorage.setItem(
-            'magister.workspace-saved:' + account,
-            JSON.stringify({ id, version: response.version }),
-          )
+          if (unchanged) sessionStorage.removeItem('magister.recovery:' + account + ':' + id)
+          else
+            sessionStorage.setItem(
+              'magister.recovery:' + account + ':' + id,
+              JSON.stringify(current),
+            )
         } catch {
           set({
             storageError: '브라우저 복구 정보 갱신에 실패했습니다. 서버 저장은 완료되었습니다.',
@@ -448,7 +539,10 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       } catch (error) {
         if (revision !== accountRevision) return
         try {
-          sessionStorage.setItem('magister.recovery:' + account + ':' + id, JSON.stringify(work))
+          sessionStorage.setItem(
+            'magister.recovery:' + account + ':' + id,
+            JSON.stringify(get().works.find((item) => item.id === id)),
+          )
         } catch {
           set({ storageError: '복구 파일을 내려받아 입력을 보존해 주세요.' })
         }
@@ -473,16 +567,24 @@ export const useWorksStore = create<WorksState>((set, get) => ({
   },
   async reloadWorkspace(id) {
     const revision = accountRevision,
-      response = await workspaceClient.get(id)
+      [response, chapters] = await Promise.all([workspaceClient.get(id), chapterClient.listAll(id)])
     if (revision !== accountRevision) return
+    const existing = get().works.find((work) => work.id === id)
+    if (!existing) return
+    rememberChapters({ ...existing, chapters })
+    workspaceDirty.delete(id)
     set({
       works: get().works.map((work) =>
         work.id === id
           ? {
               ...work,
               ...response.content,
+              chapters,
               workspaceVersion: response.version,
-              version: response.workVersion,
+              version: Math.max(
+                response.workVersion,
+                ...chapters.map((chapter) => chapter.workVersion),
+              ),
               updatedAt: response.updatedAt,
             }
           : work,
@@ -493,10 +595,91 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     })
     mutations.delete(id)
   },
+  async handleRemoteChapterSave(id, chapterId, version) {
+    const work = get().works.find((item) => item.id === id)
+    const chapter = work?.chapters.find((item) => item.id === chapterId)
+    if (!work || (chapter?.version !== undefined && chapter.version >= version)) return
+    if (chapter && pendingChapters(work).some((item) => item.id === chapterId)) {
+      clearTimeout(timers.get(id))
+      set({
+        conflicts: [...new Set([...get().conflicts, id])],
+        workspaceErrors: {
+          ...get().workspaceErrors,
+          [id]: '다른 탭에서 같은 회차를 수정했습니다. 현재 입력은 유지됩니다.',
+        },
+      })
+      return
+    }
+    const revision = accountRevision
+    try {
+      const saved = await chapterClient.get(id, chapterId)
+      if (revision !== accountRevision) return
+      const latest = get().works.find((item) => item.id === id)
+      if (!latest) return
+      if ((latest.chapters.find((item) => item.id === chapterId)?.version ?? -1) > saved.version)
+        return
+      // 네트워크 조회 중 입력이 시작되었다면 원격 응답으로 덮어쓰지 않는다.
+      if (pendingChapters(latest).some((item) => item.id === chapterId)) {
+        set({
+          conflicts: [...new Set([...get().conflicts, id])],
+          workspaceErrors: {
+            ...get().workspaceErrors,
+            [id]: '다른 탭의 수정과 충돌했습니다. 현재 입력은 유지됩니다.',
+          },
+        })
+        return
+      }
+      const snapshots = chapterSnapshots.get(id) || new Map<string, string>()
+      snapshots.set(chapterId, chapterSignature(saved))
+      chapterSnapshots.set(id, snapshots)
+      set({
+        works: get().works.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                version: Math.max(item.version ?? 0, saved.workVersion),
+                chapters: [
+                  ...item.chapters.filter((current) => current.id !== chapterId),
+                  saved,
+                ].sort((first, second) => (first.chapterNo ?? 0) - (second.chapterNo ?? 0)),
+              }
+            : item,
+        ),
+      })
+    } catch (error) {
+      if (revision === accountRevision)
+        set({ workspaceErrors: { ...get().workspaceErrors, [id]: message(error) } })
+    }
+  },
+  resolveChapterConflict(id, server) {
+    if (get().savingIds.includes(id))
+      throw new Error('진행 중인 저장이 끝난 뒤 다시 시도해 주세요.')
+    const work = get().works.find((item) => item.id === id)
+    const draft = work?.chapters.find((item) => item.id === server.id)
+    if (!work || !draft) throw new Error('비교할 회차를 다시 불러와 주세요.')
+    if ((draft.version ?? 0) > server.version) throw new Error('서버 원고를 다시 조회해 주세요.')
+    // 사용자가 서버본과 초안을 비교하고 선택한 회차에만 새 저장 기준을 적용한다.
+    const snapshots = chapterSnapshots.get(id) || new Map<string, string>()
+    snapshots.set(server.id, chapterSignature(server))
+    chapterSnapshots.set(id, snapshots)
+    chapterClient.rebase(id, server.id)
+    set({
+      conflicts: get().conflicts.filter((key) => key !== id),
+      workspaceErrors: { ...get().workspaceErrors, [id]: '' },
+    })
+    get().updateWork({
+      ...work,
+      chapters: work.chapters.map((chapter) =>
+        chapter.id === server.id
+          ? { ...chapter, version: server.version, chapterNo: server.chapterNo }
+          : chapter,
+      ),
+    })
+  },
   handleRemoteSave(id, version) {
     const work = get().works.find((item) => item.id === id)
     if (!work || version <= (work.workspaceVersion ?? 0)) return
-    if (get().dirtyIds.includes(id)) {
+    if (workspaceDirty.has(id)) {
       clearTimeout(timers.get(id))
       set({
         conflicts: [...new Set([...get().conflicts, id])],
@@ -505,12 +688,39 @@ export const useWorksStore = create<WorksState>((set, get) => ({
           [id]: '다른 탭에서 새 버전을 저장했습니다. 현재 입력은 유지됩니다.',
         },
       })
-    } else
-      void get()
-        .reloadWorkspace(id)
-        .catch((error) =>
-          set({ workspaceErrors: { ...get().workspaceErrors, [id]: message(error) } }),
-        )
+    } else {
+      const revision = accountRevision
+      void workspaceClient
+        .get(id)
+        .then((response) => {
+          if (revision !== accountRevision) return
+          if (
+            response.version <= (get().works.find((item) => item.id === id)?.workspaceVersion ?? 0)
+          )
+            return
+          if (workspaceDirty.has(id)) {
+            get().handleRemoteSave(id, version)
+            return
+          }
+          set({
+            works: get().works.map((current) =>
+              current.id === id
+                ? {
+                    ...current,
+                    analyses: response.content.analyses,
+                    events: response.content.events,
+                    workspaceVersion: response.version,
+                    version: Math.max(current.version ?? 0, response.workVersion),
+                  }
+                : current,
+            ),
+          })
+        })
+        .catch((error) => {
+          if (revision === accountRevision)
+            set({ workspaceErrors: { ...get().workspaceErrors, [id]: message(error) } })
+        })
+    }
   },
   recoverDraft(id) {
     const state = get(),

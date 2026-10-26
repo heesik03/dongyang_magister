@@ -28,6 +28,23 @@ export function WorksProvider({ email, children }: { email: string; children: Re
       }
     }
     function remote(event: StorageEvent) {
+      if (event.key === 'magister.chapter-saved:' + email && event.newValue) {
+        try {
+          const value: unknown = JSON.parse(event.newValue)
+          if (
+            isRecord(value) &&
+            typeof value.id === 'string' &&
+            typeof value.chapterId === 'string' &&
+            typeof value.version === 'number'
+          )
+            void useWorksStore
+              .getState()
+              .handleRemoteChapterSave(value.id, value.chapterId, value.version)
+        } catch {
+          /* 불완전한 브라우저 이벤트는 다음 서버 조회로 확인한다. */
+        }
+        return
+      }
       if (event.key !== 'magister.workspace-saved:' + email || !event.newValue) return
       try {
         const value: unknown = JSON.parse(event.newValue)

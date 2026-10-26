@@ -32,6 +32,7 @@ import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisWorker;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
+import com.magister.backend.domain.chapter.repository.ChapterRepository;
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
@@ -74,6 +75,7 @@ import java.util.UUID;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class WorkspaceApiTests {
+    @Autowired ChapterRepository chapterRepository;
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
     @Autowired WorkRepository works;
@@ -115,6 +117,9 @@ class WorkspaceApiTests {
                             settings.findAll().stream()
                                     .filter(item -> item.getWork().getId().equals(workId))
                                     .toList());
+                    chapterRepository.deleteAll(
+                            chapterRepository.findByWork_IdOrderByChapterNoAsc(workId));
+                    chapterRepository.flush();
                     works.deleteById(workId);
                     users.deleteById(ownerId);
                 });
@@ -336,7 +341,7 @@ class WorkspaceApiTests {
                         () ->
                                 resultValidator.validate(
                                         "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"없는"
-                                                + " 원문\",\"settingId\":\"1\",\"reason\":\"이유\",\"suggestion\":\"방향\"}]}",
+                                            + " 원문\",\"settingId\":\"1\",\"reason\":\"이유\",\"suggestion\":\"방향\"}]}",
                                         input))
                 .isInstanceOf(CustomException.class);
     }

@@ -4,6 +4,7 @@ import { isWorks } from '../works/workStorage'
 import type { Analysis } from '../works/workTypes'
 export interface AnalysisInput {
   chapterId: string
+  chapterRevision?: number
   workspaceVersion: number
   settingIds: string[]
   previousIds: string[]

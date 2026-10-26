@@ -1,5 +1,7 @@
 package com.magister.backend.domain.analysis.dto;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -15,4 +17,27 @@ public record AnalysisRequest(
         @NotEmpty @Size(max = 1000) List<@NotBlank String> settingIds,
         @NotNull @Size(max = 100) List<@NotBlank String> previousIds,
         boolean consistency,
-        boolean motivation) {}
+        boolean motivation,
+        @Min(1) Long chapterRevision) {
+    @JsonCreator
+    public AnalysisRequest {}
+
+    public AnalysisRequest(
+            String requestId,
+            String chapterId,
+            long workspaceVersion,
+            List<String> settingIds,
+            List<String> previousIds,
+            boolean consistency,
+            boolean motivation) {
+        this(
+                requestId,
+                chapterId,
+                workspaceVersion,
+                settingIds,
+                previousIds,
+                consistency,
+                motivation,
+                null);
+    }
+}

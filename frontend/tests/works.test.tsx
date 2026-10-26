@@ -2,12 +2,14 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 import { useWorksStore } from '../src/features/works/useWorksStore'
 import { workspaceClient } from '../src/features/workspace/workspaceClient'
+import { chapterClient, type SavedChapter } from '../src/features/manuscript/chapterClient'
 import { workClient } from '../src/features/works/workClient'
 import { settingClient } from '../src/features/settings/settingClient'
 import { parseWork } from '../src/features/works/workResponse'
 import { parseSetting } from '../src/features/settings/settingResponse'
 import { createSampleWorks } from './fixtures/sampleWorks'
 import type { Work } from '../src/features/works/workTypes'
+import { ApiError } from '../src/shared/httpClient'
 
 vi.mock('../src/features/works/workClient', async (importOriginal) => {
   const original = await importOriginal<typeof import('../src/features/works/workClient')>()
@@ -22,6 +24,20 @@ vi.mock('../src/features/settings/settingClient', () => ({
 vi.mock('../src/features/workspace/workspaceClient', () => ({
   workspaceClient: { get: vi.fn(), save: vi.fn() },
 }))
+vi.mock('../src/features/manuscript/chapterClient', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/features/manuscript/chapterClient')>()
+  return {
+    ...original,
+    chapterClient: {
+      listAll: vi.fn(),
+      get: vi.fn(),
+      save: vi.fn(),
+      reset: vi.fn(),
+      rebase: vi.fn(),
+    },
+  }
+})
+let savedChapters: SavedChapter[] = []
 const remote: Work = {
   id: '1',
   title: '서버 작품',
@@ -41,6 +57,20 @@ beforeEach(() => {
   useWorksStore.getState().reset()
   localStorage.clear()
   vi.resetAllMocks()
+  savedChapters = []
+  vi.mocked(chapterClient.listAll).mockImplementation(async () => savedChapters)
+  vi.mocked(chapterClient.save).mockImplementation(async (_workId, chapter) => {
+    const saved: SavedChapter = {
+      ...chapter,
+      chapterNo: chapter.chapterNo ?? savedChapters.length + 1,
+      version: chapter.version === undefined ? 0 : chapter.version + 1,
+      revision: chapter.version === undefined ? 1 : chapter.version + 2,
+      updatedAt: '2026-10-26T00:00:00Z',
+      workVersion: (chapter.version ?? 0) + 1,
+    }
+    savedChapters = [...savedChapters.filter((item) => item.id !== saved.id), saved]
+    return saved
+  })
   vi.mocked(workClient.get).mockResolvedValue(remote)
   vi.mocked(settingClient.list).mockResolvedValue({ items: [], hasNext: false, nextCursor: null })
   vi.mocked(settingClient.listAll).mockResolvedValue([])
@@ -135,7 +165,7 @@ test('버전 충돌 시 화면의 기존 설정을 변경하지 않는다', asyn
 
 test('서버 저장 실패 시 원고를 메모리에 보존한다', async () => {
   await useWorksStore.getState().loadWork('1')
-  vi.mocked(workspaceClient.save).mockRejectedValue(new Error('서버 연결 실패'))
+  vi.mocked(chapterClient.save).mockRejectedValue(new Error('서버 연결 실패'))
   useWorksStore.getState().updateWork({
     ...remote,
     chapters: [{ id: '1', title: '1화', content: '보존할 내용', revision: 1 }],
@@ -204,9 +234,10 @@ test('빠른 원고 입력은 서버 저장을 묶어서 실행한다', async ()
         ...remote,
         chapters: [{ id: 'c', title: '1화', content: '문장'.repeat(i), revision: i }],
       })
-    expect(workspaceClient.save).not.toHaveBeenCalled()
+    expect(chapterClient.save).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(600)
-    expect(workspaceClient.save).toHaveBeenCalledTimes(1)
+    expect(chapterClient.save).toHaveBeenCalledTimes(1)
+    expect(workspaceClient.save).not.toHaveBeenCalled()
     expect(useWorksStore.getState().dirtyIds).toEqual([])
   } finally {
     vi.useRealTimers()
@@ -243,7 +274,7 @@ test('다른 탭의 새 버전이 도착하면 입력을 보존하고 자동 저
     ...remote,
     chapters: [{ id: 'c', title: '1화', content: '내 원고', revision: 1 }],
   })
-  useWorksStore.getState().handleRemoteSave('1', 2)
+  await useWorksStore.getState().handleRemoteChapterSave('1', 'c', 2)
   await useWorksStore.getState().flushWorkspace('1')
   expect(workspaceClient.save).not.toHaveBeenCalled()
   expect(useWorksStore.getState().conflicts).toContain('1')
@@ -251,8 +282,8 @@ test('다른 탭의 새 버전이 도착하면 입력을 보존하고 자동 저
 })
 test('저장 중 입력한 새 원고는 첫 저장 응답으로 사라지지 않는다', async () => {
   await useWorksStore.getState().loadWork('1')
-  let finish: (response: Awaited<ReturnType<typeof workspaceClient.save>>) => void = () => {}
-  vi.mocked(workspaceClient.save).mockImplementationOnce(
+  let finish: (response: SavedChapter) => void = () => {}
+  vi.mocked(chapterClient.save).mockImplementationOnce(
     () =>
       new Promise((resolve) => {
         finish = resolve
@@ -265,15 +296,17 @@ test('저장 중 입력한 새 원고는 첫 저장 응답으로 사라지지 �
     .getState()
     .updateWork({ ...remote, chapters: [{ ...first, content: '이어서 작성', revision: 2 }] })
   finish({
-    version: 1,
+    ...first,
+    chapterNo: 1,
+    version: 0,
     workVersion: 1,
     updatedAt: '2026-10-25T00:00:00Z',
-    content: { chapters: [first], analyses: [], events: [] },
   })
   await pending
-  expect(workspaceClient.save).toHaveBeenCalledTimes(2)
+  expect(chapterClient.save).toHaveBeenCalledTimes(2)
   expect(useWorksStore.getState().works[0].chapters[0].content).toBe('이어서 작성')
-  expect(useWorksStore.getState().works[0].workspaceVersion).toBe(2)
+  expect(useWorksStore.getState().works[0].chapters[0].version).toBe(1)
+  expect(useWorksStore.getState().works[0].workspaceVersion).toBe(0)
 })
 test('빈 보관함 응답은 샘플로 대체하지 않고 서버 총 개수를 저장한다', async () => {
   vi.mocked(workClient.list).mockResolvedValue({
@@ -286,4 +319,152 @@ test('빈 보관함 응답은 샘플로 대체하지 않고 서버 총 개수를
   await useWorksStore.getState().loadWorks()
   expect(useWorksStore.getState().totalElements).toBe(25)
   expect(useWorksStore.getState().listedIds).toEqual(['1'])
+})
+
+test('원고 저장 중 실패해도 가장 마지막 입력을 복구본에 보존한다', async () => {
+  await useWorksStore.getState().loadWork('1')
+  let rejectSave: (error: Error) => void = () => {}
+  vi.mocked(chapterClient.save).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectSave = reject
+      }),
+  )
+  const first = { id: 'c', title: '1화', content: '첫 입력', revision: 1 }
+  useWorksStore.getState().updateWork({ ...remote, chapters: [first] })
+  const saving = useWorksStore.getState().flushWorkspace('1')
+  useWorksStore
+    .getState()
+    .updateWork({ ...remote, chapters: [{ ...first, content: '마지막 입력' }] })
+  rejectSave(new Error('연결 끊김'))
+  await saving
+  expect(sessionStorage.getItem('magister.recovery:writer@example.com:1')).toContain('마지막 입력')
+  expect(useWorksStore.getState().works[0].chapters[0].content).toBe('마지막 입력')
+  expect(useWorksStore.getState().dirtyIds).toContain('1')
+})
+
+test('저장 API가 버전 충돌을 반환하면 초안과 기준 버전을 유지한다', async () => {
+  savedChapters = [
+    {
+      id: 'c',
+      title: '1화',
+      content: '서버 원고',
+      revision: 3,
+      version: 2,
+      chapterNo: 1,
+      updatedAt: remote.updatedAt,
+      workVersion: 1,
+    },
+  ]
+  await useWorksStore.getState().loadWork('1')
+  const current = useWorksStore.getState().works[0]
+  useWorksStore
+    .getState()
+    .updateWork({ ...current, chapters: [{ ...current.chapters[0], content: '내 초안' }] })
+  vi.mocked(chapterClient.save).mockRejectedValueOnce(new ApiError('버전 충돌', 409))
+  await useWorksStore.getState().flushWorkspace('1')
+  expect(useWorksStore.getState().works[0].chapters[0]).toMatchObject({
+    content: '내 초안',
+    version: 2,
+  })
+  expect(useWorksStore.getState().conflicts).toContain('1')
+  expect(sessionStorage.getItem('magister.recovery:writer@example.com:1')).toContain('내 초안')
+})
+
+test('다른 회차의 원격 저장은 작성 중인 회차와 충돌하지 않는다', async () => {
+  savedChapters = ['c1', 'c2'].map((id, index) => ({
+    id,
+    title: id,
+    content: '원고',
+    revision: 1,
+    version: 0,
+    chapterNo: index + 1,
+    updatedAt: remote.updatedAt,
+    workVersion: 1,
+  }))
+  await useWorksStore.getState().loadWork('1')
+  const current = useWorksStore.getState().works[0]
+  useWorksStore.getState().updateWork({
+    ...current,
+    chapters: current.chapters.map((chapter) =>
+      chapter.id === 'c1' ? { ...chapter, content: '내 1화' } : chapter,
+    ),
+  })
+  vi.mocked(chapterClient.get).mockResolvedValue({
+    ...savedChapters[1],
+    content: '다른 탭의 2화',
+    revision: 2,
+    version: 1,
+  })
+  await useWorksStore.getState().handleRemoteChapterSave('1', 'c2', 1)
+  expect(useWorksStore.getState().conflicts).toEqual([])
+  expect(useWorksStore.getState().works[0].chapters.map((chapter) => chapter.content)).toEqual([
+    '내 1화',
+    '다른 탭의 2화',
+  ])
+  await useWorksStore.getState().flushWorkspace('1')
+  expect(chapterClient.save).toHaveBeenCalledTimes(1)
+  expect(chapterClient.save).toHaveBeenCalledWith(
+    '1',
+    expect.objectContaining({ id: 'c1', version: 0 }),
+  )
+})
+
+test('원격 판단 저장이 작성 중인 원고를 덮어쓰거나 충돌시키지 않는다', async () => {
+  await useWorksStore.getState().loadWork('1')
+  useWorksStore.getState().updateWork({
+    ...remote,
+    chapters: [{ id: 'c', title: '1화', content: '작성 중', revision: 1 }],
+  })
+  vi.mocked(workspaceClient.get).mockResolvedValue({
+    version: 2,
+    workVersion: 2,
+    updatedAt: remote.updatedAt,
+    content: {
+      chapters: [],
+      analyses: [],
+      events: [{ id: 'event', title: '사건', time: '', characters: '', chapterId: '', quote: '' }],
+    },
+  })
+  useWorksStore.getState().handleRemoteSave('1', 2)
+  await vi.waitFor(() => expect(useWorksStore.getState().works[0].workspaceVersion).toBe(2))
+  expect(useWorksStore.getState().conflicts).toEqual([])
+  expect(useWorksStore.getState().works[0].chapters[0].content).toBe('작성 중')
+})
+
+test('작가가 비교 후 선택한 충돌 회차만 최신 서버 버전으로 다시 저장한다', async () => {
+  savedChapters = [
+    {
+      id: 'c',
+      title: '1화',
+      content: '기존 원고',
+      revision: 1,
+      version: 0,
+      chapterNo: 1,
+      updatedAt: remote.updatedAt,
+      workVersion: 1,
+    },
+  ]
+  await useWorksStore.getState().loadWork('1')
+  const current = useWorksStore.getState().works[0]
+  useWorksStore.getState().updateWork({
+    ...current,
+    chapters: [{ ...current.chapters[0], content: '작가가 선택한 초안' }],
+  })
+  await useWorksStore.getState().handleRemoteChapterSave('1', 'c', 1)
+  expect(useWorksStore.getState().conflicts).toContain('1')
+  useWorksStore.getState().resolveChapterConflict('1', {
+    ...savedChapters[0],
+    content: '다른 탭의 원고',
+    version: 1,
+    revision: 2,
+  })
+  await useWorksStore.getState().flushWorkspace('1')
+  expect(chapterClient.rebase).toHaveBeenCalledWith('1', 'c')
+  expect(chapterClient.save).toHaveBeenCalledWith(
+    '1',
+    expect.objectContaining({ version: 1, content: '작가가 선택한 초안' }),
+  )
+  expect(useWorksStore.getState().conflicts).toEqual([])
+  expect(useWorksStore.getState().dirtyIds).toEqual([])
 })
