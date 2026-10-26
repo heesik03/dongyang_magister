@@ -1,5 +1,6 @@
 package com.magister.backend.domain.work.controller;
 
+import com.magister.backend.global.pagination.OffsetPageResponse;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.docs.WorkControllerDocs;
 import com.magister.backend.domain.work.dto.*;
@@ -31,7 +32,7 @@ public class WorkController implements WorkControllerDocs {
 
     @Override
     @GetMapping
-    public ApiResult<PageResponse<WorkResponse>> list(
+    public ApiResult<OffsetPageResponse<WorkResponse>> list(
             @AuthenticationPrincipal LoginUser user,
             @RequestParam(defaultValue = "") String keyword,
             @RequestParam(defaultValue = "") String genre,

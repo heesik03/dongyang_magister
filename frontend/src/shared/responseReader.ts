@@ -37,3 +37,28 @@ export function parsePage<T>(raw: unknown, parseItem: (entry: unknown) => T): Pa
     totalPages: readInteger(value, 'totalPages'),
   }
 }
+
+export interface CursorPage<T> {
+  items: T[]
+  hasNext: boolean
+  nextCursor: string | null
+}
+
+export function parseCursorPage<T>(raw: unknown, parseItem: (entry: unknown) => T): CursorPage<T> {
+  const value = readRecord(raw)
+  if (
+    !Array.isArray(value.items) ||
+    typeof value.hasNext !== 'boolean' ||
+    (value.nextCursor !== null &&
+      (typeof value.nextCursor !== 'string' || value.nextCursor.length === 0)) ||
+    value.hasNext !== (value.nextCursor !== null) ||
+    (value.hasNext && value.items.length === 0)
+  )
+    throw new Error('커서 목록 응답이 올바르지 않습니다.')
+
+  return {
+    items: value.items.map(parseItem),
+    hasNext: value.hasNext,
+    nextCursor: value.nextCursor,
+  }
+}

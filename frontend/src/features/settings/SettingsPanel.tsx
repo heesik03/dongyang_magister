@@ -97,10 +97,10 @@ export function SettingsPanel({ work }: { work: Work }) {
           <button onClick={() => void loadSettings(work.id, kind)}>다시 시도</button>
         </div>
       )}
-      {work.source === 'server' && settingView.page + 1 < settingView.totalPages && (
+      {work.source === 'server' && settingView.hasNext && (
         <button
           disabled={settingView.loading}
-          onClick={() => void loadSettings(work.id, kind, settingView.page + 1)}
+          onClick={() => void loadSettings(work.id, kind, settingView.nextCursor ?? undefined)}
         >
           설정 더 불러오기
         </button>

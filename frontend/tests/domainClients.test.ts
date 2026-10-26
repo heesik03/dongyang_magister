@@ -102,14 +102,12 @@ test('작품별 설정 생성·수정에서 서버 코드와 설정 버전을 �
 })
 
 test('설정 조회 필터를 서버 열거형으로 바꾸고 알 수 없는 종류는 요청 전에 거절한다', async () => {
-  request.mockResolvedValueOnce(
-    success({ items: [setting], page: 0, size: 20, totalElements: 1, totalPages: 1 }),
-  )
+  request.mockResolvedValueOnce(success({ items: [setting], hasNext: false, nextCursor: null }))
   await settingClient.list('1', { kind: '인물' })
   expect(request).toHaveBeenCalledWith(
     expect.objectContaining({
-      url: '/work/1/setting',
-      params: { kind: 'CHARACTER', page: 0, size: 20 },
+      url: '/work/1/setting/scroll',
+      params: { kind: 'CHARACTER', cursor: undefined, size: 20 },
     }),
   )
   await expect(settingClient.list('1', { kind: '없는 종류' })).rejects.toThrow('설정 종류')
@@ -143,10 +141,8 @@ test('잘못된 설정 코드와 성공 응답 형식을 mock 결과로 대신�
   request.mockResolvedValueOnce(
     success({
       items: [{ ...setting, kind: 'constructor' }],
-      page: 0,
-      size: 20,
-      totalElements: 1,
-      totalPages: 1,
+      hasNext: false,
+      nextCursor: null,
     }),
   )
   await expect(settingClient.list('1')).rejects.toThrow('설정 종류')
@@ -159,26 +155,24 @@ test('설정이 100개를 넘어도 마지막 페이지까지 조회한다', asy
     .mockResolvedValueOnce(
       success({
         items: Array.from({ length: 100 }, (_, index) => ({ ...setting, id: index + 1 })),
-        page: 0,
-        size: 100,
-        totalElements: 101,
-        totalPages: 2,
+        hasNext: true,
+        nextCursor: 'after-100',
       }),
     )
     .mockResolvedValueOnce(
       success({
         items: [{ ...setting, id: 101 }],
-        page: 1,
-        size: 100,
-        totalElements: 101,
-        totalPages: 2,
+        hasNext: false,
+        nextCursor: null,
       }),
     )
   const result = await settingClient.listAll('1')
   expect(result).toHaveLength(101)
   expect(result[100].id).toBe('101')
   expect(request).toHaveBeenLastCalledWith(
-    expect.objectContaining({ params: expect.objectContaining({ page: 1, size: 100 }) }),
+    expect.objectContaining({
+      params: expect.objectContaining({ cursor: 'after-100', size: 100 }),
+    }),
   )
 })
 test('같은 세션에서는 CSRF 토큰 조회를 재사용한다', async () => {
@@ -189,4 +183,13 @@ test('같은 세션에서는 CSRF 토큰 조회를 재사용한다', async () =>
   await workClient.create(work)
   await workClient.update('1', work, 2)
   expect(request.mock.calls.filter(([config]) => config.url === '/user/csrf')).toHaveLength(1)
+})
+
+test('커서 메타데이터가 모순되거나 반복되면 무한 조회하지 않고 실패한다', async () => {
+  request.mockResolvedValueOnce(success({ items: [setting], hasNext: true, nextCursor: null }))
+  await expect(settingClient.list('1')).rejects.toThrow('커서 목록')
+
+  request.mockResolvedValue(success({ items: [setting], hasNext: true, nextCursor: 'repeated' }))
+  await expect(settingClient.listAll('1')).rejects.toThrow('커서가 반복')
+  expect(request).toHaveBeenCalledTimes(3)
 })

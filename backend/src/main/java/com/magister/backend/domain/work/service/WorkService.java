@@ -1,5 +1,6 @@
 package com.magister.backend.domain.work.service;
 
+import com.magister.backend.global.pagination.OffsetPageRequest;
 import com.magister.backend.domain.work.converter.WorkConverter;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.work.dto.*;
@@ -7,11 +8,11 @@ import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.repository.WorkRepository;
 import com.magister.backend.global.error.exception.CustomException;
-import com.magister.backend.global.response.PageResponse;
+import com.magister.backend.global.pagination.OffsetPageResponse;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,12 +38,11 @@ public class WorkService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<WorkResponse> list(
+    public OffsetPageResponse<WorkResponse> list(
             Long ownerId, String keyword, String genre, int page, int size) {
-        PageRequest paging =
-                PageRequest.of(
-                        page, size, Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id")));
-        return PageResponse.from(
+        Pageable paging = OffsetPageRequest.of(page, size).toPageable(
+                Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id")));
+        return OffsetPageResponse.from(
                 works.search(ownerId, keyword.strip(), genre.strip(), paging)
                         .map(WorkConverter::toResponse));
     }

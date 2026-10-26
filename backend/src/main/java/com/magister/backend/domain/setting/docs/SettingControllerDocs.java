@@ -7,7 +7,8 @@ import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.response.ApiResult;
-import com.magister.backend.global.response.PageResponse;
+import com.magister.backend.global.pagination.OffsetPageResponse;
+import com.magister.backend.global.pagination.CursorPageResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -27,6 +28,16 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Setting", description = "작품의 인물·세계관·주요 사건·의도한 각색과 확정 여부를 관리하는 설정집")
 @SecurityRequirement(name = "session")
 public interface SettingControllerDocs {
+    @Operation(summary = "설정 커서 목록", description = "소유자 전용 ID 내림차순 조회. size는 1~100이며 다른 작품·필터의 커서는 400으로 거절합니다. 다음 페이지는 nextCursor를 사용합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "설정 목록과 hasNext, nextCursor"),
+        @ApiResponse(responseCode = "400", description = "유효하지 않은 커서 또는 페이지 크기"),
+        @ApiResponse(responseCode = "401", description = "로그인 필요"),
+        @ApiResponse(responseCode = "404", description = "소유한 작품 없음")
+    })
+    ApiResult<CursorPageResponse<SettingResponse>> scroll(LoginUser user, @Positive Long workId,
+            SettingKind kind, SettingStatus status, String cursor, @Min(1) @Max(100) int size);
+
 
     @Operation(
             summary = "설정 등록",
@@ -144,7 +155,7 @@ public interface SettingControllerDocs {
                         mediaType = "application/json",
                         schema = @Schema(implementation = ApiResult.class)))
     })
-    ApiResult<PageResponse<SettingResponse>> list(
+    ApiResult<OffsetPageResponse<SettingResponse>> list(
             LoginUser user,
             @Positive Long workId,
             SettingKind kind,

@@ -42,7 +42,7 @@ beforeEach(() => {
   localStorage.clear()
   vi.resetAllMocks()
   vi.mocked(workClient.get).mockResolvedValue(remote)
-  vi.mocked(settingClient.list).mockResolvedValue(page)
+  vi.mocked(settingClient.list).mockResolvedValue({ items: [], hasNext: false, nextCursor: null })
   vi.mocked(settingClient.listAll).mockResolvedValue([])
   vi.mocked(workspaceClient.get).mockResolvedValue({
     version: 0,
@@ -185,7 +185,8 @@ test('뒤늦은 설정 조회가 이미 저장한 최신 버전을 덮어쓰지 
   vi.mocked(settingClient.create).mockResolvedValue(latest)
   await useWorksStore.getState().saveSetting(remote, latest)
   vi.mocked(settingClient.list).mockResolvedValue({
-    ...page,
+    hasNext: false,
+    nextCursor: null,
     items: [{ ...latest, title: '이전 설정', version: 0 }],
     totalElements: 1,
     totalPages: 1,
@@ -210,6 +211,31 @@ test('빠른 원고 입력은 서버 저장을 묶어서 실행한다', async ()
   } finally {
     vi.useRealTimers()
   }
+})
+
+test('설정 더 보기는 커서를 전달하고 필터 변경은 이전 커서를 초기화한다', async () => {
+  await useWorksStore.getState().loadWork('1')
+  vi.mocked(settingClient.list).mockResolvedValueOnce({
+    items: [],
+    hasNext: true,
+    nextCursor: 'next-characters',
+  })
+  await useWorksStore.getState().loadSettings('1', '인물')
+  expect(useWorksStore.getState().settingView.nextCursor).toBe('next-characters')
+
+  vi.mocked(settingClient.list).mockResolvedValue({ items: [], hasNext: false, nextCursor: null })
+  await useWorksStore.getState().loadSettings('1', '인물', 'next-characters')
+  expect(settingClient.list).toHaveBeenLastCalledWith(
+    '1',
+    expect.objectContaining({ kind: '인물', cursor: 'next-characters' }),
+  )
+
+  await useWorksStore.getState().loadSettings('1', '세계관', 'next-characters')
+  expect(settingClient.list).toHaveBeenLastCalledWith(
+    '1',
+    expect.objectContaining({ kind: '세계관', cursor: undefined }),
+  )
+  expect(useWorksStore.getState().settingView.hasNext).toBe(false)
 })
 test('다른 탭의 새 버전이 도착하면 입력을 보존하고 자동 저장을 멈춘다', async () => {
   await useWorksStore.getState().loadWork('1')

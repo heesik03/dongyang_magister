@@ -1,5 +1,6 @@
 package com.magister.backend.domain.setting.service;
 
+import com.magister.backend.global.pagination.OffsetPageRequest;
 import com.magister.backend.domain.setting.converter.SettingConverter;
 import com.magister.backend.domain.setting.dto.*;
 import com.magister.backend.domain.setting.entity.*;
@@ -9,7 +10,12 @@ import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.service.WorkAccessService;
 import com.magister.backend.global.error.exception.CustomException;
-import com.magister.backend.global.response.PageResponse;
+import com.magister.backend.global.pagination.OffsetPageResponse;
+import com.magister.backend.global.pagination.CursorPageRequest;
+import com.magister.backend.global.pagination.CursorPageResponse;
+import com.magister.backend.global.pagination.CursorCodec;
+import com.magister.backend.global.error.code.CommonErrorCode;
+import java.util.List;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SettingService {
     private final WorkAccessService workAccessService;
     private final WorkSettingRepository settings;
+    private final CursorCodec cursorCodec;
 
     @Transactional
     public SettingResponse create(Long ownerId, Long workId, CreateSettingRequest request) {
@@ -34,15 +41,15 @@ public class SettingService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<SettingResponse> list(
+    public OffsetPageResponse<SettingResponse> list(
             Long ownerId, Long workId, SettingKind kind, SettingStatus status, int page, int size) {
         workAccessService.requireOwned(ownerId, workId);
-        return PageResponse.from(
+        return OffsetPageResponse.from(
                 settings.search(
                                 workId,
                                 kind,
                                 status,
-                                PageRequest.of(page, size, Sort.by("id").descending()))
+                                OffsetPageRequest.of(page, size).toPageable(Sort.by("id").descending()))
                         .map(SettingConverter::toResponse));
     }
 
@@ -50,6 +57,24 @@ public class SettingService {
     public SettingResponse get(Long ownerId, Long workId, Long settingId) {
         workAccessService.requireOwned(ownerId, workId);
         return SettingConverter.toResponse(findSetting(workId, settingId));
+    }
+
+    /** 빈 목록에도 소유권을 검사하고 동일 작품·필터의 ID 커서로 다음 묶음을 조회한다. */
+    @Transactional(readOnly = true)
+    public CursorPageResponse<SettingResponse> scroll(Long ownerId, Long workId, SettingKind kind,
+            SettingStatus status, CursorPageRequest request) {
+        workAccessService.requireOwned(ownerId, workId);
+
+        String scope = cursorCodec.scope("setting", ownerId.toString(), workId.toString(),
+                kind == null ? "" : kind.name(), status == null ? "" : status.name());
+        Long beforeId = cursorCodec.decode(request.cursor(), scope, Long.class);
+        if (beforeId != null && beforeId <= 0) {
+            throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+        }
+
+        List<WorkSetting> rows = settings.searchAfter(workId, kind, status, beforeId, request.size());
+        return CursorPageResponse.from(rows, request, SettingConverter::toResponse,
+                setting -> cursorCodec.encode(scope, setting.getId()));
     }
 
     @Transactional

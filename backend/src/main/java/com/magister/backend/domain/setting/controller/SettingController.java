@@ -1,5 +1,8 @@
 package com.magister.backend.domain.setting.controller;
 
+import com.magister.backend.global.pagination.OffsetPageResponse;
+import com.magister.backend.global.pagination.CursorPageRequest;
+import com.magister.backend.global.pagination.CursorPageResponse;
 import com.magister.backend.domain.setting.docs.SettingControllerDocs;
 import com.magister.backend.domain.setting.dto.*;
 import com.magister.backend.domain.setting.entity.*;
@@ -34,7 +37,7 @@ public class SettingController implements SettingControllerDocs {
 
     @Override
     @GetMapping
-    public ApiResult<PageResponse<SettingResponse>> list(
+    public ApiResult<OffsetPageResponse<SettingResponse>> list(
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @RequestParam(required = false) SettingKind kind,
@@ -51,6 +54,18 @@ public class SettingController implements SettingControllerDocs {
             @PathVariable Long workId,
             @PathVariable Long settingId) {
         return ApiResult.success(settings.get(user.id(), workId, settingId));
+    }
+
+    @Override
+    @GetMapping("/scroll")
+    public ApiResult<CursorPageResponse<SettingResponse>> scroll(
+            @AuthenticationPrincipal LoginUser user, @PathVariable Long workId,
+            @RequestParam(required = false) SettingKind kind,
+            @RequestParam(required = false) SettingStatus status,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResult.success(settings.scroll(user.id(), workId, kind, status,
+                CursorPageRequest.of(cursor, size)));
     }
 
     @Override

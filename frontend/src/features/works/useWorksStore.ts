@@ -11,8 +11,8 @@ interface SettingView {
   workId: string
   kind: string
   ids: string[]
-  page: number
-  totalPages: number
+  nextCursor: string | null
+  hasNext: boolean
   loading: boolean
   error: string
 }
@@ -41,7 +41,7 @@ interface WorksState {
   loadWorks: (keyword?: string, genre?: string, page?: number) => Promise<void>
   loadShortcuts: () => Promise<void>
   loadWork: (id: string) => Promise<void>
-  loadSettings: (id: string, kind?: string, page?: number) => Promise<void>
+  loadSettings: (id: string, kind?: string, cursor?: string) => Promise<void>
   createWork: (input: WorkInput) => Promise<Work>
   saveWorkInfo: (work: Work, input: WorkInput) => Promise<void>
   saveSetting: (work: Work, input: SettingInput, existing?: Setting) => Promise<Setting>
@@ -56,8 +56,8 @@ const emptyView: SettingView = {
   workId: '',
   kind: '전체',
   ids: [],
-  page: 0,
-  totalPages: 0,
+  nextCursor: null,
+  hasNext: false,
   loading: false,
   error: '',
 }
@@ -246,7 +246,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         set({ detailLoading: false, detailError: message(error) })
     }
   },
-  async loadSettings(id, kind = '전체', page = 0) {
+  async loadSettings(id, kind = '전체', cursor) {
     settingRequest?.abort()
     if (get().works.some((work) => work.id === id && work.source !== 'server')) {
       set({ settingView: { ...emptyView, workId: id, kind } })
@@ -255,9 +255,25 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     const revision = accountRevision,
       controller = new AbortController()
     settingRequest = controller
-    set({ settingView: { ...get().settingView, workId: id, kind, loading: true, error: '' } })
+    const previousView = get().settingView
+    const append = cursor !== undefined && previousView.workId === id && previousView.kind === kind
+    // 작품이나 필터가 바뀌면 이전 목록의 커서를 재사용하지 않는다.
+    const requestedCursor = append ? cursor : undefined
+    set({
+      settingView: {
+        ...(append ? previousView : emptyView),
+        workId: id,
+        kind,
+        loading: true,
+        error: '',
+      },
+    })
     try {
-      const result = await settingClient.list(id, { kind, page, signal: controller.signal })
+      const result = await settingClient.list(id, {
+        kind,
+        cursor: requestedCursor,
+        signal: controller.signal,
+      })
       if (revision !== accountRevision || controller.signal.aborted) return
       const ids = result.items.map((setting) => setting.id)
       set({
@@ -269,9 +285,9 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         settingView: {
           workId: id,
           kind,
-          ids: page === 0 ? ids : [...new Set([...get().settingView.ids, ...ids])],
-          page,
-          totalPages: result.totalPages,
+          ids: append ? [...new Set([...previousView.ids, ...ids])] : ids,
+          nextCursor: result.nextCursor,
+          hasNext: result.hasNext,
           loading: false,
           error: '',
         },

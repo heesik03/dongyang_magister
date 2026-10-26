@@ -5,7 +5,7 @@ import com.magister.backend.domain.work.dto.CreateWorkRequest;
 import com.magister.backend.domain.work.dto.UpdateWorkRequest;
 import com.magister.backend.domain.work.dto.WorkResponse;
 import com.magister.backend.global.response.ApiResult;
-import com.magister.backend.global.response.PageResponse;
+import com.magister.backend.global.pagination.OffsetPageResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -130,7 +130,7 @@ public interface WorkControllerDocs {
                         mediaType = "application/json",
                         schema = @Schema(implementation = ApiResult.class)))
     })
-    ApiResult<PageResponse<WorkResponse>> list(
+    ApiResult<OffsetPageResponse<WorkResponse>> list(
             LoginUser user,
             @Size(max = 100) String keyword,
             @Size(max = 30) String genre,
