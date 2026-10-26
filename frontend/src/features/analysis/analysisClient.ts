@@ -1,7 +1,8 @@
 import { httpClient } from '../../shared/httpClient'
-import { readRecord, readString } from '../../shared/responseReader'
+import { parsePage, readInteger, readRecord, readString } from '../../shared/responseReader'
 import { isWorks } from '../works/workStorage'
-import type { Analysis } from '../works/workTypes'
+import type { Analysis, Chapter, Review } from '../works/workTypes'
+
 export interface AnalysisInput {
   chapterId: string
   chapterRevision?: number
@@ -11,103 +12,232 @@ export interface AnalysisInput {
   consistency: boolean
   motivation: boolean
 }
-interface Job {
+export interface InputSnapshot {
+  chapter: Chapter
+  previous: Chapter[]
+  settings: {
+    id: string
+    title: string
+    content: string
+    kind: string
+    status: string
+    version: number
+  }[]
+  decisions: Review[]
+  consistency: boolean
+  motivation: boolean
+}
+export interface Preview {
+  previewToken: string
+  policyVersion: string
+  expiresAt: string
+  input: InputSnapshot
+  provider: string
+  model: string
+  retentionNotice: string
+  deletionNotice: string
+  providerPolicyUrl: string
+  request: AnalysisInput & { requestId: string }
+}
+export interface Job {
   id: string
   status: string
   error: string | null
   result: Analysis | null
 }
-const path = (workId: string) => '/work/' + encodeURIComponent(workId) + '/analysis'
-function parseJob(raw: unknown): Job {
-  const job = readRecord(raw),
-    status = readString(job, 'status')
-  if (
-    !['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED'].includes(status) ||
-    (job.error !== null && typeof job.error !== 'string')
-  )
-    throw new Error('AI 작업 응답 형식이 올바르지 않습니다.')
-  let result: Analysis | null = null
-  if (job.result !== null) {
-    const value = readRecord(job.result)
-    const candidate: unknown = [
-      {
-        id: 'validation',
-        title: '',
-        genre: '',
-        era: '',
-        description: '',
-        updatedAt: '',
-        settings: [],
-        chapters: [],
-        events: [],
-        analyses: [value],
-      },
-    ]
-    if (!isWorks(candidate)) throw new Error('AI 검토 응답 형식이 올바르지 않습니다.')
-    result = candidate[0].analyses[0]
-  }
-  return { id: readString(job, 'id'), status, error: job.error, result }
+export interface JobSummary {
+  id: string
+  chapterId: string | null
+  chapterTitle: string | null
+  status: string
+  createdAt: string
+  updatedAt: string
+  previewConfirmed: boolean
 }
-function delay(signal: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    if (signal.aborted) {
-      reject(new DOMException('요청 취소', 'AbortError'))
-      return
+export interface Snapshot {
+  jobId: string
+  input: InputSnapshot
+  legacy: boolean
+  stale: boolean
+}
+const statuses = ['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED']
+export const isActiveJob = (job: { status: string }) =>
+  job.status === 'QUEUED' || job.status === 'RUNNING'
+const path = (workId: string) => '/work/' + encodeURIComponent(workId) + '/analysis'
+function parseStatus(value: Record<string, unknown>) {
+  const status = readString(value, 'status')
+  if (!statuses.includes(status)) throw new Error('분석 상태가 올바르지 않습니다.')
+  return status
+}
+function parseAnalysis(value: unknown): Analysis {
+  const candidate: unknown = [
+    {
+      id: 'validation',
+      title: '',
+      genre: '',
+      era: '',
+      description: '',
+      updatedAt: '',
+      settings: [],
+      chapters: [],
+      events: [],
+      analyses: [value],
+    },
+  ]
+  if (!isWorks(candidate)) throw new Error('AI 검토 응답 형식이 올바르지 않습니다.')
+  return candidate[0].analyses[0]
+}
+export function parseJob(raw: unknown): Job {
+  const value = readRecord(raw)
+  if (value.error !== null && typeof value.error !== 'string')
+    throw new Error('분석 오류 응답이 올바르지 않습니다.')
+  if (value.status === 'SUCCEEDED' && value.result === null)
+    throw new Error('완료된 분석의 결과가 없습니다. 다시 조회해 주세요.')
+  return {
+    id: readString(value, 'id'),
+    status: parseStatus(value),
+    error: value.error,
+    result: value.result === null ? null : parseAnalysis(value.result),
+  }
+}
+function parseChapter(raw: unknown): Chapter {
+  const value = readRecord(raw)
+  const id = readString(value, 'id'),
+    title = readString(value, 'title'),
+    content = readString(value, 'content')
+  if (
+    !id.trim() ||
+    id.length > 64 ||
+    !title.trim() ||
+    title.length > 100 ||
+    content.length > 200000
+  )
+    throw new Error('전송 원고 형식이 올바르지 않습니다.')
+  return { id, title, content, revision: readInteger(value, 'revision', 1) }
+}
+export function parseInput(raw: unknown): InputSnapshot {
+  const input = readRecord(raw)
+  if (
+    !Array.isArray(input.previous) ||
+    !Array.isArray(input.settings) ||
+    !Array.isArray(input.decisions) ||
+    typeof input.consistency !== 'boolean' ||
+    typeof input.motivation !== 'boolean'
+  )
+    throw new Error('분석 입력 응답이 올바르지 않습니다.')
+  if (input.previous.length > 100 || input.settings.length > 1000 || input.decisions.length > 100)
+    throw new Error('전송 자료 범위를 초과했습니다.')
+  const chapter = parseChapter(input.chapter)
+  const settings = input.settings.map((raw) => {
+    const value = readRecord(raw),
+      status = readString(value, 'status')
+    if (status !== '확정') throw new Error('확정되지 않은 설정은 분석 기준으로 사용할 수 없습니다.')
+    return {
+      id: readString(value, 'id'),
+      title: readString(value, 'title'),
+      content: readString(value, 'content'),
+      kind: readString(value, 'kind'),
+      status,
+      version: readInteger(value, 'version'),
     }
-    const abort = () => {
-      clearTimeout(timer)
-      reject(new DOMException('요청 취소', 'AbortError'))
-    }
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', abort)
-      resolve()
-    }, 1000)
-    signal.addEventListener('abort', abort, { once: true })
   })
+  const decisions = parseAnalysis({
+    chapterId: chapter.id,
+    revision: chapter.revision,
+    source: chapter.content,
+    settingIds: settings.map((setting) => setting.id),
+    previousIds: [],
+    reviews: input.decisions,
+    createdAt: '',
+  }).reviews
+  return {
+    chapter,
+    settings,
+    previous: input.previous.map(parseChapter),
+    decisions,
+    consistency: input.consistency,
+    motivation: input.motivation,
+  }
 }
 export const analysisClient = {
-  async run(workId: string, input: AnalysisInput, signal: AbortSignal): Promise<Analysis> {
-    const key = 'magister.analysis:' + workId + ':' + input.chapterId,
-      body = JSON.stringify(input)
-    let requestId: string = crypto.randomUUID()
-    const previous = sessionStorage.getItem(key)
-    if (previous) {
-      try {
-        const value: unknown = JSON.parse(previous)
-        if (
-          typeof value === 'object' &&
-          value !== null &&
-          'body' in value &&
-          value.body === body &&
-          'requestId' in value &&
-          typeof value.requestId === 'string'
-        )
-          requestId = value.requestId
-      } catch {
-        sessionStorage.removeItem(key)
-      }
+  async preview(workId: string, input: AnalysisInput, signal?: AbortSignal): Promise<Preview> {
+    const request = { ...input, requestId: crypto.randomUUID() }
+    const value = readRecord(await httpClient.post(path(workId) + '/preview', request, { signal }))
+    const policyUrl = readString(value, 'providerPolicyUrl')
+    if (policyUrl !== 'https://ai.google.dev/gemini-api/terms')
+      throw new Error('공급자 정책 주소가 올바르지 않습니다.')
+    return {
+      previewToken: readString(value, 'previewToken'),
+      policyVersion: readString(value, 'policyVersion'),
+      expiresAt: readString(value, 'expiresAt'),
+      input: parseInput(value.input),
+      provider: readString(value, 'provider'),
+      model: readString(value, 'model'),
+      retentionNotice: readString(value, 'retentionNotice'),
+      deletionNotice: readString(value, 'deletionNotice'),
+      providerPolicyUrl: policyUrl,
+      request,
     }
-    sessionStorage.setItem(key, JSON.stringify({ body, requestId }))
-    let job = parseJob(await httpClient.post(path(workId), { ...input, requestId }, { signal }))
-    sessionStorage.setItem(key, JSON.stringify({ body, requestId, id: job.id }))
-    while (job.status === 'QUEUED' || job.status === 'RUNNING') {
-      await delay(signal)
-      job = parseJob(
-        await httpClient.get(path(workId) + '/' + encodeURIComponent(job.id), { signal }),
-      )
-    }
-    sessionStorage.removeItem(key)
-    if (job.status !== 'SUCCEEDED' || !job.result)
-      throw new Error(job.error || 'AI 검토가 취소되었습니다.')
-    return job.result
   },
-  async cancel(workId: string, chapterId: string): Promise<void> {
-    const key = 'magister.analysis:' + workId + ':' + chapterId,
-      stored = sessionStorage.getItem(key)
-    if (!stored) return
-    const value = readRecord(JSON.parse(stored)),
-      id = readString(value, 'id')
-    await httpClient.post(path(workId) + '/' + encodeURIComponent(id) + '/cancel')
-    sessionStorage.removeItem(key)
+  async create(workId: string, preview: Preview, signal?: AbortSignal): Promise<Job> {
+    return parseJob(
+      await httpClient.post(
+        path(workId),
+        {
+          ...preview.request,
+          previewToken: preview.previewToken,
+          consentPolicyVersion: preview.policyVersion,
+        },
+        { signal },
+      ),
+    )
+  },
+  async get(workId: string, jobId: string, signal?: AbortSignal): Promise<Job> {
+    return parseJob(
+      await httpClient.get(path(workId) + '/' + encodeURIComponent(jobId), { signal }),
+    )
+  },
+  async list(workId: string, chapterId: string, page = 0, signal?: AbortSignal) {
+    return parsePage(
+      await httpClient.get(path(workId), { signal, params: { chapterId, page, size: 10 } }),
+      (raw) => {
+        const value = readRecord(raw)
+        if (
+          (value.chapterId !== null && typeof value.chapterId !== 'string') ||
+          (value.chapterTitle !== null && typeof value.chapterTitle !== 'string') ||
+          typeof value.previewConfirmed !== 'boolean'
+        )
+          throw new Error('분석 이력 응답이 올바르지 않습니다.')
+        return {
+          id: readString(value, 'id'),
+          chapterId: value.chapterId,
+          chapterTitle: value.chapterTitle,
+          status: parseStatus(value),
+          createdAt: readString(value, 'createdAt'),
+          updatedAt: readString(value, 'updatedAt'),
+          previewConfirmed: value.previewConfirmed,
+        } satisfies JobSummary
+      },
+    )
+  },
+  async snapshot(workId: string, jobId: string, signal?: AbortSignal): Promise<Snapshot> {
+    const value = readRecord(
+      await httpClient.get(path(workId) + '/' + encodeURIComponent(jobId) + '/snapshot', {
+        signal,
+      }),
+    )
+    if (typeof value.legacy !== 'boolean' || typeof value.stale !== 'boolean')
+      throw new Error('스냅샷 응답이 올바르지 않습니다.')
+    return {
+      jobId: readString(value, 'jobId'),
+      input: parseInput(value.input),
+      legacy: value.legacy,
+      stale: value.stale,
+    }
+  },
+  async cancel(workId: string, jobId: string): Promise<Job> {
+    return parseJob(
+      await httpClient.post(path(workId) + '/' + encodeURIComponent(jobId) + '/cancel'),
+    )
   },
 }

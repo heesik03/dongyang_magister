@@ -5,6 +5,7 @@ import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 
 import jakarta.persistence.LockModeType;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -17,6 +18,27 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String> {
+    /** 입력 자료가 필요한 명시적 스냅샷 조회만 엔티티를 읽는다. */
+    @Query(
+            "select j from AnalysisJob j where j.id=:jobId and j.work.id=:workId and"
+                    + " j.work.owner.id=:ownerId")
+    Optional<AnalysisJob> findOwned(String jobId, Long workId, Long ownerId);
+
+    /** 이력은 본문·결과를 제외하고 생성 시각·ID 내림차순 페이지로 제한한다. */
+    @Query(
+            """
+            select j.id as id, j.chapterKey as chapterKey, j.chapterTitle as chapterTitle,
+              j.status as status, j.createdAt as createdAt, j.updatedAt as updatedAt, j.policyVersion as policyVersion
+            from AnalysisJob j where j.work.id=:workId and j.work.owner.id=:ownerId
+              and (:chapterId is null or j.chapterKey=:chapterId) and (:status is null or j.status=:status)
+            """)
+    Page<AnalysisJobSummaryView> findHistory(
+            Long workId,
+            Long ownerId,
+            String chapterId,
+            AnalysisJobStatus status,
+            Pageable pageable);
+
     /** 같은 작품의 멱등 키를 조회한다. 요청 본문 일치는 서비스가 검사한다. */
     Optional<AnalysisJob> findByWork_IdAndRequestId(Long workId, String requestId);
 
@@ -75,7 +97,8 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
 
     /** 보존 기간 정리 시 원고 본문을 읽지 않고 제한된 수의 ID만 가져온다. */
     @Query(
-            "select j.id from AnalysisJob j where j.status in :terminal and j.updatedAt < :before order by j.updatedAt, j.id")
+            "select j.id from AnalysisJob j where j.status in :terminal and j.updatedAt < :before"
+                    + " order by j.updatedAt, j.id")
     List<String> findExpiredResultIds(
             Collection<AnalysisJobStatus> terminal, Instant before, Pageable limit);
 }

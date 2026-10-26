@@ -91,6 +91,19 @@ Hibernate JDBC 오류 전문은 중복 이메일 등 입력값을 포함할 수 
 
 ## 분석 작업과 페이징
 
+### 분석 범위 확인과 작업 복원
+
+1. `POST /api/work/{workId}/analysis/preview`에 기존 분석 선택 필드(`requestId/chapterId/chapterRevision/workspaceVersion/settingIds/previousIds/consistency/motivation`)를 보내 실제 전송할 원고·확정 설정·이전 회차·같은 회차의 저장 판단을 확인합니다. 이 요청은 Gemini를 호출하거나 작업을 생성하지 않습니다.
+2. 반환한 `previewToken`과 `policyVersion`을 확인한 뒤 같은 선택 필드에 `previewToken/consentPolicyVersion`을 추가해 `POST /analysis`로 접수합니다. 확인 토큰은 사용자·작품·전체 입력·정책·모델·보관 설정에 묶여 10분 동안 유효합니다. 확인 누락은 400, 자료 변경·만료·변조는 409입니다. 기존 클라이언트도 이 계약으로 전환해야 합니다. 이미 접수된 동일 요청의 재전송은 새 동의 없이 기존 작업을 반환합니다.
+3. `GET /analysis?chapterId=...&status=RUNNING&page=0&size=10`은 생성 시각·ID 내림차순 이력입니다. size 상한은 100이며 원고·결과 본문을 조회하지 않습니다. 화면은 이 목록과 기존 `GET /analysis/{id}`로 작업을 복원하고, 화면 이동은 서버 작업을 취소하지 않습니다.
+4. `GET /analysis/{id}/snapshot`은 고정 입력·개별 자료·현재 자료 변경 여부를 반환합니다. V10 이전 작업은 `legacy=true`로 기존 입력을 보존하며, 기존 입력이 손상되어 복원할 수 없으면 409입니다. 회차를 식별할 수 있는 과거 작업은 이력 필터를 위해 회차 ID·제목만 이관합니다.
+
+작업 접수와 `analysis_sources`의 TARGET/PREVIOUS/SETTING 자료는 같은 트랜잭션으로 저장됩니다. 워커용 `analysis_jobs.input`은 같은 자료의 직렬화 형태이며 수정하지 않습니다. 완료 결과는 작업 자체에 저장되므로 화면이 닫혀 있어도 유지됩니다. 작가 판단은 후속 단계까지 workspace에 별도 저장합니다. 작업 보존 기간 정리 시 개별 스냅샷도 FK CASCADE로 삭제됩니다. 원본 회차·설정의 FK는 RESTRICT이며, 작품 삭제를 구현할 때는 분석 기록을 먼저 삭제해야 합니다. MySQL은 같은 FK 컬럼에 SET NULL 자동 처리와 해당 컬럼의 CHECK 조건을 함께 허용하지 않으므로 원본 종류 제약과 삭제 순서를 명시적으로 유지합니다.
+
+`ANALYSIS_PREVIEW_SIGNING_KEY`를 생략하면 프로세스별 임시 키를 사용하므로 재시작 뒤에는 미리보기를 다시 확인해야 합니다. 여러 서버에서는 같은 32자 이상 비밀 키를 환경 변수로 주입합니다. 키는 프런트엔드·로그에 노출하지 않습니다.
+
+화면은 서버 보관 설정과 현재 삭제 기능의 범위, [Google Gemini 공식 정책](https://ai.google.dev/gemini-api/terms)을 전송 전에 안내합니다. 계정의 유료·무료 구분과 공급자 설정을 추측해 보관 기간이나 학습 제외를 보장하지 않습니다. 이 단계에서는 서비스 자료 삭제 화면을 제공하지 않습니다.
+
 ### 회차별 원고 저장
 
 `/api/work/{workId}/chapter`에서 POST(201)·GET 목록(200), `/{chapterId}`에서 GET·PUT(200)을 제공합니다. 로그인한 소유자만 접근하고 쓰기 요청에는 CSRF가 필요합니다. 목록은 회차 번호 오름차순이며 `page=0&size=20`, size 상한은 100입니다. 작품당 최대 100회차, 제목 100자, 본문 200,000자를 허용합니다.

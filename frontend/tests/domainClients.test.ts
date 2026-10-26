@@ -7,6 +7,7 @@ vi.mock('axios', () => ({ default: { create: () => ({ request }) } }))
 import { workClient } from '../src/features/works/workClient'
 import { settingClient } from '../src/features/settings/settingClient'
 import { authClient } from '../src/features/auth/authClient'
+import { analysisClient, parseJob, parseInput } from '../src/features/analysis/analysisClient'
 import { chapterClient, parseChapter } from '../src/features/manuscript/chapterClient'
 import { workspaceClient } from '../src/features/workspace/workspaceClient'
 import { SESSION_EXPIRED_EVENT } from '../src/shared/httpClient'
@@ -56,6 +57,129 @@ const chapter = {
   updatedAt: '2026-10-26T00:00:00Z',
   workVersion: 1,
 }
+
+test('분석 미리보기와 확인된 접수를 구분하고 같은 요청 ID·토큰을 보낸다', async () => {
+  const selection = {
+    chapterId: 'c1',
+    chapterRevision: 1,
+    workspaceVersion: 0,
+    settingIds: ['1'],
+    previousIds: [],
+    consistency: true,
+    motivation: true,
+  }
+  const input = {
+    chapter: { id: 'c1', title: '1화', content: '원고', revision: 1 },
+    previous: [],
+    settings: [
+      { id: '1', title: '능력', content: '마법 불가', kind: '인물', status: '확정', version: 0 },
+    ],
+    decisions: [],
+    consistency: true,
+    motivation: true,
+  }
+  request.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(
+    success({
+      previewToken: 'confirmed-token',
+      policyVersion: 'policy-v1',
+      expiresAt: chapter.updatedAt,
+      input,
+      provider: 'Google Gemini API',
+      model: 'test-model',
+      retentionNotice: '보관 안내',
+      deletionNotice: '삭제 안내',
+      providerPolicyUrl: 'https://ai.google.dev/gemini-api/terms',
+    }),
+  )
+  const preview = await analysisClient.preview('1', selection)
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      url: '/work/1/analysis/preview',
+      method: 'POST',
+      data: { ...selection, requestId: preview.request.requestId },
+    }),
+  )
+  expect(request).toHaveBeenCalledTimes(2)
+  request.mockResolvedValueOnce(
+    success({ id: 'job-1', status: 'QUEUED', error: null, result: null }),
+  )
+  await analysisClient.create('1', preview)
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      url: '/work/1/analysis',
+      method: 'POST',
+      data: {
+        ...preview.request,
+        previewToken: 'confirmed-token',
+        consentPolicyVersion: 'policy-v1',
+      },
+    }),
+  )
+})
+
+test('이력 복원은 GET만 사용하고 회차·페이지·취소 신호를 전달한다', async () => {
+  const signal = new AbortController().signal
+  request.mockResolvedValueOnce(
+    success({
+      items: [
+        {
+          id: 'job-1',
+          chapterId: 'c1',
+          chapterTitle: '1화',
+          status: 'RUNNING',
+          createdAt: chapter.updatedAt,
+          updatedAt: chapter.updatedAt,
+          previewConfirmed: true,
+        },
+      ],
+      page: 1,
+      size: 10,
+      totalElements: 11,
+      totalPages: 2,
+    }),
+  )
+  const history = await analysisClient.list('1', 'c1', 1, signal)
+  expect(history.items[0].status).toBe('RUNNING')
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      method: 'GET',
+      url: '/work/1/analysis',
+      params: { chapterId: 'c1', page: 1, size: 10 },
+      signal,
+    }),
+  )
+  request.mockResolvedValueOnce(
+    success({ id: 'job-1', status: 'RUNNING', error: null, result: null }),
+  )
+  await analysisClient.get('1', 'job-1', signal)
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({ method: 'GET', url: '/work/1/analysis/job-1', signal }),
+  )
+})
+
+test('분석 상태·완료 결과·확정 여부가 잘못된 응답을 빈 결과로 바꾸지 않는다', () => {
+  expect(() => parseJob({ id: 'job', status: 'UNKNOWN', error: null, result: null })).toThrow()
+  expect(() => parseJob({ id: 'job', status: 'SUCCEEDED', error: null, result: null })).toThrow()
+  expect(() =>
+    parseInput({
+      chapter: { id: 'c', title: '1화', content: '원고', revision: 1 },
+      previous: [],
+      settings: [
+        {
+          id: '1',
+          title: '능력',
+          content: '아이디어',
+          kind: '인물',
+          status: '아이디어',
+          version: 0,
+        },
+      ],
+      decisions: [],
+      consistency: true,
+      motivation: true,
+    }),
+  ).toThrow()
+})
 test('회차 생성과 수정은 각각의 경로와 회차 버전을 사용한다', async () => {
   request.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(success(chapter))
   await chapterClient.save('1', { id: 'c1', title: '1화', content: '원고', revision: 1 })

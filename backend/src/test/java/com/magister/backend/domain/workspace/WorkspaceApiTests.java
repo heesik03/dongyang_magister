@@ -24,12 +24,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.magister.backend.domain.analysis.AnalysisPreviewSupport;
 import com.magister.backend.domain.analysis.dto.AnalysisInput;
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
+import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
 import com.magister.backend.domain.analysis.service.AnalysisWorker;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.chapter.repository.ChapterRepository;
@@ -75,6 +77,7 @@ import java.util.UUID;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class WorkspaceApiTests {
+    @Autowired AnalysisPreviewService previewService;
     @Autowired ChapterRepository chapterRepository;
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
@@ -281,6 +284,7 @@ class WorkspaceApiTests {
                         List.of(),
                         true,
                         true);
+        request = AnalysisPreviewSupport.confirm(previewService, ownerId, workId, request);
         MvcResult accepted =
                 mvc.perform(
                                 post("/api/work/" + workId + "/analysis")

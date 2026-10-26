@@ -1,5 +1,32 @@
 import type { Analysis, Setting } from '../works/workTypes'
+import type { Work } from '../works/workTypes'
+import type { InputSnapshot } from './analysisClient'
 import { isRecord } from '../../shared/responseReader'
+
+export function inputChanged(input: InputSnapshot, work: Work): boolean {
+  return (
+    [input.chapter, ...input.previous].some((source) => {
+      const current = work.chapters.find((chapter) => chapter.id === source.id)
+      return (
+        !current ||
+        current.content !== source.content ||
+        current.title !== source.title ||
+        current.revision !== source.revision
+      )
+    }) ||
+    input.settings.some((source) => {
+      const current = work.settings.find((setting) => setting.id === source.id)
+      return (
+        !current ||
+        current.version !== source.version ||
+        current.status !== '확정' ||
+        current.content !== source.content ||
+        current.title !== source.title ||
+        current.kind !== source.kind
+      )
+    })
+  )
+}
 function signature(
   settings: {
     id: string

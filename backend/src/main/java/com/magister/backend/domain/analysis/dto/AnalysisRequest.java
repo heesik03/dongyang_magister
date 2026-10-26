@@ -18,7 +18,9 @@ public record AnalysisRequest(
         @NotNull @Size(max = 100) List<@NotBlank String> previousIds,
         boolean consistency,
         boolean motivation,
-        @Min(1) Long chapterRevision) {
+        @Min(1) Long chapterRevision,
+        @Size(max = 100) String previewToken,
+        @Size(max = 50) String consentPolicyVersion) {
     @JsonCreator
     public AnalysisRequest {}
 
@@ -38,6 +40,44 @@ public record AnalysisRequest(
                 previousIds,
                 consistency,
                 motivation,
+                null,
+                null,
                 null);
+    }
+
+    public AnalysisRequest(
+            String requestId,
+            String chapterId,
+            long workspaceVersion,
+            List<String> settingIds,
+            List<String> previousIds,
+            boolean consistency,
+            boolean motivation,
+            Long chapterRevision) {
+        this(
+                requestId,
+                chapterId,
+                workspaceVersion,
+                settingIds,
+                previousIds,
+                consistency,
+                motivation,
+                chapterRevision,
+                null,
+                null);
+    }
+
+    public AnalysisRequest confirmed(String token, String policyVersion) {
+        return new AnalysisRequest(
+                requestId,
+                chapterId,
+                workspaceVersion,
+                settingIds,
+                previousIds,
+                consistency,
+                motivation,
+                chapterRevision,
+                token,
+                policyVersion);
     }
 }

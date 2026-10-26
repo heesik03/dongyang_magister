@@ -1,5 +1,6 @@
 package com.magister.backend.domain.analysis.entity;
 
+import com.magister.backend.domain.chapter.entity.Chapter;
 import com.magister.backend.domain.work.entity.Work;
 
 import jakarta.persistence.Column;
@@ -67,6 +68,34 @@ public class AnalysisJob {
 
     @Column(name = "lease_until")
     private Instant leaseUntil;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "target_chapter_id", updatable = false)
+    private Chapter targetChapter;
+
+    @Column(name = "chapter_key_snapshot", length = 64, updatable = false)
+    private String chapterKey;
+
+    @Column(name = "chapter_title_snapshot", length = 100, updatable = false)
+    private String chapterTitle;
+
+    @Column(name = "policy_version", length = 50, updatable = false)
+    private String policyVersion;
+
+    @Column(name = "provider_model", length = 200, updatable = false)
+    private String providerModel;
+
+    @Column(name = "source_format_version", nullable = false, updatable = false)
+    private int sourceFormatVersion;
+
+    public void recordConfirmation(Chapter chapter, String policyVersion, String model) {
+        targetChapter = chapter;
+        chapterKey = chapter.getChapterKey();
+        chapterTitle = chapter.getTitle();
+        this.policyVersion = policyVersion;
+        this.providerModel = model;
+        sourceFormatVersion = 1;
+    }
 
     public AnalysisJob(String id, Work work, String requestId, String requestBody, String input) {
         this.id = id;

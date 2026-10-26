@@ -1,8 +1,13 @@
 package com.magister.backend.domain.analysis.docs;
 
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
+import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
+import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
+import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
+import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.user.security.LoginUser;
+import com.magister.backend.global.pagination.OffsetPageResponse;
 import com.magister.backend.global.response.ApiResult;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +19,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -23,6 +30,36 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Analysis", description = "저장된 회차 원고와 확정 설정을 비교하는 비동기 AI 검토")
 @SecurityRequirement(name = "session")
 public interface AnalysisControllerDocs {
+    @Operation(
+            summary = "AI 전송 자료 미리보기",
+            description =
+                    "AI 호출·작업 생성 없이 실제 전송할 원고·확정 설정·이전 회차·같은 회차의 저장 판단과 정책을 반환합니다."
+                        + " requestId·chapterId·workspaceVersion·settingIds·previousIds·consistency·motivation을"
+                        + " 보내며 chapterRevision을 권장합니다. 반환한 previewToken은 사용자·작품·자료·정책·모델에 묶여 10분"
+                        + " 동안 유효합니다. CSRF 필요. 200/400/401/403/404/409.")
+    ApiResult<AnalysisPreviewResponse> preview(
+            LoginUser user, @Positive Long workId, @Valid AnalysisRequest request);
+
+    @Operation(
+            summary = "분석 작업 이력",
+            description =
+                    "원고·결과 본문을 제외한 생성 시각·ID 내림차순 목록입니다. chapterId·status 선택 필터, page=0·size=10(상한"
+                            + " 100). 본인 작품만 조회. 200/400/401/404.")
+    ApiResult<OffsetPageResponse<AnalysisJobSummary>> list(
+            LoginUser user,
+            @Positive Long workId,
+            @Size(max = 64) String chapterId,
+            AnalysisJobStatus status,
+            @Min(0) int page,
+            @Min(1) @Max(100) int size);
+
+    @Operation(
+            summary = "분석 당시 전송 자료",
+            description =
+                    "입력·개별 원고 및 설정 스냅샷·현재 자료 변경 여부를 반환합니다. 기존 작업은 legacy=true로 기존 input을 보존합니다. 복원"
+                            + " 불가능한 기존 입력은 409. 본인 작품의 작업만 조회. 200/400/401/404/409.")
+    ApiResult<AnalysisSnapshotResponse> snapshot(
+            LoginUser user, @Positive Long workId, @NotBlank @Size(max = 36) String id);
 
     @Operation(
             summary = "비동기 AI 검토 접수",
@@ -42,7 +79,8 @@ public interface AnalysisControllerDocs {
                     - settingIds에는 같은 작품의 확정(CONFIRMED) 설정을 1~1,000개 지정합니다. 아이디어와 AI 후보는 사용할 수 없습니다.
                     - previousIds에는 같은 작업공간의 참고 회차를 최대 100개 지정합니다. 분석 대상 회차 자체는 참고 회차로 지정할 수 없습니다.
                     - 대상 원고·선택한 설정·참고 회차·해당 회차의 기존 판단을 접수 시점의 자료로 묶어 외부 Gemini API에 전송합니다. 직렬화된 분석 자료는 최대 200,000자입니다.
-                    - AI 결과는 작가가 판단할 검토 후보입니다. 원고와 설정을 자동으로 수정하지 않으며, 결과를 작업공간에 보관하려면 작업공간 저장 API를 호출해야 합니다.
+                    - 먼저 preview를 조회하고 확인·동의한 previewToken과 consentPolicyVersion을 함께 전송해야 합니다. 자료 변경·만료는 409, 동의 누락은 400입니다.
+                    - AI 결과는 작가가 판단할 검토 후보입니다. 원고와 설정을 자동으로 수정하지 않습니다. 작업 결과는 서버에 저장되어 화면 이동 후에도 조회할 수 있습니다. 작가 판단은 workspace 저장으로 보관합니다.
                     - 같은 작품에서 동일한 requestId와 요청 내용을 재전송하면 기존 작업을 반환합니다.
                       같은 ID로 내용을 바꾸면 400입니다.
                       새 검토에는 새 requestId를 사용합니다.

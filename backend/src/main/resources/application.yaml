@@ -28,6 +28,8 @@ gemini:
   timeout: ${GEMINI_TIMEOUT:30s}
 
 analysis:
+  # 비워 두면 프로세스별 임시 키. 여러 서버에서는 같은 32자 이상 비밀 값을 주입한다.
+  preview-signing-key: ${ANALYSIS_PREVIEW_SIGNING_KEY:}
   execution:
     threads: 2
     queue-capacity: 8

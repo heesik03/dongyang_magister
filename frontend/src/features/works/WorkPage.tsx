@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { WorkspaceStatus } from '../workspace/WorkspaceStatus'
 import { GENRES } from './workGenres'
 import { Dialog } from '../../shared/Dialog'
-import { Link, Navigate, NavLink, useParams } from 'react-router-dom'
+import { Link, Navigate, NavLink, useParams, useSearchParams } from 'react-router-dom'
 import { useWorksStore } from './useWorksStore'
 import { SettingsPanel } from '../settings/SettingsPanel'
 import { Icon } from '../../shared/Icon'
@@ -11,6 +11,7 @@ import { TimelinePanel } from '../timeline/TimelinePanel'
 
 export function WorkPage() {
   const { workId, tab } = useParams()
+  const [searchParams] = useSearchParams()
   const loaded = useWorksStore((state) => !!workId && state.loadedIds.includes(workId))
   const works = useWorksStore((state) => state.works)
   const loadWork = useWorksStore((state) => state.loadWork)
@@ -158,7 +159,10 @@ export function WorkPage() {
         ) : tab === 'timeline' ? (
           <TimelinePanel key={work.id} work={work} />
         ) : (
-          <ManuscriptPanel key={work.id} work={work} />
+          <ManuscriptPanel
+            key={work.id + ':' + (searchParams.get('chapter') || work.chapters.at(-1)?.id || '')}
+            work={work}
+          />
         )}
       </div>
     </main>

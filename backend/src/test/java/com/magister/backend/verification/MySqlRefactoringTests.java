@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 
+import com.magister.backend.domain.analysis.AnalysisPreviewSupport;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
+import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
 import com.magister.backend.domain.chapter.dto.ChapterResponse;
 import com.magister.backend.domain.chapter.dto.UpdateChapterRequest;
 import com.magister.backend.domain.chapter.entity.Chapter;
@@ -75,6 +77,7 @@ import java.util.concurrent.TimeUnit;
         named = "MAGISTER_MYSQL_TEST_SCHEMA",
         matches = "magister_refactor_[a-f0-9]{12}")
 class MySqlRefactoringTests {
+    @Autowired AnalysisPreviewService previewService;
     @Autowired ChapterRepository chapterRepository;
     @Autowired ChapterService chapterService;
     @Autowired UserRepository users;
@@ -295,7 +298,14 @@ class MySqlRefactoringTests {
         return () -> {
             barrier.await(10, TimeUnit.SECONDS);
             try {
-                jobs.create(fixture.ownerId(), fixture.workId(), fixture.request());
+                jobs.create(
+                        fixture.ownerId(),
+                        fixture.workId(),
+                        AnalysisPreviewSupport.confirm(
+                                previewService,
+                                fixture.ownerId(),
+                                fixture.workId(),
+                                fixture.request()));
                 return true;
             } catch (CustomException error) {
                 assertThat(error.getErrorCode()).isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);

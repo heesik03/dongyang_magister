@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Component;
 
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -55,7 +56,10 @@ public class AnalysisInputFactory {
                 workSettingRepository.findAllByWork_IdAndIdIn(workId, settingIds);
         validateSettings(settings, settingIds.size());
         List<SettingReference> references =
-                settings.stream().map(AnalysisConverter::toReference).toList();
+                settings.stream()
+                        .map(AnalysisConverter::toReference)
+                        .sorted(Comparator.comparing(SettingReference::id))
+                        .toList();
 
         // Set으로 중복을 제거하고 현재 회차를 제외한다. 크기 비교로 존재하지 않는 선택도 검출한다.
         Set<String> earlierIds = new HashSet<>();
@@ -85,6 +89,8 @@ public class AnalysisInputFactory {
                 content.analyses().stream()
                         .filter(item -> item.chapterId().equals(chapter.id()))
                         .flatMap(item -> item.reviews().stream())
+                        .filter(item -> !item.decision().equals("미검토"))
+                        .sorted(Comparator.comparing(ReviewData::id))
                         .toList();
 
         return AnalysisConverter.toInput(chapter, references, previous, decisions, request);

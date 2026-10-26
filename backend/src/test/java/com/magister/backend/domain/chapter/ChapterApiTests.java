@@ -328,6 +328,31 @@ class ChapterApiTests {
                         true,
                         "motivation",
                         true);
+        MvcResult preview =
+                mockMvc.perform(
+                                post(analysisPath + "/preview")
+                                        .with(authentication(owner))
+                                        .with(csrf())
+                                        .contentType("application/json")
+                                        .content(objectMapper.writeValueAsString(request)))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        Map<String, Object> confirmed = new HashMap<>(request);
+        confirmed.put(
+                "previewToken",
+                objectMapper
+                        .readTree(preview.getResponse().getContentAsString())
+                        .path("data")
+                        .path("previewToken")
+                        .asString());
+        confirmed.put(
+                "consentPolicyVersion",
+                objectMapper
+                        .readTree(preview.getResponse().getContentAsString())
+                        .path("data")
+                        .path("policyVersion")
+                        .asString());
+        request = confirmed;
         mockMvc.perform(
                         post(analysisPath)
                                 .with(authentication(owner))
