@@ -1,6 +1,7 @@
 package com.magister.backend.domain.gemini.docs;
 
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
+import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.gemini.dto.GeminiResponse;
 import com.magister.backend.global.response.ApiResult;
 
@@ -105,5 +106,5 @@ public interface GeminiControllerDocs {
                         mediaType = "application/json",
                         schema = @Schema(implementation = ApiResult.class)))
     })
-    ApiResult<GeminiResponse> generate(@Valid GeminiRequest request);
+    ApiResult<GeminiResponse> generate(LoginUser user, @Valid GeminiRequest request);
 }

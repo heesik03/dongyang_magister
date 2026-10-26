@@ -2,6 +2,7 @@ package com.magister.backend.domain.analysis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -15,6 +16,8 @@ import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.execution.AnalysisWorker;
 import com.magister.backend.domain.analysis.service.state.AnalysisJobStateService;
+import com.magister.backend.domain.analysis.service.state.AnalysisLeaseService;
+import com.magister.backend.domain.analysis.service.execution.AnalysisDispatcher;
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
@@ -44,12 +47,16 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.time.Instant;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(properties = {
     "spring.datasource.url=jdbc:h2:mem:analysis-lifecycle;MODE=MySQL;DB_CLOSE_DELAY=-1",
@@ -65,6 +72,8 @@ public class AnalysisJobLifecycleTests {
     @Autowired AnalysisJobService service;
     @Autowired AnalysisJobStateService states;
     @Autowired AnalysisWorker worker;
+    @Autowired AnalysisDispatcher dispatcher;
+    @Autowired AnalysisLeaseService leases;
     @Autowired TransactionTemplate transaction;
     @Autowired ObjectMapper json;
     @MockitoSpyBean ThreadPoolExecutor analysisExecutor;
@@ -159,6 +168,63 @@ public class AnalysisJobLifecycleTests {
         List<String> queries = List.copyOf(SqlCapture.QUERIES.get());
         assertThat(queries).hasSize(1);
         assertThat(queries.getFirst()).doesNotContain("for update", "request_body", ".input", "password_hash");
+    }
+
+    @Test
+    void queuedCancellationRemovesTaskAndNeverCallsProvider() {
+        Fixture fixture = fixture(null);
+        doNothing().when(analysisExecutor).execute(any(Runnable.class));
+        AnalysisJobResponse response = service.create(fixture.ownerId(), fixture.workId(), fixture.request());
+        assertThat(dispatcher.activeJobIds()).contains(response.id());
+        assertThat(service.cancel(fixture.ownerId(), fixture.workId(), response.id()).status()).isEqualTo("CANCELLED");
+        assertThat(dispatcher.activeJobIds()).doesNotContain(response.id());
+        verifyNoInteractions(gemini);
+    }
+
+    @Test
+    void runningCancellationInterruptsLocalProviderAndPreservesCancelledStatus() throws Exception {
+        Fixture fixture = fixture(null);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch released = new CountDownLatch(1);
+        CountDownLatch interrupted = new CountDownLatch(1);
+        when(gemini.generateText(any(String.class), eq(4096))).thenAnswer(call -> {
+            started.countDown();
+            try {
+                released.await(10, TimeUnit.SECONDS);
+                return "{\"reviews\":[]}";
+            } catch (InterruptedException error) {
+                interrupted.countDown();
+                throw new CancellationException();
+            }
+        });
+        AnalysisJobResponse response = service.create(fixture.ownerId(), fixture.workId(), fixture.request());
+        try {
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(service.cancel(fixture.ownerId(), fixture.workId(), response.id()).status()).isEqualTo("CANCELLED");
+            assertThat(interrupted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(service.get(fixture.ownerId(), fixture.workId(), response.id()).status()).isEqualTo("CANCELLED");
+        } finally {
+            released.countDown();
+        }
+    }
+
+    @Test
+    void recoveryFailsOnlyExpiredLeasesAndPreservesOtherServersLiveJobs() {
+        Fixture fixture = fixture(null);
+        String liveId = saveLeasedJob(fixture, Instant.now().plusSeconds(120));
+        String expiredId = saveLeasedJob(fixture, Instant.now().minusSeconds(1));
+        leases.maintain(List.of());
+        assertThat(jobs.findById(liveId).orElseThrow().getStatus()).isEqualTo(AnalysisJobStatus.QUEUED);
+        assertThat(jobs.findById(expiredId).orElseThrow().getStatus()).isEqualTo(AnalysisJobStatus.FAILED);
+    }
+
+    private String saveLeasedJob(Fixture fixture, Instant until) {
+        return transaction.execute(status -> {
+            AnalysisJob job = new AnalysisJob(UUID.randomUUID().toString(), works.findById(fixture.workId()).orElseThrow(),
+                    UUID.randomUUID().toString(), "{}", "{}");
+            job.assignLease("another-server", until);
+            return jobs.saveAndFlush(job).getId();
+        });
     }
 
     private String saveJob(Fixture fixture, String input) {

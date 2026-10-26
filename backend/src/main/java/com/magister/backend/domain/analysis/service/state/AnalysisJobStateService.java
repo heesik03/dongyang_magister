@@ -4,6 +4,7 @@ import com.magister.backend.domain.analysis.dto.AnalysisInput;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.AnalysisData;
+import com.magister.backend.domain.analysis.service.execution.AnalysisInstance;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,11 +17,13 @@ import java.util.Optional;
 public class AnalysisJobStateService {
     private final AnalysisJobRepository analysisJobRepository;
     private final ObjectMapper objectMapper;
+    private final AnalysisInstance instance;
 
     /** QUEUED만 선점한다. 입력 해석 실패는 롤백한 뒤 워커가 별도 실패 기록한다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<AnalysisClaim> claim(String jobId) {
         AnalysisJob job = analysisJobRepository.lockById(jobId).orElseThrow();
+        if (job.getWorkerId() != null && !job.getWorkerId().equals(instance.id())) return Optional.empty();
         if (!job.start()) return Optional.empty();
         return Optional.of(new AnalysisClaim(job.getWork().getOwner().getId(),
                 objectMapper.readValue(job.getInput(), AnalysisInput.class)));

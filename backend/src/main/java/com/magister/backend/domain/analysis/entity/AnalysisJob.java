@@ -48,6 +48,12 @@ public class AnalysisJob {
 
     @Version private Long version;
 
+    @Column(name = "worker_id", length = 36)
+    private String workerId;
+
+    @Column(name = "lease_until")
+    private Instant leaseUntil;
+
     public AnalysisJob(String id, Work work, String requestId, String requestBody, String input) {
         this.id = id;
         this.work = work;
@@ -57,6 +63,13 @@ public class AnalysisJob {
         status = AnalysisJobStatus.QUEUED;
         createdAt = Instant.now();
         updatedAt = createdAt;
+        leaseUntil = createdAt.plusSeconds(120);
+    }
+
+    /** 실행 소유자와 만료 시각은 접수 시 한 번 배정하고 생존 작업만 갱신한다. */
+    public void assignLease(String workerId, Instant leaseUntil) {
+        this.workerId = workerId;
+        this.leaseUntil = leaseUntil;
     }
 
     /** 중복 전달된 RUNNING 작업은 다시 선점하지 않는다. */

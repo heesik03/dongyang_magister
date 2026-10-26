@@ -4,6 +4,8 @@ import com.magister.backend.domain.gemini.docs.GeminiControllerDocs;
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.domain.gemini.dto.GeminiResponse;
 import com.magister.backend.domain.gemini.service.GeminiService;
+import com.magister.backend.domain.user.security.LoginUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.magister.backend.global.response.ApiResult;
 
 import lombok.RequiredArgsConstructor;
@@ -23,7 +25,7 @@ public class GeminiController implements GeminiControllerDocs {
 
     @Override
     @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ApiResult<GeminiResponse> generate(@RequestBody GeminiRequest request) {
-        return ApiResult.success(geminiService.generate(request));
+    public ApiResult<GeminiResponse> generate(@AuthenticationPrincipal LoginUser user, @RequestBody GeminiRequest request) {
+        return ApiResult.success(geminiService.generate(user.id(), request));
     }
 }

@@ -9,6 +9,8 @@ import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.repository.AnalysisAdmissionRepository;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.execution.AnalysisDispatcher;
+import com.magister.backend.domain.analysis.service.execution.AnalysisExecutionProperties;
+import com.magister.backend.domain.analysis.service.execution.AnalysisInstance;
 import com.magister.backend.domain.analysis.service.input.AnalysisInputFactory;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
@@ -26,11 +28,11 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
 public class AnalysisJobService {
-    private static final int MAX_ACTIVE_JOBS = 10;
     private static final int MAX_SNAPSHOT_CHARS = 200_000;
     private static final List<AnalysisJobStatus> ACTIVE_STATUSES =
             List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING);
@@ -40,6 +42,8 @@ public class AnalysisJobService {
     private final WorkspaceSnapshotService snapshotService;
     private final AnalysisInputFactory inputFactory;
     private final AnalysisDispatcher dispatcher;
+    private final AnalysisExecutionProperties executionProperties;
+    private final AnalysisInstance instance;
     private final AnalysisJobConverter converter;
     private final ObjectMapper objectMapper;
 
@@ -59,15 +63,16 @@ public class AnalysisJobService {
             return converter.toResponse(existingJob.get());
         }
         if (analysisJobRepository.countByWork_Owner_IdAndStatusIn(ownerId, ACTIVE_STATUSES) >= 1
-                || analysisJobRepository.countByStatusIn(ACTIVE_STATUSES) >= MAX_ACTIVE_JOBS) {
+                || analysisJobRepository.countByStatusIn(ACTIVE_STATUSES) >= executionProperties.getMaxActiveJobs()) {
             throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
         }
         WorkspaceResponse workspace = snapshotService.getForOwnedWork(work);
         AnalysisInput input = inputFactory.create(workId, request, workspace);
         String snapshot = objectMapper.writeValueAsString(input);
         if (snapshot.length() > MAX_SNAPSHOT_CHARS) invalid();
-        AnalysisJob job = analysisJobRepository.saveAndFlush(new AnalysisJob(
-                UUID.randomUUID().toString(), work, request.requestId(), requestBody, snapshot));
+        AnalysisJob job = new AnalysisJob(UUID.randomUUID().toString(), work, request.requestId(), requestBody, snapshot);
+        job.assignLease(instance.id(), Instant.now().plus(executionProperties.getLeaseDuration()));
+        analysisJobRepository.saveAndFlush(job);
         String jobId = job.getId();
         // 저장이 롤백된 작업은 실행하지 않는다. 접수 거절은 Dispatcher가 별도 커밋으로 기록한다.
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -94,6 +99,15 @@ public class AnalysisJobService {
                 .filter(item -> item.getWork().getId().equals(workId))
                 .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
         job.cancel();
+        if (job.getStatus() == AnalysisJobStatus.CANCELLED) {
+            // DB 취소가 커밋되기 전에 워커를 인터럽트하면 실패가 먼저 기록될 수 있다.
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    dispatcher.cancel(jobId);
+                }
+            });
+        }
         return converter.toResponse(job);
     }
 

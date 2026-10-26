@@ -99,7 +99,7 @@ class UserAuthenticationTests {
                                 .contentType("application/json")
                                 .content("{\"prompt\":\"hello\"}"))
                 .andExpect(status().isForbidden());
-        when(gemini.generate(any()))
+        when(gemini.generate(any(), any()))
                 .thenReturn(new GeminiResponse("answer"));
         var fresh = mvc.perform(get("/api/user/csrf").session(session)).andReturn();
         String freshToken =

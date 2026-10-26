@@ -18,6 +18,14 @@ import com.magister.backend.global.error.code.GeminiErrorCode;
 import com.magister.backend.global.error.exception.GeminiApiException;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import com.magister.backend.domain.user.security.LoginUser;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
+import java.util.List;
+import static org.mockito.ArgumentMatchers.eq;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.HttpStatus;
@@ -34,11 +42,24 @@ class GeminiControllerTests {
     private final MockMvc mvc =
             MockMvcBuilders.standaloneSetup(new GeminiController(service))
                     .setControllerAdvice(new GlobalExceptionHandler())
+                    .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                     .build();
+
+    @BeforeEach
+    void authenticate() {
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated(
+                        new LoginUser(1L, "test@example.com", "test"), null, List.of()));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     void returnsText() throws Exception {
-        when(service.generate(new GeminiRequest("hello"))).thenReturn(new GeminiResponse("answer"));
+        when(service.generate(1L, new GeminiRequest("hello"))).thenReturn(new GeminiResponse("answer"));
         mvc.perform(
                         post("/api/gemini")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -119,7 +140,7 @@ class GeminiControllerTests {
     })
     void mapsProviderFailureToCommonResponse(GeminiErrorCode code, int expectedStatus)
             throws Exception {
-        when(service.generate(any())).thenThrow(new GeminiApiException(code));
+        when(service.generate(eq(1L), any())).thenThrow(new GeminiApiException(code));
         mvc.perform(
                         post("/api/gemini")
                                 .contentType(MediaType.APPLICATION_JSON)
