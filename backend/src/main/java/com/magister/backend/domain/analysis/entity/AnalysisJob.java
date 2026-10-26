@@ -30,8 +30,9 @@ public class AnalysisJob {
     @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String input;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private String status;
+    private AnalysisJobStatus status;
 
     @Column(name = "result_json", columnDefinition = "LONGTEXT")
     private String result;
@@ -53,19 +54,41 @@ public class AnalysisJob {
         this.requestId = requestId;
         this.requestBody = requestBody;
         this.input = input;
-        status = "QUEUED";
+        status = AnalysisJobStatus.QUEUED;
         createdAt = Instant.now();
         updatedAt = createdAt;
     }
 
-    public void transition(String status, String result, String error) {
-        this.status = status;
+    /** 중복 전달된 RUNNING 작업은 다시 선점하지 않는다. */
+    public boolean start() {
+        if (status != AnalysisJobStatus.QUEUED) return false;
+        status = AnalysisJobStatus.RUNNING;
+        updatedAt = Instant.now();
+        return true;
+    }
+
+    /** 취소·실패가 먼저 확정되었으면 늦게 도착한 공급자 결과를 적용하지 않는다. */
+    public void succeed(String result) {
+        if (status != AnalysisJobStatus.RUNNING) return;
+        status = AnalysisJobStatus.SUCCEEDED;
         this.result = result;
+        updatedAt = Instant.now();
+    }
+
+    public void fail(String error) {
+        if (terminal()) return;
+        status = AnalysisJobStatus.FAILED;
         this.error = error;
         updatedAt = Instant.now();
     }
 
+    public void cancel() {
+        if (terminal()) return;
+        status = AnalysisJobStatus.CANCELLED;
+        updatedAt = Instant.now();
+    }
+
     public boolean terminal() {
-        return status.equals("SUCCEEDED") || status.equals("FAILED") || status.equals("CANCELLED");
+        return status.terminal();
     }
 }

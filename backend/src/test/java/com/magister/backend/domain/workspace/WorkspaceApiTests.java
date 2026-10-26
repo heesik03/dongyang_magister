@@ -10,7 +10,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.magister.backend.domain.analysis.dto.*;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
-import com.magister.backend.domain.analysis.service.*;
+import com.magister.backend.domain.analysis.service.AnalysisJobService;
+import com.magister.backend.domain.analysis.service.execution.AnalysisWorker;
+import com.magister.backend.domain.analysis.service.result.AnalysisResultValidator;
 import com.magister.backend.domain.setting.entity.*;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.user.entity.User;
@@ -54,6 +56,7 @@ class WorkspaceApiTests {
     @Autowired AnalysisJobRepository jobs;
     @Autowired AnalysisJobService jobService;
     @Autowired AnalysisWorker worker;
+    @Autowired AnalysisResultValidator resultValidator;
     @Autowired TransactionTemplate transaction;
     @Autowired EntityManager entityManager;
     @Autowired ObjectMapper json;
@@ -305,7 +308,7 @@ class WorkspaceApiTests {
                         true);
         assertThatThrownBy(
                         () ->
-                                worker.validateResult(
+                                resultValidator.validate(
                                         "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"없는"
                                             + " 원문\",\"settingId\":\"1\",\"reason\":\"이유\",\"suggestion\":\"방향\"}]}",
                                         input))
