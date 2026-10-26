@@ -14,10 +14,9 @@ import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
-import com.magister.backend.domain.analysis.service.execution.AnalysisWorker;
-import com.magister.backend.domain.analysis.service.state.AnalysisJobStateService;
-import com.magister.backend.domain.analysis.service.state.AnalysisLeaseService;
-import com.magister.backend.domain.analysis.service.execution.AnalysisDispatcher;
+import com.magister.backend.domain.analysis.service.AnalysisWorker;
+import com.magister.backend.domain.analysis.service.AnalysisJobStateService;
+import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
@@ -73,7 +72,6 @@ public class AnalysisJobLifecycleTests {
     @Autowired AnalysisJobStateService states;
     @Autowired AnalysisWorker worker;
     @Autowired AnalysisDispatcher dispatcher;
-    @Autowired AnalysisLeaseService leases;
     @Autowired TransactionTemplate transaction;
     @Autowired ObjectMapper json;
     @MockitoSpyBean ThreadPoolExecutor analysisExecutor;
@@ -213,7 +211,7 @@ public class AnalysisJobLifecycleTests {
         Fixture fixture = fixture(null);
         String liveId = saveLeasedJob(fixture, Instant.now().plusSeconds(120));
         String expiredId = saveLeasedJob(fixture, Instant.now().minusSeconds(1));
-        leases.maintain(List.of());
+        states.maintain(List.of());
         assertThat(jobs.findById(liveId).orElseThrow().getStatus()).isEqualTo(AnalysisJobStatus.QUEUED);
         assertThat(jobs.findById(expiredId).orElseThrow().getStatus()).isEqualTo(AnalysisJobStatus.FAILED);
     }

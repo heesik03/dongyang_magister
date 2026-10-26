@@ -45,7 +45,7 @@ class GeminiServiceTests {
     @Test
     void usersHaveIndependentStartIntervalsAndFailedCallsReleaseCapacity() {
         GeminiClient client = mock(GeminiClient.class);
-        var now = new AtomicLong(1000000000L);
+        AtomicLong now = new AtomicLong(1000000000L);
         GeminiService service = new GeminiService(client, new GeminiRateLimiter(now::get));
         when(client.generateText("first", 4096)).thenReturn("one");
         when(client.generateText("second", 4096)).thenReturn("two");

@@ -1,5 +1,6 @@
 package com.magister.backend.domain.user;
 
+import org.springframework.test.web.servlet.MvcResult;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -72,8 +73,8 @@ class UserAuthenticationTests {
     @Test
     void realCsrfSessionLoginRotationMeAndLogout() throws Exception {
         signup();
-        var csrfResult = mvc.perform(get("/api/user/csrf")).andExpect(status().isOk()).andReturn();
-        var session = (MockHttpSession) csrfResult.getRequest().getSession(false);
+        MvcResult csrfResult = mvc.perform(get("/api/user/csrf")).andExpect(status().isOk()).andReturn();
+        MockHttpSession session = (MockHttpSession) csrfResult.getRequest().getSession(false);
         String oldId = session.getId();
         String token =
                 json.readTree(csrfResult.getResponse().getContentAsString())
@@ -101,7 +102,7 @@ class UserAuthenticationTests {
                 .andExpect(status().isForbidden());
         when(gemini.generate(any(), any()))
                 .thenReturn(new GeminiResponse("answer"));
-        var fresh = mvc.perform(get("/api/user/csrf").session(session)).andReturn();
+        MvcResult fresh = mvc.perform(get("/api/user/csrf").session(session)).andReturn();
         String freshToken =
                 json.readTree(fresh.getResponse().getContentAsString())
                         .path("data")

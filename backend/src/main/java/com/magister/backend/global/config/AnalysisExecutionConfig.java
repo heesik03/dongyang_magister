@@ -1,6 +1,6 @@
 package com.magister.backend.global.config;
 
-import com.magister.backend.domain.analysis.service.execution.AnalysisExecutionProperties;
+import com.magister.backend.global.config.AnalysisExecutionProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

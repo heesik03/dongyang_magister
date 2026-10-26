@@ -50,7 +50,7 @@ public class RequestSizeFilter extends OncePerRequestFilter {
                 new HttpServletRequestWrapper(request) {
                     @Override
                     public ServletInputStream getInputStream() {
-                        var input = new ByteArrayInputStream(body);
+                        ByteArrayInputStream input = new ByteArrayInputStream(body);
                         return new ServletInputStream() {
                             @Override
                             public int read() {

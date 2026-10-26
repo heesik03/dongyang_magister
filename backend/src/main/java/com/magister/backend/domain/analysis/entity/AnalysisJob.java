@@ -74,7 +74,9 @@ public class AnalysisJob {
 
     /** 중복 전달된 RUNNING 작업은 다시 선점하지 않는다. */
     public boolean start() {
-        if (status != AnalysisJobStatus.QUEUED) return false;
+        if (status != AnalysisJobStatus.QUEUED) {
+            return false;
+        }
         status = AnalysisJobStatus.RUNNING;
         updatedAt = Instant.now();
         return true;
@@ -82,21 +84,27 @@ public class AnalysisJob {
 
     /** 취소·실패가 먼저 확정되었으면 늦게 도착한 공급자 결과를 적용하지 않는다. */
     public void succeed(String result) {
-        if (status != AnalysisJobStatus.RUNNING) return;
+        if (status != AnalysisJobStatus.RUNNING) {
+            return;
+        }
         status = AnalysisJobStatus.SUCCEEDED;
         this.result = result;
         updatedAt = Instant.now();
     }
 
     public void fail(String error) {
-        if (terminal()) return;
+        if (terminal()) {
+            return;
+        }
         status = AnalysisJobStatus.FAILED;
         this.error = error;
         updatedAt = Instant.now();
     }
 
     public void cancel() {
-        if (terminal()) return;
+        if (terminal()) {
+            return;
+        }
         status = AnalysisJobStatus.CANCELLED;
         updatedAt = Instant.now();
     }

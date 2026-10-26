@@ -1,10 +1,13 @@
-package com.magister.backend.domain.analysis.service.execution;
+package com.magister.backend.domain.analysis.service;
 
-import com.magister.backend.domain.analysis.service.state.AnalysisJobStateService;
+import jakarta.annotation.PreDestroy;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import jakarta.annotation.PreDestroy;
+
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,7 +28,10 @@ public class AnalysisDispatcher {
     /** 접수 커밋 후 호출한다. 거절도 독립 트랜잭션으로 실패 처리한다. */
     public void submit(String jobId) {
         TrackedTask task = new TrackedTask(jobId);
-        if (tasks.putIfAbsent(jobId, task) != null) return;
+        if (tasks.putIfAbsent(jobId, task) != null) {
+            return;
+        }
+
         try {
             analysisExecutor.execute(task);
         } catch (RejectedExecutionException error) {
@@ -37,11 +43,15 @@ public class AnalysisDispatcher {
     /** 대기는 큐에서 제거하고 실행 중 작업에는 인터럽트를 요청한다. 공급자 중단을 보장하지는 않는다. */
     public void cancel(String jobId) {
         TrackedTask task = tasks.get(jobId);
-        if (task == null) return;
+        if (task == null) {
+            return;
+        }
+
         analysisExecutor.remove(task);
         task.cancel(true);
     }
 
+    /** 실제 호출이 끝나지 않은 취소 작업도 포함한 로컬 실행 스냅샷이다. */
     public List<String> activeJobIds() {
         return List.copyOf(tasks.keySet());
     }
@@ -57,7 +67,9 @@ public class AnalysisDispatcher {
             }
             cancel(jobId);
         }
+
         analysisExecutor.shutdownNow();
+
         try {
             analysisExecutor.awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException error) {
@@ -65,12 +77,21 @@ public class AnalysisDispatcher {
         }
     }
 
+    /** 살아 있는 로컬 작업의 lease와 다른 서버에서 발생한 취소를 반영한다. */
+    @Scheduled(fixedDelay = 10_000, initialDelay = 10_000)
+    public void maintain() {
+        jobStateService.maintain(activeJobIds()).forEach(this::cancel);
+    }
+
     private final class TrackedTask extends FutureTask<Void> {
         private final String jobId;
         private volatile boolean started;
 
         private TrackedTask(String jobId) {
-            super(() -> { analysisWorker.execute(jobId); return null; });
+            super(() -> {
+                analysisWorker.execute(jobId);
+                return null;
+            });
             this.jobId = jobId;
         }
 
@@ -87,7 +108,9 @@ public class AnalysisDispatcher {
 
         @Override
         protected void done() {
-            if (!started) tasks.remove(jobId, this);
+            if (!started) {
+                tasks.remove(jobId, this);
+            }
         }
     }
 }

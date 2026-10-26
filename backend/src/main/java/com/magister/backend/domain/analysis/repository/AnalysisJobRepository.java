@@ -5,16 +5,16 @@ import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 
 import jakarta.persistence.LockModeType;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
 
-import java.util.Collection;
-import java.util.Optional;
-import java.util.List;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
 public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String> {
     /** 같은 작품의 멱등 키를 조회한다. 요청 본문 일치는 서비스가 검사한다. */

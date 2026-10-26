@@ -1,5 +1,6 @@
 package com.magister.backend.domain.user;
 
+import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,8 +17,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class SignupControllerTests {
     @Test
     void rejectsPasswordsWithoutAllRequiredCharacterGroups() throws Exception {
-        var service = mock(UserService.class);
-        var mvc =
+        UserService service = mock(UserService.class);
+        MockMvc mvc =
                 MockMvcBuilders.standaloneSetup(new UserController(service, null))
                         .setControllerAdvice(new GlobalExceptionHandler())
                         .build();
@@ -37,9 +38,9 @@ class SignupControllerTests {
 
     @Test
     void stripsSurroundingWhitespaceBeforeValidation() throws Exception {
-        var service = mock(UserService.class);
+        UserService service = mock(UserService.class);
         when(service.signup(any())).thenReturn(new UserResponse(1L, "writer@example.com", "작가"));
-        var mvc =
+        MockMvc mvc =
                 MockMvcBuilders.standaloneSetup(new UserController(service, null))
                         .setControllerAdvice(new GlobalExceptionHandler())
                         .build();

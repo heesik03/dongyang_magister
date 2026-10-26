@@ -1,4 +1,4 @@
-package com.magister.backend.domain.analysis.service.execution;
+package com.magister.backend.global.config;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
@@ -9,12 +9,14 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 import java.time.Duration;
+import java.util.UUID;
 
 @Getter
 @Setter
 @Validated
 @ConfigurationProperties("analysis.execution")
 public class AnalysisExecutionProperties {
+    private final String instanceId = UUID.randomUUID().toString();
     @Min(1) @Max(10) private int threads = 2;
     @Min(1) @Max(100) private int queueCapacity = 8;
     @Min(1) @Max(100) private int maxActiveJobs = 10;

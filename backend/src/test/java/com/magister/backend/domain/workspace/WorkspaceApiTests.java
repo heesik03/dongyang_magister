@@ -1,5 +1,6 @@
 package com.magister.backend.domain.workspace;
 
+import org.springframework.test.web.servlet.MvcResult;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -11,8 +12,8 @@ import com.magister.backend.domain.analysis.dto.*;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
-import com.magister.backend.domain.analysis.service.execution.AnalysisWorker;
-import com.magister.backend.domain.analysis.service.result.AnalysisResultValidator;
+import com.magister.backend.domain.analysis.service.AnalysisWorker;
+import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.setting.entity.*;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.user.entity.User;
@@ -56,7 +57,7 @@ class WorkspaceApiTests {
     @Autowired AnalysisJobRepository jobs;
     @Autowired AnalysisJobService jobService;
     @Autowired AnalysisWorker worker;
-    @Autowired AnalysisResultValidator resultValidator;
+    @Autowired AnalysisResultProcessor resultValidator;
     @Autowired TransactionTemplate transaction;
     @Autowired EntityManager entityManager;
     @Autowired ObjectMapper json;
@@ -67,7 +68,7 @@ class WorkspaceApiTests {
     @BeforeEach
     void prepare() {
         reset(gemini);
-        var user =
+        User user =
                 users.saveAndFlush(new User(UUID.randomUUID() + "@example.com", "검증 작가", "hash"));
         ownerId = user.getId();
         workId = works.saveAndFlush(new Work(user, "저장 검증", "판타지", "", "소개")).getId();
@@ -161,7 +162,7 @@ class WorkspaceApiTests {
 
     @Test
     void checksOwnershipCsrfAndNestedValidation() throws Exception {
-        var other =
+        UsernamePasswordAuthenticationToken other =
                 UsernamePasswordAuthenticationToken.authenticated(
                         new LoginUser(-1L, "other@example.com", "다른 작가"), null, List.of());
         mvc.perform(get(path()).with(authentication(other))).andExpect(status().isNotFound());
@@ -185,14 +186,14 @@ class WorkspaceApiTests {
     void linksEntitiesWithoutInitializingParentCollections() {
         transaction.executeWithoutResult(
                 status -> {
-                    var user = users.findById(ownerId).orElseThrow();
+                    User user = users.findById(ownerId).orElseThrow();
                     assertThat(Hibernate.isInitialized(user.getWorks())).isFalse();
-                    var work = new Work(user, "추가", "판타지", "", "");
+                    Work work = new Work(user, "추가", "판타지", "", "");
                     assertThat(Hibernate.isInitialized(user.getWorks())).isFalse();
                     works.saveAndFlush(work);
-                    var existing = works.findById(workId).orElseThrow();
+                    Work existing = works.findById(workId).orElseThrow();
                     assertThat(Hibernate.isInitialized(existing.getSettings())).isFalse();
-                    var setting =
+                    WorkSetting setting =
                             new WorkSetting(
                                     existing,
                                     "능력",
@@ -201,7 +202,7 @@ class WorkspaceApiTests {
                                     "마법 불가");
                     assertThat(Hibernate.isInitialized(existing.getSettings())).isFalse();
                     entityManager.detach(existing);
-                    var proxy = entityManager.getReference(Work.class, workId);
+                    Work proxy = entityManager.getReference(Work.class, workId);
                     assertThat(proxy).isNotSameAs(existing);
                     assertThatCode(() -> setting.assignWork(proxy)).doesNotThrowAnyException();
                     status.setRollbackOnly();
@@ -241,7 +242,7 @@ class WorkspaceApiTests {
                                     + "\",\"reason\":\"능력 변화 설명 확인\",\"suggestion\":\"계기를"
                                     + " 보완하세요.\"}]}";
                         });
-        var request =
+        AnalysisRequest request =
                 new AnalysisRequest(
                         "job-1",
                         "chapter-1",
@@ -250,7 +251,7 @@ class WorkspaceApiTests {
                         List.of(),
                         true,
                         true);
-        var accepted =
+        MvcResult accepted =
                 mvc.perform(
                                 post("/api/work/" + workId + "/analysis")
                                         .with(authentication(owner))
@@ -296,7 +297,7 @@ class WorkspaceApiTests {
 
     @Test
     void rejectsInventedAiEvidence() {
-        var input =
+        AnalysisInput input =
                 new AnalysisInput(
                         new ChapterData("c", "1화", "실제 원문", 1),
                         List.of(

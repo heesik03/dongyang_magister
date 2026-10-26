@@ -1,12 +1,10 @@
 package com.magister.backend.domain.analysis.controller;
-import com.magister.backend.domain.analysis.docs.AnalysisControllerDocs;
 
+import com.magister.backend.domain.analysis.docs.AnalysisControllerDocs;
 import com.magister.backend.domain.analysis.dto.*;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.response.ApiResult;
-
-
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,7 +25,7 @@ public class AnalysisController implements AnalysisControllerDocs {
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @RequestBody AnalysisRequest request) {
-        var job = jobs.create(user.id(), workId, request);
+        AnalysisJobResponse job = jobs.create(user.id(), workId, request);
         return ResponseEntity.accepted()
                 .location(URI.create("/api/work/" + workId + "/analysis/" + job.id()))
                 .body(ApiResult.success(job));
