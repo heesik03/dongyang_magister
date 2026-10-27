@@ -57,7 +57,7 @@ tasks.register('geminiTest', Test) {
     filter { includeTestsMatching 'com.magister.backend.verification.GeminiQualityEvaluationTests' }
     doFirst {
         if (providers.environmentVariable('MAGISTER_RUN_GEMINI_TESTS').getOrElse('') != 'true') {
-            throw new GradleException('Set MAGISTER_RUN_GEMINI_TESTS=true to send only the synthetic evaluation fixtures to Gemini (maximum 8 calls)')
+            throw new GradleException('Set MAGISTER_RUN_GEMINI_TESTS=true to send only the synthetic evaluation fixtures to Gemini (maximum 10 calls)')
         }
     }
 }

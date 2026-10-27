@@ -4,9 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -350,7 +348,7 @@ class WorkspaceApiTests {
                                                         SettingStatus.CONFIRMED,
                                                         "마법을 사용할 수 없다."))
                                         .getId());
-        when(gemini.generateText(anyString(), eq(4096)))
+        when(gemini.generateAnalysis(anyString()))
                 .thenAnswer(
                         call -> {
                             assertThat(
@@ -399,7 +397,7 @@ class WorkspaceApiTests {
         assertThat(result.status()).isEqualTo("SUCCEEDED");
         assertThat(result.result().reviews().getFirst().evidence()).isEqualTo("마법을 사용할 수 없다.");
         assertThat(jobService.create(ownerId, workId, request).id()).isEqualTo(id);
-        verify(gemini, times(1)).generateText(anyString(), eq(4096));
+        verify(gemini, times(1)).generateAnalysis(anyString());
     }
 
     @Test

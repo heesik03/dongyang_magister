@@ -47,14 +47,14 @@ class GeminiServiceTests {
         GeminiClient client = mock(GeminiClient.class);
         AtomicLong now = new AtomicLong(1000000000L);
         GeminiService service = new GeminiService(client, new GeminiRateLimiter(now::get));
-        when(client.generateText("first", 4096)).thenReturn("one");
-        when(client.generateText("second", 4096)).thenReturn("two");
+        when(client.generateAnalysis("first")).thenReturn("one");
+        when(client.generateAnalysis("second")).thenReturn("two");
         assertThat(service.analyze(1L, "first")).isEqualTo("one");
         assertThat(service.analyze(2L, "second")).isEqualTo("two");
         assertThatThrownBy(() -> service.generate(1L, new GeminiRequest("first")))
                 .isInstanceOf(CustomException.class);
         now.addAndGet(5000000000L);
-        when(client.generateText("failure", 4096)).thenThrow(new IllegalStateException("test"));
+        when(client.generateAnalysis("failure")).thenThrow(new IllegalStateException("test"));
         assertThatThrownBy(() -> service.analyze(1L, "failure"))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(service.analyze(2L, "second")).isEqualTo("two");
@@ -67,7 +67,7 @@ class GeminiServiceTests {
         GeminiService service = new GeminiService(client, limiter);
         Reservation first = limiter.reserve(1L);
         Reservation second = limiter.reserve(2L);
-        when(client.generateText("queued", 4096)).thenReturn("result");
+        when(client.generateAnalysis("queued")).thenReturn("result");
         CountDownLatch entered = new CountDownLatch(1);
         try (ExecutorService caller = Executors.newSingleThreadExecutor()) {
             Future<String> result =
@@ -77,7 +77,7 @@ class GeminiServiceTests {
                                 return service.analyze(3L, "queued");
                             });
             assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
-            verify(client, never()).generateText("queued", 4096);
+            verify(client, never()).generateAnalysis("queued");
             first.close();
             assertThat(result.get(5, TimeUnit.SECONDS)).isEqualTo("result");
         } finally {

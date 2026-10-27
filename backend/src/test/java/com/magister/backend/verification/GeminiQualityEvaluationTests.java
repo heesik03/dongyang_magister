@@ -227,7 +227,46 @@ class GeminiQualityEvaluationTests {
                                         false),
                                 "설정 충돌 후보",
                                 "마법",
+                                false),
+                        new Scenario(
+                                "condition-ended-paraphrase",
+                                input(
+                                        "c2",
+                                        "복도 조명이 켜진 뒤 센서가 작동했다.",
+                                        List.of(
+                                                new SettingReference(
+                                                        "4",
+                                                        "센서 동작 조건",
+                                                        "복도 조명이 꺼져 있는 동안 센서는 작동하지 않는다.",
+                                                        "세계관",
+                                                        "확정",
+                                                        0)),
+                                        List.of(),
+                                        true,
+                                        true),
+                                null,
+                                "",
+                                false),
+                        new Scenario(
+                                "condition-still-active",
+                                input(
+                                        "c2",
+                                        "복도 조명은 꺼져 있었다. 센서가 작동했다.",
+                                        List.of(
+                                                new SettingReference(
+                                                        "4",
+                                                        "센서 동작 조건",
+                                                        "복도 조명이 꺼져 있는 동안 센서는 작동하지 않는다.",
+                                                        "세계관",
+                                                        "확정",
+                                                        0)),
+                                        List.of(),
+                                        true,
+                                        false),
+                                "설정 충돌 후보",
+                                "센서",
                                 false));
+        assertThat(scenarios).hasSizeLessThanOrEqualTo(10);
         String selectedNames = System.getenv("MAGISTER_GEMINI_SCENARIOS");
         if (selectedNames != null && !selectedNames.isBlank()) {
             Set<String> requested =
@@ -246,9 +285,7 @@ class GeminiQualityEvaluationTests {
             long started = System.nanoTime();
             String raw = null;
             try {
-                raw =
-                        geminiClient.generateText(
-                                resultProcessor.buildPrompt(scenario.input()), 4096);
+                raw = geminiClient.generateAnalysis(resultProcessor.buildPrompt(scenario.input()));
                 ValidatedAnalysis validated =
                         resultProcessor.validateDetailed(raw, scenario.input());
                 boolean matched =
@@ -316,9 +353,13 @@ class GeminiQualityEvaluationTests {
                                         "model",
                                         geminiProperties.model(),
                                         "maximumCalls",
-                                        8,
+                                        10,
                                         "plannedScenarios",
                                         scenarios.size(),
+                                        "generationProfile",
+                                        "analysis-schema-high-on-gemini3",
+                                        "maxOutputTokens",
+                                        8192,
                                         "observations",
                                         observations)));
         assertThat(observations).hasSize(scenarios.size());

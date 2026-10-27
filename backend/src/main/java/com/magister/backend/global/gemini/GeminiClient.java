@@ -31,6 +31,11 @@ public class GeminiClient {
                 prompt, GenerateContentConfig.builder().maxOutputTokens(maxOutputTokens).build());
     }
 
+    /** 원고 검토는 짧은 연결 확인과 분리한다. 조건·예외 비교를 위한 추론과 JSON 출력을 사용한다. */
+    public String generateAnalysis(String prompt) {
+        return generateText(prompt, GeminiAnalysisConfig.create(properties.model()));
+    }
+
     private String generateText(String prompt, GenerateContentConfig config) {
         if (prompt == null || prompt.isBlank()) {
             throw new IllegalArgumentException("prompt must not be blank");

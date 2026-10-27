@@ -27,7 +27,7 @@ public class GeminiService {
     /** 이미 접수된 분석은 슬롯 부족을 실패로 처리하지 않고 전송 전에 대기한다. */
     public String analyze(Long ownerId, String prompt) {
         try (Reservation reservation = rateLimiter.awaitReservation(ownerId)) {
-            return geminiClient.generateText(prompt, 4096);
+            return geminiClient.generateAnalysis(prompt);
         }
     }
 }

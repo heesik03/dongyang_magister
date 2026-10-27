@@ -148,6 +148,7 @@ class ReviewValidationTests {
                 List.of(
                         raw("마법 사용", 10, 15, List.of(evidence("SETTING", "1", "마법 불가", 0, 5))),
                         raw("마법 사용", 11, 16, List.of(evidence("SETTING", "other", "마법 불가", 0, 5))),
+                        raw("마법 사용", 11, 16, List.of(evidence("SETSETTING", "1", "마법 불가", 0, 5))),
                         raw(
                                 "마법 사용",
                                 11,

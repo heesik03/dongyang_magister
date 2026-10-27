@@ -3,7 +3,6 @@ package com.magister.backend.domain.analysis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -166,7 +165,7 @@ class AnalysisFlowTests {
     @Test
     void linkedReviewsSourcesAccessAndStaleStateAreRestored() throws Exception {
         String jobId = jobService.create(ownerId, workId, confirmed()).id();
-        when(geminiClient.generateText(anyString(), eq(4096))).thenReturn(linkedProviderResult());
+        when(geminiClient.generateAnalysis(anyString())).thenReturn(linkedProviderResult());
         worker.execute(jobId);
         mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(owner)))
                 .andExpect(status().isOk())
@@ -215,7 +214,7 @@ class AnalysisFlowTests {
     @Test
     void anotherJobSourceIsRejectedByApiAndCompositeForeignKey() throws Exception {
         String firstId = jobService.create(ownerId, workId, confirmed()).id();
-        when(geminiClient.generateText(anyString(), eq(4096))).thenReturn(linkedProviderResult());
+        when(geminiClient.generateAnalysis(anyString())).thenReturn(linkedProviderResult());
         worker.execute(firstId);
         String secondId = jobService.create(ownerId, workId, confirmed()).id();
         Long firstSource = sourceRepository.findByJob_IdOrderByIdAsc(firstId).getFirst().getId();
@@ -276,7 +275,7 @@ class AnalysisFlowTests {
     @Test
     void invalidAndCancelledJobsLeaveNoPartialReviews() {
         String invalidId = jobService.create(ownerId, workId, confirmed()).id();
-        when(geminiClient.generateText(anyString(), eq(4096)))
+        when(geminiClient.generateAnalysis(anyString()))
                 .thenReturn(linkedProviderResult().replace("\"endOffset\":5", "\"endOffset\":4"));
         worker.execute(invalidId);
         assertThat(jobService.get(ownerId, workId, invalidId).status()).isEqualTo("FAILED");
@@ -433,7 +432,7 @@ class AnalysisFlowTests {
     @Test
     void historyAndCompletedResultCanBeRecoveredWithoutClientSaving() throws Exception {
         String jobId = jobService.create(ownerId, workId, confirmed()).id();
-        when(geminiClient.generateText(anyString(), eq(4096)))
+        when(geminiClient.generateAnalysis(anyString()))
                 .thenReturn(
                         "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"검토"
                             + " 원고\",\"startOffset\":0,\"endOffset\":5,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\""

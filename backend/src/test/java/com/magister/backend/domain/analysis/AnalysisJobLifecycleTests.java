@@ -2,7 +2,6 @@ package com.magister.backend.domain.analysis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -265,7 +264,7 @@ public class AnalysisJobLifecycleTests {
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch released = new CountDownLatch(1);
         CountDownLatch interrupted = new CountDownLatch(1);
-        when(gemini.generateText(any(String.class), eq(4096)))
+        when(gemini.generateAnalysis(any(String.class)))
                 .thenAnswer(
                         call -> {
                             started.countDown();
