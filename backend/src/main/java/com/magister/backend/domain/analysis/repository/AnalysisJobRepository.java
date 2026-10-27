@@ -91,9 +91,9 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
             String message,
             Instant now);
 
-    /** 다른 서버에서 취소된 로컬 작업도 실행기에 전파하기 위한 작은 ID 조회다. */
-    @Query("select j.id from AnalysisJob j where j.id in :ids and j.status not in :active")
-    List<String> findTerminalIds(Collection<String> ids, Collection<AnalysisJobStatus> active);
+    /** 삭제된 원격 작업도 취소 대상으로 식별하기 위해 남아 있는 미완료 ID만 반환한다. */
+    @Query("select j.id from AnalysisJob j where j.id in :ids and j.status in :active")
+    List<String> findPresentActiveIds(Collection<String> ids, Collection<AnalysisJobStatus> active);
 
     /** 보존 기간 정리 시 원고 본문을 읽지 않고 제한된 수의 ID만 가져온다. */
     @Query(

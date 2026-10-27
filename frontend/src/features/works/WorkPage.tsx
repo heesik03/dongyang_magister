@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { DeleteWorkDialog } from './DeleteWorkDialog'
 import { WorkspaceStatus } from '../workspace/WorkspaceStatus'
 import { GENRES } from './workGenres'
 import { Dialog } from '../../shared/Dialog'
@@ -18,6 +19,8 @@ export function WorkPage() {
   const detailLoading = useWorksStore((state) => state.detailLoading)
   const detailError = useWorksStore((state) => state.detailError)
   const saveWorkInfo = useWorksStore((state) => state.saveWorkInfo)
+  const deleted = useWorksStore((state) => !!workId && state.deletedIds.includes(workId))
+  const [deleting, setDeleting] = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -45,6 +48,7 @@ export function WorkPage() {
       setSaving(false)
     }
   }
+  if (deleted) return <Navigate to="/" replace />
   if ((!loaded && !detailError) || (detailLoading && !work))
     return <p role="status">작품을 불러오고 있습니다.</p>
   if (detailError)
@@ -89,6 +93,9 @@ export function WorkPage() {
             <span className="badge green">
               {work.source === 'server' ? '개인 작품' : '브라우저 작품'}
             </span>
+            {work.source === 'server' && (
+              <button onClick={() => setDeleting(true)}>작품 삭제</button>
+            )}
             <button onClick={() => setEditing(true)}>작품 정보 수정</button>
             <button onClick={() => void loadWork(work.id)} disabled={detailLoading}>
               새로 불러오기
@@ -96,6 +103,7 @@ export function WorkPage() {
           </div>
         </div>
       </div>
+      {deleting && <DeleteWorkDialog work={work} onClose={() => setDeleting(false)} />}
       {editing && (
         <Dialog
           title="작품 정보 수정"

@@ -9,6 +9,7 @@ import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceResponse;
 import com.magister.backend.domain.workspace.entity.Workspace;
 import com.magister.backend.domain.workspace.repository.WorkspaceRepository;
+import com.magister.backend.domain.workspace.service.support.WorkspaceCodec;
 import com.magister.backend.domain.workspace.service.validation.WorkspaceReferenceValidator;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
@@ -18,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class WorkspacePersistenceService {
@@ -26,6 +29,7 @@ public class WorkspacePersistenceService {
     private final ChapterWorkspaceService chapterWorkspaceService;
     private final WorkspaceReferenceValidator referenceValidator;
     private final WorkspaceSnapshotService snapshotService;
+    private final WorkspaceCodec workspaceCodec;
 
     /** 직렬화한 검토·사건과 현재 회차의 참조를 검증하고 workspace 버전으로 저장한다. */
     @Transactional
@@ -34,6 +38,29 @@ public class WorkspacePersistenceService {
         Work work = workAccessService.lockOwned(ownerId, workId);
         Workspace workspace =
                 workspaceRepository.findById(workId).orElseGet(() -> new Workspace(work));
+        WorkspaceData stored =
+                workspace.getContent() == null
+                        ? new WorkspaceData(List.of(), List.of(), List.of())
+                        : workspaceCodec.decode(workspace.getContent());
+        boolean initialLegacyImport =
+                workspace.getRevision() == 0
+                        && !Boolean.TRUE.equals(request.separateChapters())
+                        && !Boolean.TRUE.equals(request.separateReviews());
+        if (!initialLegacyImport
+                && !Boolean.TRUE.equals(request.separateReviews())
+                && !stored.analyses().equals(request.content().analyses())) {
+            throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+        }
+        WorkspaceData effective =
+                new WorkspaceData(
+                        List.of(),
+                        Boolean.TRUE.equals(request.separateReviews())
+                                ? stored.analyses()
+                                : request.content().analyses(),
+                        request.content().events());
+        if (Boolean.TRUE.equals(request.separateReviews())) {
+            content = workspaceCodec.encode(effective);
+        }
         if (request.mutationId().equals(workspace.getMutationId())) {
             if (!content.equals(workspace.getContent())) {
                 throw new CustomException(CommonErrorCode.INVALID_REQUEST);
@@ -54,7 +81,7 @@ public class WorkspacePersistenceService {
         referenceValidator.validate(
                 new WorkspaceData(
                         chapterWorkspaceService.read(workId),
-                        request.content().analyses(),
+                        effective.analyses(),
                         request.content().events()));
 
         workspace.replace(content, request.mutationId());

@@ -27,7 +27,7 @@ import java.time.Instant;
 @Service
 @RequiredArgsConstructor
 public class AnalysisPreviewService {
-    public static final String POLICY_VERSION = "2026-10-26.1";
+    public static final String POLICY_VERSION = "2026-10-27.1";
     private final WorkAccessService workAccessService;
     private final WorkspaceSnapshotService workspaceSnapshotService;
     private final AnalysisInputFactory analysisInputFactory;

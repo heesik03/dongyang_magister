@@ -5,13 +5,18 @@ export function Dialog({
   title,
   onClose,
   children,
+  closeMessage = '입력한 내용을 저장하지 않고 닫을까요?',
+  confirmCloseLabel = '입력 버리고 닫기',
 }: {
   title: string
   onClose: () => void
   children: ReactNode
+  closeMessage?: string
+  confirmCloseLabel?: string
 }) {
   const titleId = useId()
   const ref = useRef<HTMLDialogElement>(null)
+  const previousFocus = useRef(document.activeElement)
   const [dirty, setDirty] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   function requestClose() {
@@ -19,12 +24,15 @@ export function Dialog({
     else onClose()
   }
   useEffect(() => {
-    const previous = document.activeElement
+    const previous = previousFocus.current
     const dialog = ref.current
     dialog?.showModal()
-    const firstInput = dialog?.querySelector(
-      '[autofocus], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], button:not(:disabled), [tabindex="0"]',
-    )
+    const firstInput =
+      dialog?.querySelector('[autofocus]') ??
+      dialog?.querySelector(
+        'input:not(:disabled), textarea:not(:disabled), select:not(:disabled)',
+      ) ??
+      dialog?.querySelector('a[href], button:not(:disabled), [tabindex="0"]')
     if (firstInput instanceof HTMLElement) firstInput.focus()
     return () => {
       dialog?.close()
@@ -52,10 +60,10 @@ export function Dialog({
       {children}
       {confirmClose && (
         <div className="notice discard-confirm" role="alert">
-          <p>입력한 내용을 저장하지 않고 닫을까요?</p>
+          <p>{closeMessage}</p>
           <div className="dialog-actions">
             <button onClick={() => setConfirmClose(false)}>계속 작성</button>
-            <button onClick={onClose}>입력 버리고 닫기</button>
+            <button onClick={onClose}>{confirmCloseLabel}</button>
           </div>
         </div>
       )}

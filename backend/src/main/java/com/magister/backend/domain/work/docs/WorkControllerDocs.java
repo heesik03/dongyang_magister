@@ -26,6 +26,13 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Work", description = "작품별 설정집·원고·AI 검토를 묶는 창작 작업 단위 관리")
 @SecurityRequirement(name = "session")
 public interface WorkControllerDocs {
+    @Operation(
+            summary = "작품 및 저장 자료 삭제",
+            description =
+                    "본인 작품의 현재 version을 쿼리로 전달합니다. 진행 중 작업을 취소하고 회차·설정·분석 원문·후보·판단·참조·workspace를 같은"
+                        + " 트랜잭션으로 삭제합니다. 복원 불가. 공급자에 이미 전송한 자료나 별도로 내려받은 파일·다른 브라우저의 사본까지 삭제하지"
+                        + " 않습니다. 204/400/401/403(CSRF)/404/409(다른 탭 수정).")
+    ResponseEntity<Void> delete(LoginUser user, @Positive Long workId, @Min(0) long version);
 
     @Operation(
             summary = "작품 생성",

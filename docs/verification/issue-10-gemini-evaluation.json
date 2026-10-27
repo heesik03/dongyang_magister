@@ -1,0 +1,303 @@
+{
+  "fixtures": "Hard-coded synthetic manuscripts only. No user works queried.",
+  "baseline": {
+    "observations": [
+      {
+        "name": "normal",
+        "milliseconds": 3325,
+        "contractValid": true,
+        "expectationMatched": true,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c1",
+            "revision": 1,
+            "source": "주인공은 마법을 사용하지 않았다.",
+            "settingIds": [
+              "1"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:22:16.861270300Z",
+            "settingsSnapshot": "[{\"id\":\"1\",\"title\":\"주인공 능력\",\"content\":\"주인공은 마법을 사용할 수 없다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "setting-conflict",
+        "milliseconds": 1465,
+        "contractValid": false,
+        "expectationMatched": false,
+        "errorCode": "INVALID_RESPONSE",
+        "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보 또는 설명 보완\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":13,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":15,\"explanation\":\"주인공의 능력 설정상 마법을 사용할 수 없다고 확정되어 있으나, 현재 원고에서는 마법을 사용했다고 서술되어 설정과 충돌합니다.\"}],\"reason\":\"주인공이 마법을 사용할 수 없다는 확정 설정과 마법을 사용했다는 원고 내용이 상충합니다.\",\"suggestion\":\"설정에 맞게 행동을 수정하거나, 능력을 사용할 수 있게 된 계기나 예외 상황에 대한 설명 보완이 필요합니다.\"}]}",
+        "validated": null
+      },
+      {
+        "name": "motivation-gap",
+        "milliseconds": 1276,
+        "contractValid": true,
+        "expectationMatched": false,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c2",
+            "revision": 1,
+            "source": "주인공은 아무 이유 없이 친구를 일부러 죽였다.",
+            "settingIds": [
+              "2"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:22:19.608895800Z",
+            "settingsSnapshot": "[{\"id\":\"2\",\"title\":\"주인공 목표\",\"content\":\"주인공은 친구의 생명을 가장 소중히 여긴다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "explicit-twist",
+        "milliseconds": 1350,
+        "contractValid": true,
+        "expectationMatched": true,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c2",
+            "revision": 1,
+            "source": "봉인이 풀리자 주인공은 마법을 사용했다.",
+            "settingIds": [
+              "1"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:22:20.959557700Z",
+            "settingsSnapshot": "[{\"id\":\"1\",\"title\":\"능력 조건\",\"content\":\"주인공은 봉인이 풀리기 전까지 마법을 사용할 수 없다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "insufficient-evidence",
+        "milliseconds": 1168,
+        "contractValid": true,
+        "expectationMatched": true,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c2",
+            "revision": 1,
+            "source": "주인공은 방으로 걸어갔다.",
+            "settingIds": [
+              "1"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:22:22.128441200Z",
+            "settingsSnapshot": "[{\"id\":\"1\",\"title\":\"주인공 능력\",\"content\":\"주인공은 마법을 사용할 수 없다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "intent-inside-scope",
+        "milliseconds": 1090,
+        "contractValid": true,
+        "expectationMatched": true,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c3",
+            "revision": 1,
+            "source": "주인공은 마법을 사용했다.",
+            "settingIds": [
+              "1"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:22:23.218399900Z",
+            "settingsSnapshot": "[{\"id\":\"1\",\"title\":\"주인공 능력\",\"content\":\"주인공은 마법을 사용할 수 없다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "intent-unrelated-conflict",
+        "milliseconds": 1581,
+        "contractValid": false,
+        "expectationMatched": false,
+        "errorCode": "INVALID_RESPONSE",
+        "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보 또는 설명 보완\",\"quote\":\"동료는 물속에서 숨을 쉬었다.\",\"startOffset\":16,\"endOffset\":32,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"3\",\"quote\":\"동료는 물속에서 숨을 쉴 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"확정 설정에 따르면 동료는 물속에서 숨을 쉴 수 없다고 명시되어 있습니다.\"}],\"reason\":\"동료가 물속에서 숨을 쉴 수 없다는 확정 설정과 원고의 내용이 충돌합니다. decisionReferences의 조건은 주인공의 마법 능력에만 적용되며 동료의 능력에는 적용되지 않습니다.\",\"suggestion\":\"동료의 물속 호흡 설정에 대한 예외 사항을 추가하거나 원고 내용을 수정하세요.\"}]}",
+        "validated": null
+      },
+      {
+        "name": "intent-outside-scope",
+        "milliseconds": 1580,
+        "contractValid": false,
+        "expectationMatched": false,
+        "errorCode": "INVALID_RESPONSE",
+        "raw": "{\n  \"reviews\": [\n    {\n      \"type\": \"설정 충돌 후보 또는 설명 보완\",\n      \"quote\": \"주인공은 마법을 사용했다.\",\n      \"startOffset\": 0,\n      \"endOffset\": 13,\n      \"evidences\": [\n        {\n          \"sourceType\": \"SETTING\",\n          \"sourceKey\": \"1\",\n          \"quote\": \"주인공은 마법을 사용할 수 없다.\",\n          \"startOffset\": 0,\n          \"endOffset\": 16,\n          \"explanation\": \"주인공의 능력 설정에 따르면 주인공은 마법을 사용할 수 없다고 되어 있으나, 본문에서는 마법을 사용했다고 서술되어 설정과 충돌합니다.\"\n        }\n      ],\n      \"reason\": \"주인공 능력 설정상 마법 사용이 불가능하다고 명시되어 있으나 현재 회차 원고에서는 마법을 사용했다고 기술되어 있습니다.\",\n      \"suggestion\": \"마법을 사용한 행동에 대한 예외적 상황을 설명하거나 설정을 수정하는 방향을 검토해 주세요.\"\n    }\n  ]\n}",
+        "validated": null
+      }
+    ],
+    "maximumCalls": 8,
+    "model": "gemini-3.5-flash-lite",
+    "plannedScenarios": 8,
+    "evaluatedAt": "2026-10-27T05:22:26.390963700Z"
+  },
+  "afterPromptEnumFix": {
+    "observations": [
+      {
+        "name": "normal",
+        "milliseconds": 2375,
+        "contractValid": true,
+        "expectationMatched": true,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c1",
+            "revision": 1,
+            "source": "주인공은 마법을 사용하지 않았다.",
+            "settingIds": [
+              "1"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:55:50.336626500Z",
+            "settingsSnapshot": "[{\"id\":\"1\",\"title\":\"주인공 능력\",\"content\":\"주인공은 마법을 사용할 수 없다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "setting-conflict",
+        "milliseconds": 1529,
+        "contractValid": false,
+        "expectationMatched": false,
+        "errorCode": "INVALID_RESPONSE",
+        "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":13,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":16,\"explanation\":\"주인공의 능력 설정에 따르면 주인공은 마법을 사용할 수 없다고 명시되어 있습니다.\"}],\"reason\":\"주인공이 마법을 사용할 수 없다는 확정 설정과 마법을 사용했다는 현재 원고의 내용이 상충합니다.\",\"suggestion\":\"설정에 맞게 행동을 수정하거나 설정을 변경하는 것을 검토하세요.\"}]}",
+        "validated": null
+      },
+      {
+        "name": "motivation-gap",
+        "milliseconds": 1120,
+        "contractValid": true,
+        "expectationMatched": false,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c2",
+            "revision": 1,
+            "source": "주인공은 아무 이유 없이 친구를 일부러 죽였다.",
+            "settingIds": [
+              "2"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:55:52.988082100Z",
+            "settingsSnapshot": "[{\"id\":\"2\",\"title\":\"주인공 목표\",\"content\":\"주인공은 친구의 생명을 가장 소중히 여긴다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "explicit-twist",
+        "milliseconds": 1004,
+        "contractValid": true,
+        "expectationMatched": true,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c2",
+            "revision": 1,
+            "source": "봉인이 풀리자 주인공은 마법을 사용했다.",
+            "settingIds": [
+              "1"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:55:53.992145500Z",
+            "settingsSnapshot": "[{\"id\":\"1\",\"title\":\"능력 조건\",\"content\":\"주인공은 봉인이 풀리기 전까지 마법을 사용할 수 없다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "insufficient-evidence",
+        "milliseconds": 1026,
+        "contractValid": true,
+        "expectationMatched": true,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c2",
+            "revision": 1,
+            "source": "주인공은 방으로 걸어갔다.",
+            "settingIds": [
+              "1"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:55:55.019878900Z",
+            "settingsSnapshot": "[{\"id\":\"1\",\"title\":\"주인공 능력\",\"content\":\"주인공은 마법을 사용할 수 없다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "intent-inside-scope",
+        "milliseconds": 1604,
+        "contractValid": true,
+        "expectationMatched": true,
+        "errorCode": null,
+        "raw": "{\"reviews\":[]}",
+        "validated": {
+          "result": {
+            "chapterId": "c3",
+            "revision": 1,
+            "source": "주인공은 마법을 사용했다.",
+            "settingIds": [
+              "1"
+            ],
+            "previousIds": [],
+            "reviews": [],
+            "createdAt": "2026-10-27T05:55:56.626019900Z",
+            "settingsSnapshot": "[{\"id\":\"1\",\"title\":\"주인공 능력\",\"content\":\"주인공은 마법을 사용할 수 없다.\",\"kind\":\"인물\",\"status\":\"확정\",\"version\":0}]"
+          },
+          "candidates": []
+        }
+      },
+      {
+        "name": "intent-unrelated-conflict",
+        "milliseconds": 1798,
+        "contractValid": false,
+        "expectationMatched": false,
+        "errorCode": "INVALID_RESPONSE",
+        "raw": "{\n  \"reviews\": [\n    {\n      \"type\": \"설정 충돌 후보\",\n      \"quote\": \"동료는 물속에서 숨을 쉬었다.\",\n      \"startOffset\": 15,\n      \"endOffset\": 31,\n      \"evidences\": [\n        {\n          \"sourceType\": \"SETTING\",\n          \"sourceKey\": \"3\",\n          \"quote\": \"동료는 물속에서 숨을 쉴 수 없다.\",\n          \"startOffset\": 0,\n          \"endOffset\": 18,\n          \"explanation\": \"확정 설정상 동료는 물속에서 숨을 쉴 수 없다고 명시되어 있습니다.\"\n        }\n      ],\n      \"reason\": \"동료가 물속에서 숨을 쉴 수 없다는 확정 설정과 상충됩니다.\",\n      \"suggestion\": \"동료의 능력 설정 변경을 반영하거나 해당 행동을 수정하세요.\"\n    }\n  ]\n}",
+        "validated": null
+      },
+      {
+        "name": "intent-outside-scope",
+        "milliseconds": 1302,
+        "contractValid": false,
+        "expectationMatched": false,
+        "errorCode": "INVALID_RESPONSE",
+        "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"마법을 사용했다\",\"startOffset\":6,\"endOffset\":13,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":17,\"explanation\":\"확정된 설정에 따르면 주인공은 마법을 사용할 수 없다고 명시되어 있습니다.\"}],\"reason\":\"주인공은 마법을 사용할 수 없다는 설정과 현재 원고에서 마법을 사용했다는 내용이 서로 충돌합니다.\",\"suggestion\":\"주인공의 능력을 수정하거나 마법을 사용한 원인을 보완하세요.\"}]}",
+        "validated": null
+      }
+    ],
+    "maximumCalls": 8,
+    "model": "gemini-3.5-flash-lite",
+    "plannedScenarios": 8,
+    "evaluatedAt": "2026-10-27T05:55:59.726054700Z"
+  }
+}

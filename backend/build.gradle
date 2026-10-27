@@ -43,6 +43,23 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
     exclude '**/MySqlRefactoringTests.class'
+    exclude '**/GeminiQualityEvaluationTests.class'
+}
+
+tasks.register('geminiTest', Test) {
+    description = 'Evaluate bounded synthetic manuscripts with the configured real Gemini model'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    useJUnitPlatform()
+    filter { includeTestsMatching 'com.magister.backend.verification.GeminiQualityEvaluationTests' }
+    doFirst {
+        if (providers.environmentVariable('MAGISTER_RUN_GEMINI_TESTS').getOrElse('') != 'true') {
+            throw new GradleException('Set MAGISTER_RUN_GEMINI_TESTS=true to send only the synthetic evaluation fixtures to Gemini (maximum 8 calls)')
+        }
+    }
 }
 
 tasks.register('mysqlTest', Test) {

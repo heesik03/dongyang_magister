@@ -46,7 +46,11 @@ public class AnalysisJobStateService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<Claim> claim(String jobId) {
-        AnalysisJob job = analysisJobRepository.lockById(jobId).orElseThrow();
+        Optional<AnalysisJob> optionalJob = analysisJobRepository.lockById(jobId);
+        if (optionalJob.isEmpty()) {
+            return Optional.empty();
+        }
+        AnalysisJob job = optionalJob.get();
 
         // 한 작업이 여러 실행기에 전달되더라도 배정된 프로세스만 공급자 호출을 시작한다.
         if (job.getWorkerId() != null
@@ -70,7 +74,11 @@ public class AnalysisJobStateService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void succeed(String jobId, ValidatedAnalysis result) {
-        AnalysisJob job = analysisJobRepository.lockById(jobId).orElseThrow();
+        Optional<AnalysisJob> optionalJob = analysisJobRepository.lockById(jobId);
+        if (optionalJob.isEmpty()) {
+            return;
+        }
+        AnalysisJob job = optionalJob.get();
         if (job.getStatus() != AnalysisJobStatus.RUNNING) {
             return;
         }
@@ -121,8 +129,11 @@ public class AnalysisJobStateService {
             }
         }
 
-        return sortedJobIds.isEmpty()
-                ? List.of()
-                : analysisJobRepository.findTerminalIds(sortedJobIds, ACTIVE);
+        if (sortedJobIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> presentActive =
+                analysisJobRepository.findPresentActiveIds(sortedJobIds, ACTIVE);
+        return sortedJobIds.stream().filter(id -> !presentActive.contains(id)).toList();
     }
 }

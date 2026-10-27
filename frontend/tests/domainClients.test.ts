@@ -411,6 +411,7 @@ test('판단·사건 저장 요청은 원고 본문을 workspace로 다시 전�
         version: 0,
         mutationId: 'decision',
         separateChapters: true,
+        separateReviews: true,
         content: { chapters: [], analyses: [], events: [] },
       },
     }),
@@ -566,4 +567,17 @@ test('커서 메타데이터가 모순되거나 반복되면 무한 조회하지
   request.mockResolvedValue(success({ items: [setting], hasNext: true, nextCursor: 'repeated' }))
   await expect(settingClient.listAll('1')).rejects.toThrow('커서가 반복')
   expect(request).toHaveBeenCalledTimes(3)
+})
+
+test('작품 삭제는 CSRF와 읽었던 버전을 전달하고 204를 처리한다', async () => {
+  request.mockResolvedValueOnce(csrf()).mockResolvedValueOnce({ status: 204, data: '' })
+  await expect(workClient.delete('work/id', 7)).resolves.toBeUndefined()
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      method: 'DELETE',
+      url: '/work/work%2Fid',
+      params: { version: 7 },
+      headers: expect.objectContaining({ 'X-CSRF-TOKEN': expect.any(String) }),
+    }),
+  )
 })

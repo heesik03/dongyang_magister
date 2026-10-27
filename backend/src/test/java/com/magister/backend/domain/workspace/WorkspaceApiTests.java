@@ -44,8 +44,13 @@ import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.repository.WorkRepository;
+import com.magister.backend.domain.workspace.dto.SaveWorkspaceRequest;
+import com.magister.backend.domain.workspace.dto.WorkspaceData;
+import com.magister.backend.domain.workspace.dto.WorkspaceData.AnalysisData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
+import com.magister.backend.domain.workspace.dto.WorkspaceData.ReviewData;
 import com.magister.backend.domain.workspace.repository.WorkspaceRepository;
+import com.magister.backend.domain.workspace.service.WorkspaceService;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.gemini.GeminiClient;
 
@@ -77,6 +82,7 @@ import java.util.UUID;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class WorkspaceApiTests {
+    @Autowired WorkspaceService workspaceService;
     @Autowired AnalysisPreviewService previewService;
     @Autowired ChapterRepository chapterRepository;
     @Autowired MockMvc mvc;
@@ -158,6 +164,62 @@ class WorkspaceApiTests {
     private String body(long version, String mutation, String text) {
         return json.writeValueAsString(
                 Map.of("version", version, "mutationId", mutation, "content", content(text)));
+    }
+
+    @Test
+    void modernEventSavePreservesLegacyReviewsAndRejectsJudgmentRewrite() {
+        ReviewData review =
+                new ReviewData(
+                        "old-review", "설명 보완", "원고", "setting", "근거", "이유", "질문", "보류", "추가 확인");
+        AnalysisData analysis =
+                new AnalysisData(
+                        "legacy",
+                        1,
+                        "원고",
+                        List.of("setting"),
+                        List.of(),
+                        List.of(review),
+                        "2026-10-27T00:00:00Z",
+                        null);
+        WorkspaceData original =
+                new WorkspaceData(
+                        List.of(new ChapterData("legacy", "이전 회차", "원고", 1)),
+                        List.of(analysis),
+                        List.of());
+        workspaceService.save(
+                ownerId, workId, new SaveWorkspaceRequest(0, "legacy-import", original));
+        SaveWorkspaceRequest modern =
+                new SaveWorkspaceRequest(1, "event-save", WorkspaceData.empty(), true, true);
+        assertThat(workspaceService.save(ownerId, workId, modern).content().analyses())
+                .containsExactly(analysis);
+        assertThat(workspaceService.save(ownerId, workId, modern).version()).isEqualTo(2);
+        assertThatThrownBy(
+                        () ->
+                                workspaceService.save(
+                                        ownerId,
+                                        workId,
+                                        new SaveWorkspaceRequest(
+                                                2,
+                                                "erase-judgment",
+                                                WorkspaceData.empty(),
+                                                true,
+                                                false)))
+                .isInstanceOf(CustomException.class);
+        assertThatThrownBy(
+                        () ->
+                                workspaceService.save(
+                                        ownerId,
+                                        workId,
+                                        new SaveWorkspaceRequest(
+                                                2,
+                                                "modern-with-review",
+                                                new WorkspaceData(
+                                                        List.of(), List.of(analysis), List.of()),
+                                                true,
+                                                true)))
+                .isInstanceOf(CustomException.class);
+        assertThat(workspaceService.get(ownerId, workId).content().analyses())
+                .containsExactly(analysis);
     }
 
     @Test

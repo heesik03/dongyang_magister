@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useWorksStore } from '../works/useWorksStore'
+import {
+  decisionDraftKey,
+  readDecisionDraft,
+  writeDecisionDraft,
+  type DecisionDraft,
+} from './decisionDraftStorage'
 import { createPortal } from 'react-dom'
 import { Dialog } from '../../shared/Dialog'
 import {
@@ -23,6 +30,7 @@ export function DecisionEditor({
   onSaved: () => void
   onClose: () => void
 }) {
+  const account = useWorksStore((state) => state.account)
   const [loaded, setLoaded] = useState<SavedDecision | null>(null)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
@@ -44,7 +52,12 @@ export function DecisionEditor({
   }, [work.id, review.id, reload])
   // 검토 패널이 모바일에서 접혀도 열린 판단 폼과 작성 중인 내용은 유지한다.
   return createPortal(
-    <Dialog title="작가 판단 기록" onClose={onClose}>
+    <Dialog
+      title="작가 판단 기록"
+      onClose={onClose}
+      closeMessage="서버에 저장하지 않고 닫을까요? 이 탭의 판단 초안은 다시 복구할 수 있습니다."
+      confirmCloseLabel="초안 보관하고 닫기"
+    >
       {error && (
         <div role="alert">
           <p>{error}</p>
@@ -54,6 +67,7 @@ export function DecisionEditor({
       {!loaded && !error && <p role="status">최신 판단을 확인하고 있습니다.</p>}
       {loaded && (
         <DecisionForm
+          key={account}
           work={work}
           review={review}
           initial={loaded}
@@ -94,6 +108,22 @@ function DecisionForm({
   onSaved: () => void
   onClose: () => void
 }) {
+  const account = useWorksStore((state) => state.account)
+  const draftKey = decisionDraftKey(account, work.id, review.id)
+  const [recovery] = useState(() => {
+    try {
+      const draft = readDecisionDraft(draftKey)
+      if (draft && draft.baseline.reviewId !== review.id) throw new Error('검토 식별자 불일치')
+      return { draft, error: '' }
+    } catch {
+      return { draft: null, error: '판단 초안을 읽지 못했습니다. 저장소 원본은 유지됩니다.' }
+    }
+  })
+  const [availableDraft, setAvailableDraft] = useState(recovery.draft)
+  const [storageError, setStorageError] = useState(recovery.error)
+  const [storageBlocked, setStorageBlocked] = useState(!!recovery.error)
+  const [dirty, setDirty] = useState(false)
+  const completed = useRef(false)
   const [baseline, setBaseline] = useState(initial)
   const [status, setStatus] = useState<Decision>(initialStatus)
   const [reason, setReason] = useState(initial.reason)
@@ -135,7 +165,60 @@ function DecisionForm({
       historyRequest.current?.abort()
     }
   }, [])
+  function persistDraft(request: DecisionRequest | null = pending.current) {
+    try {
+      writeDecisionDraft(draftKey, {
+        baseline,
+        status,
+        reason,
+        scopes: scopes.map(scopeFields),
+        reconfirm,
+        pending: request,
+      })
+      setStorageError('')
+    } catch {
+      setStorageError(
+        '판단 초안 보관에 실패했습니다. 창을 닫기 전에 작성 내용을 별도로 보관해 주세요.',
+      )
+    }
+  }
+  useEffect(() => {
+    if (dirty && !completed.current && !availableDraft && !storageBlocked) {
+      try {
+        writeDecisionDraft(draftKey, {
+          baseline,
+          status,
+          reason,
+          scopes: scopes.map(scopeFields),
+          reconfirm,
+          pending: pending.current,
+        })
+      } catch {
+        // 렌더 중 입력은 유지하며 별도 상태로 저장소 실패를 알린다.
+        queueMicrotask(() => {
+          if (mounted.current)
+            setStorageError('판단 초안 보관에 실패했습니다. 작성 내용을 별도로 보관해 주세요.')
+        })
+      }
+    }
+  }, [dirty, baseline, status, reason, scopes, reconfirm, draftKey, availableDraft, storageBlocked])
+  function restore(draft: DecisionDraft) {
+    setBaseline(draft.baseline)
+    setStatus(draft.status)
+    setReason(draft.reason)
+    setScopes(draft.scopes.map((scope) => ({ ...scope, key: crypto.randomUUID() })))
+    setReconfirm(draft.reconfirm)
+    pending.current = draft.pending
+    setDirty(true)
+    setAvailableDraft(null)
+    if (
+      draft.baseline.version !== initial.version ||
+      draft.baseline.basisHash !== initial.basisHash
+    )
+      setComparison(initial)
+  }
   function changed() {
+    setDirty(true)
     pending.current = null
     setError('')
   }
@@ -147,7 +230,7 @@ function DecisionForm({
   }
   async function save(event: FormEvent) {
     event.preventDefault()
-    if (saving) return
+    if (saving || storageBlocked || availableDraft) return
     const request: DecisionRequest = pending.current ?? {
       status,
       reason,
@@ -165,10 +248,19 @@ function DecisionForm({
             })),
     }
     pending.current = request
+    persistDraft(request)
     setSaving(true)
     setError('')
     try {
       await decisionClient.save(work.id, review.id, request)
+      completed.current = true
+      try {
+        sessionStorage.removeItem(draftKey)
+      } catch {
+        useWorksStore.setState({
+          storageError: '판단은 서버에 저장했지만 이 탭의 초안 정리에 실패했습니다.',
+        })
+      }
       if (mounted.current) {
         onSaved()
         onClose()
@@ -205,6 +297,50 @@ function DecisionForm({
   }
   return (
     <form className="stack" onSubmit={save}>
+      {availableDraft && (
+        <div className="notice" role="status">
+          <p>
+            이 탭에서 보관한 판단 초안이 있습니다. 이전 저장 버전과 요청 식별자도 함께 복구합니다.
+          </p>
+          <button type="button" onClick={() => restore(availableDraft)}>
+            판단 초안 복구
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                sessionStorage.removeItem(draftKey)
+                setAvailableDraft(null)
+              } catch {
+                setStorageError('초안을 삭제하지 못했습니다.')
+              }
+            }}
+          >
+            보관한 판단 초안 버리기
+          </button>
+        </div>
+      )}
+      {storageError && <p role="alert">{storageError}</p>}
+      {storageBlocked && (
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              sessionStorage.removeItem(draftKey)
+              setStorageBlocked(false)
+              setStorageError('')
+            } catch {
+              setStorageError('초안 원본을 삭제하지 못했습니다.')
+            }
+          }}
+        >
+          읽을 수 없는 초안 원본 버리기
+        </button>
+      )}
+      <p className="small muted">
+        작성 내용은 이 탭의 임시 저장소에 보관됩니다. 탭을 닫거나 브라우저 자료를 지우면 복구할 수
+        없습니다.
+      </p>
       <blockquote style={{ overflowWrap: 'anywhere' }}>{review.quote}</blockquote>
       <p className="small muted">
         저장 기준 버전 {baseline.version}. 판단은 원고·설정을 자동으로 바꾸지 않습니다.
@@ -455,6 +591,8 @@ function DecisionForm({
           className="primary"
           disabled={
             saving ||
+            storageBlocked ||
+            !!availableDraft ||
             (status !== '미검토' && (!baseline.canReconfirm || (baseline.stale && !reconfirm)))
           }
         >

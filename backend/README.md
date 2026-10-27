@@ -172,3 +172,18 @@ Flyway V9는 기존 workspace JSON의 회차 ID·순서·본문·revision을 `ch
 ```
 
 Java 코드는 google-java-format 1.28.0의 AOSP 스타일(4칸 들여쓰기)로 정리했습니다. 주요 인증 로직은 `SessionAuthenticationService`, DB 저장은 `UserService`, 접근 정책은 `SecurityConfig`에서 관리합니다. Controller는 입력 검증과 응답 조립을 담당합니다.
+
+
+### 작품 삭제와 과거 workspace 호환
+
+- `DELETE /api/work/{workId}?version={현재버전}`: 세션·CSRF·소유권·버전 검사 후 204(본문 없음). 충돌 409, 미존재·타인 작품 404, 잘못된 버전 400.
+- 한 트랜잭션에서 활성 작업 종료 → 재분석 판단 참조 → 판단 범위·이력 → 검토 근거·후보 → 분석 원본·작업 → workspace·회차·설정 → 작품 순으로 삭제한다. 커밋 후 실행기를 취소하며 늦은 결과는 버린다. 다른 노드 실행기도 다음 유지보수에서 없어진 작업을 중단한다.
+- 외부 공급자 자료와 내려받은 파일·다른 브라우저 사본의 삭제는 보장하지 않는다. 자동 보관 기간은 `ANALYSIS_JOB_RETENTION`을 따른다(기본 0: 자동 삭제 없음). 판단 이력이 있는 분석은 자동 정리에서 보호하며 작품 삭제로 제거할 수 있다.
+- 최신 workspace 저장은 `separateChapters=true`, `separateReviews=true`, `content.chapters=[]`, `content.analyses=[]`와 `events`를 보낸다. 서버는 과거 검토 JSON을 보존한다. 구형 전체 문서는 초기 revision 0에서만 가져올 수 있고 이후 검토·판단 변경은 거절한다. 새 판단은 판단 API를 사용한다.
+- 필요한 V1–V13 Flyway 이력을 유지한다. 이번 단계에는 스키마 변경이 없다.
+
+### 실제 Gemini 합성 품질 평가
+
+PowerShell에서 `$env:MAGISTER_RUN_GEMINI_TESTS='true'` 설정 후 `.\gradlew.bat geminiTest --max-workers=2`를 실행한다. `.env` 또는 환경 변수의 `GEMINI_API_KEY`, `GEMINI_MODEL`을 사용하며 **최대 8회** 실제 호출·비용이 발생한다. 일반 `test`에서는 제외한다. 고정 합성 자료만 전송하며 `build/reports/gemini-evaluation.json`에 결과를 남긴다. 인증·호출 한도 등 공급자 오류가 발생하면 남은 호출을 중단한다.
+
+2026-10-27 평가에서 위치 오류와 동기 누락을 확인했다. 운영 품질 통과로 해석하지 않는다. [5단계 검증 기록](../docs/verification/issue-10-stage-five.md), [실제 합성 응답 기록](../docs/verification/issue-10-gemini-evaluation.json).

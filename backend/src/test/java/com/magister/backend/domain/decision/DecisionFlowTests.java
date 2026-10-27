@@ -2,8 +2,12 @@ package com.magister.backend.domain.decision;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -36,6 +40,7 @@ import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.repository.WorkRepository;
+import com.magister.backend.domain.work.service.WorkDeletionService;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.pagination.OffsetPageRequest;
 
@@ -68,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class DecisionFlowTests {
+    @Autowired WorkDeletionService workDeletionService;
     @Autowired DecisionService decisionService;
     @Autowired ChapterService chapterService;
     @Autowired SettingService settingService;
@@ -175,6 +181,151 @@ class DecisionFlowTests {
     }
 
     @Test
+    void deletesEntireGraphRejectsStaleVersionAndDiscardsLateCompletion() throws Exception {
+        Long sceneSourceId =
+                snapshotService.get(ownerId, workId, jobId).sources().stream()
+                        .filter(source -> source.type().equals("TARGET"))
+                        .findFirst()
+                        .orElseThrow()
+                        .id();
+        save(
+                intent(
+                        0,
+                        List.of(
+                                range("c2", "c4"),
+                                new DecisionRequest.Scope(
+                                        "SCENE", null, null, sceneSourceId, 0, 5, "이 장면"))));
+        AnalysisRequest next = request("c3", List.of(settingId.toString()));
+        AnalysisPreviewResponse nextPreview = previewService.preview(ownerId, workId, next);
+        String activeId =
+                jobService
+                        .create(
+                                ownerId,
+                                workId,
+                                next.confirmed(
+                                        nextPreview.previewToken(), nextPreview.policyVersion()))
+                        .id();
+        stateService.claim(activeId).orElseThrow();
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM analysis_decision_references WHERE job_id=?",
+                                Long.class,
+                                activeId))
+                .isEqualTo(1);
+        Long otherWorkId =
+                transactionTemplate.execute(
+                        transactionStatus ->
+                                workRepository
+                                        .saveAndFlush(
+                                                new Work(
+                                                        userRepository
+                                                                .findById(ownerId)
+                                                                .orElseThrow(),
+                                                        "보존 작품",
+                                                        "판타지",
+                                                        "",
+                                                        ""))
+                                        .getId());
+        jdbcTemplate.update(
+                "INSERT INTO workspaces(work_id,content,revision,mutation_id,updated_at,version)"
+                    + " VALUES(?, '{}', 1, 'legacy', CURRENT_TIMESTAMP, 0)",
+                workId);
+        long version = workRepository.findById(workId).orElseThrow().getVersion();
+        mockMvc.perform(
+                        delete("/api/work/" + workId)
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .param("version", Long.toString(version - 1)))
+                .andExpect(status().isConflict());
+        assertThat(workRepository.existsById(workId)).isTrue();
+        mockMvc.perform(
+                        delete("/api/work/" + workId)
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .param("version", Long.toString(version)))
+                .andExpect(status().isNoContent());
+        assertThat(workRepository.existsById(workId)).isFalse();
+        assertThat(workRepository.existsById(otherWorkId)).isTrue();
+        for (String table :
+                List.of(
+                        "analysis_jobs",
+                        "analysis_sources",
+                        "chapters",
+                        "work_settings",
+                        "workspaces")) {
+            String column = table.equals("analysis_sources") ? "job_id" : "work_id";
+            if (table.equals("analysis_sources")) {
+                assertThat(
+                                jdbcTemplate.queryForObject(
+                                        "SELECT COUNT(*) FROM " + table + " WHERE job_id IN (?,?)",
+                                        Long.class,
+                                        jobId,
+                                        activeId))
+                        .isZero();
+            } else {
+                assertThat(
+                                jdbcTemplate.queryForObject(
+                                        "SELECT COUNT(*) FROM " + table + " WHERE " + column + "=?",
+                                        Long.class,
+                                        workId))
+                        .isZero();
+            }
+        }
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM review_decisions WHERE review_id=?",
+                                Long.class,
+                                reviewId))
+                .isZero();
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM review_candidates WHERE id=?",
+                                Long.class,
+                                reviewId))
+                .isZero();
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM analysis_decision_references WHERE job_id=?",
+                                Long.class,
+                                activeId))
+                .isZero();
+        stateService.succeed(
+                activeId, resultProcessor.validateDetailed(provider(), nextPreview.input()));
+        assertThat(stateService.claim(activeId)).isEmpty();
+        assertThat(stateService.maintain(List.of(activeId))).contains(activeId);
+        assertThat(jobRepository.existsById(activeId)).isFalse();
+        verify(dispatcher).cancel(activeId);
+    }
+
+    @Test
+    void rollbackKeepsGraphAndDoesNotCancelWorker() {
+        save(intent(0, List.of(range("c2", "c4"))));
+        AnalysisRequest next = request("c3", List.of(settingId.toString()));
+        AnalysisPreviewResponse nextPreview = previewService.preview(ownerId, workId, next);
+        String activeId =
+                jobService
+                        .create(
+                                ownerId,
+                                workId,
+                                next.confirmed(
+                                        nextPreview.previewToken(), nextPreview.policyVersion()))
+                        .id();
+        clearInvocations(dispatcher);
+        transactionTemplate.executeWithoutResult(
+                transactionStatus -> {
+                    workDeletionService.delete(
+                            ownerId,
+                            workId,
+                            workRepository.findById(workId).orElseThrow().getVersion());
+                    transactionStatus.setRollbackOnly();
+                });
+        assertThat(workRepository.existsById(workId)).isTrue();
+        assertThat(jobRepository.existsById(activeId)).isTrue();
+        assertThat(decisionService.get(ownerId, workId, reviewId).version()).isEqualTo(1);
+        verify(dispatcher, never()).cancel(activeId);
+    }
+
+    @Test
     void versionsIdempotencyWithdrawalHistoryAndAccessAreExplicit() throws Exception {
         DecisionRequest request = intent(0, List.of(range("c2", "c3")));
         mockMvc.perform(
@@ -238,17 +389,23 @@ class DecisionFlowTests {
         for (int index = 0; index < 105; index++) {
             String candidateId = "stale-review-" + index;
             jdbcTemplate.update(
-                    "INSERT INTO review_candidates (id, job_id, target_source_id, type, quote, start_offset, end_offset, reason, suggestion) VALUES (?, ?, ?, '설정 충돌 후보', '마법 사용', 0, 5, '이유', '제안')",
+                    "INSERT INTO review_candidates (id, job_id, target_source_id, type, quote,"
+                        + " start_offset, end_offset, reason, suggestion) VALUES (?, ?, ?, '설정 충돌"
+                        + " 후보', '마법 사용', 0, 5, '이유', '제안')",
                     candidateId,
                     jobId,
                     targetSourceId);
             jdbcTemplate.update(
-                    "INSERT INTO review_evidences (job_id, review_id, source_id, quote, start_offset, end_offset, explanation) VALUES (?, ?, ?, '마법 불가', 0, 5, '설명')",
+                    "INSERT INTO review_evidences (job_id, review_id, source_id, quote,"
+                        + " start_offset, end_offset, explanation) VALUES (?, ?, ?, '마법 불가', 0, 5,"
+                        + " '설명')",
                     jobId,
                     candidateId,
                     evidenceSourceId);
             jdbcTemplate.update(
-                    "INSERT INTO review_decisions (review_id, decision_version, status, reason, mutation_id, request_body, basis_hash, created_at) VALUES (?, 1, '의도된 설정', '이전 사유', ?, '{}', 'stale-hash', CURRENT_TIMESTAMP)",
+                    "INSERT INTO review_decisions (review_id, decision_version, status, reason,"
+                        + " mutation_id, request_body, basis_hash, created_at) VALUES (?, 1, '의도된"
+                        + " 설정', '이전 사유', ?, '{}', 'stale-hash', CURRENT_TIMESTAMP)",
                     candidateId,
                     "stale-mutation-" + index);
             Long decisionId =
@@ -257,7 +414,8 @@ class DecisionFlowTests {
                             Long.class,
                             candidateId);
             jdbcTemplate.update(
-                    "INSERT INTO review_decision_scopes (decision_id, scope_type, from_chapter_id, condition_text) VALUES (?, 'CHAPTER_RANGE', ?, '조건')",
+                    "INSERT INTO review_decision_scopes (decision_id, scope_type, from_chapter_id,"
+                        + " condition_text) VALUES (?, 'CHAPTER_RANGE', ?, '조건')",
                     decisionId,
                     chapterEntityId);
         }

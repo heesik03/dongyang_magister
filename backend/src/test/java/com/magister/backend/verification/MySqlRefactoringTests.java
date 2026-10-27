@@ -33,6 +33,7 @@ import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.service.UserService;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.repository.WorkRepository;
+import com.magister.backend.domain.work.service.WorkDeletionService;
 import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
 import com.magister.backend.domain.workspace.entity.Workspace;
@@ -91,6 +92,7 @@ class MySqlRefactoringTests {
     @Autowired AnalysisJobStateService stateService;
     @Autowired AnalysisResultProcessor resultProcessor;
     @Autowired DecisionService decisionService;
+    @Autowired WorkDeletionService workDeletionService;
     @Autowired ChapterRepository chapterRepository;
     @Autowired ChapterService chapterService;
     @Autowired UserRepository users;
@@ -106,7 +108,7 @@ class MySqlRefactoringTests {
     @MockitoSpyBean PasswordEncoder passwordEncoder;
 
     @Test
-    void decisionVersionsScopesAndReferencesOnMySql() {
+    void decisionVersionsScopesReferencesAndWorkDeletionOnMySql() {
         Fixture fixture = fixture(null);
         chapterService.create(
                 fixture.ownerId(),
@@ -153,7 +155,19 @@ class MySqlRefactoringTests {
                                         null,
                                         null,
                                         null,
-                                        "after seal release")));
+                                        "after seal release"),
+                                new DecisionRequest.Scope(
+                                        "SCENE",
+                                        null,
+                                        null,
+                                        jdbc.queryForObject(
+                                                "SELECT id FROM analysis_sources WHERE job_id=? AND"
+                                                    + " source_type='TARGET'",
+                                                Long.class,
+                                                jobId),
+                                        0,
+                                        4,
+                                        "specific scene")));
         DecisionResponse saved =
                 decisionService.save(fixture.ownerId(), fixture.workId(), reviewId, request);
         assertThat(saved.version()).isEqualTo(1);
@@ -211,7 +225,36 @@ class MySqlRefactoringTests {
                         UncategorizedSQLException.class,
                         error ->
                                 assertThat(error.getSQLException().getErrorCode()).isEqualTo(3819));
-        jobs.cancel(fixture.ownerId(), fixture.workId(), nextId);
+        stateService.claim(nextId).orElseThrow();
+        Fixture preserved = fixture(fixture.ownerId());
+        workDeletionService.delete(
+                fixture.ownerId(),
+                fixture.workId(),
+                works.findById(fixture.workId()).orElseThrow().getVersion());
+        assertThat(works.existsById(fixture.workId())).isFalse();
+        assertThat(works.existsById(preserved.workId())).isTrue();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM analysis_jobs WHERE work_id=?",
+                                Long.class,
+                                fixture.workId()))
+                .isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM review_decisions WHERE review_id=?",
+                                Long.class,
+                                reviewId))
+                .isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM analysis_decision_references WHERE job_id=?",
+                                Long.class,
+                                nextId))
+                .isZero();
+        stateService.succeed(
+                nextId, resultProcessor.validateDetailed(provider, nextPreview.input()));
+        assertThat(stateService.claim(nextId)).isEmpty();
+        assertThat(stateService.maintain(List.of(nextId))).contains(nextId);
     }
 
     @Test

@@ -1,9 +1,13 @@
 import { useEffect, type ReactNode } from 'react'
 import { isRecord } from '../../shared/responseReader'
+import { workClient } from './workClient'
+import { ApiError } from '../../shared/httpClient'
 import { useWorksStore } from './useWorksStore'
+let providerGeneration = 0
 export function WorksProvider({ email, children }: { email: string; children: ReactNode }) {
   const account = useWorksStore((state) => state.account)
   useEffect(() => {
+    const generation = ++providerGeneration
     useWorksStore.getState().initialize(email)
     void useWorksStore.getState().loadShortcuts()
     function preserve(): Promise<void[]> {
@@ -30,6 +34,27 @@ export function WorksProvider({ email, children }: { email: string; children: Re
       }
     }
     function remote(event: StorageEvent) {
+      if (event.key === 'magister.work-deleted:' + email && event.newValue) {
+        try {
+          const value: unknown = JSON.parse(event.newValue)
+          if (isRecord(value) && typeof value.id === 'string') {
+            const id = value.id
+            // 이벤트만으로 초안을 버리지 않고 서버의 삭제 상태를 확인한다.
+            void workClient.get(id).catch((error) => {
+              if (
+                error instanceof ApiError &&
+                error.status === 404 &&
+                generation === providerGeneration &&
+                useWorksStore.getState().account === email
+              )
+                void useWorksStore.getState().forgetDeletedWork(id)
+            })
+          }
+        } catch {
+          /* 잘못된 이벤트는 자료 삭제의 근거로 사용하지 않는다. */
+        }
+        return
+      }
       if (event.key === 'magister.chapter-saved:' + email && event.newValue) {
         try {
           const value: unknown = JSON.parse(event.newValue)
@@ -64,7 +89,7 @@ export function WorksProvider({ email, children }: { email: string; children: Re
       window.removeEventListener('beforeunload', leave)
       window.removeEventListener('storage', remote)
       void preserve().finally(() => {
-        if (useWorksStore.getState().account === email) {
+        if (generation === providerGeneration && useWorksStore.getState().account === email) {
           useWorksStore.getState().reset()
         }
       })

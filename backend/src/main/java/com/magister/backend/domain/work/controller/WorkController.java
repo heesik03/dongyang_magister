@@ -5,6 +5,7 @@ import com.magister.backend.domain.work.docs.WorkControllerDocs;
 import com.magister.backend.domain.work.dto.CreateWorkRequest;
 import com.magister.backend.domain.work.dto.UpdateWorkRequest;
 import com.magister.backend.domain.work.dto.WorkResponse;
+import com.magister.backend.domain.work.service.WorkDeletionService;
 import com.magister.backend.domain.work.service.WorkService;
 import com.magister.backend.global.pagination.OffsetPageResponse;
 import com.magister.backend.global.response.ApiResult;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +31,17 @@ import java.net.URI;
 @RequiredArgsConstructor
 public class WorkController implements WorkControllerDocs {
     private final WorkService workService;
+    private final WorkDeletionService workDeletionService;
+
+    @Override
+    @DeleteMapping("/{workId}")
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId,
+            @RequestParam long version) {
+        workDeletionService.delete(user.id(), workId, version);
+        return ResponseEntity.noContent().build();
+    }
 
     @Override
     @PostMapping

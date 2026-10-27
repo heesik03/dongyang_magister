@@ -33,6 +33,10 @@ public class WorkspaceService {
 
     /** 검토·사건 JSON 직렬화는 잠금 밖에서 처리한다. 최신 회차 참조 검증은 저장 트랜잭션에서 수행한다. */
     public WorkspaceResponse save(Long ownerId, Long workId, SaveWorkspaceRequest request) {
+        if (Boolean.TRUE.equals(request.separateReviews())
+                && !request.content().analyses().isEmpty()) {
+            throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+        }
         if (Boolean.TRUE.equals(request.separateChapters())) {
             if (!request.content().chapters().isEmpty()) {
                 throw new CustomException(CommonErrorCode.INVALID_REQUEST);

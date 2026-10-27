@@ -16,7 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 
-@Tag(name = "Workspace", description = "회차 원고 호환 조회 및 검토·판단·사건 편집 문서 관리")
+@Tag(name = "Workspace", description = "회차·과거 검토 호환 조회 및 사건 편집 문서 관리")
 @SecurityRequirement(name = "session")
 public interface WorkspaceControllerDocs {
 
@@ -83,18 +83,18 @@ public interface WorkspaceControllerDocs {
                     """
                     **목적**
 
-                    검토 근거, 작가의 판단과 사건 정보를 보관합니다. 현재 원고는 회차별 API로 저장합니다.
+                    사건 정보를 저장합니다. 현재 원고는 회차별 API, 새 검토 판단은 판단 API로 저장합니다.
 
                     **제공 기능**
 
-                    작업공간 문서 전체를 저장합니다. 검토 항목에는 미검토·수용·보류·의도된 설정 상태와 메모를 기록할 수 있습니다.
+                    과거 workspace 검토는 호환 조회로 보존하며 이 API로 판단을 수정할 수 없습니다.
 
                     **도메인 정책**
 
-                    - 본인 작품만 저장할 수 있습니다. separateChapters=true와 content.chapters=[]를 보내고 analyses·events 전체를 전달합니다.
+                    - 본인 작품만 저장할 수 있습니다. separateChapters=true, separateReviews=true와 content.chapters=[], content.analyses=[]를 보내고 events 전체를 전달합니다. 서버는 기존 과거 검토를 보존합니다.
                       회차 참조는 서버의 현재 원고로 검증하며 이 요청은 원고를 변경하지 않습니다.
                     - 구형 요청은 최초 빈 작품의 원고 가져오기만 허용합니다. 기존 원고와 다른 chapters를 전송하면 409입니다.
-                    - 의도된 설정을 선택하면 판단 사유(note)를 반드시 입력해야 합니다. 판단은 해당 검토 항목의 맥락으로 보관하며 설정집을 자동 변경하지 않습니다.
+                    - 구형 전체 문서는 workspace revision=0에서 최초 한 번만 가져올 수 있습니다. 이후 analyses 수정·삭제는 400으로 거절하고, 동일 내용 전달만 호환합니다. 과거 판단에 새 적용 범위를 추정해 만들지 않습니다.
                     - 회차 ID는 중복될 수 없고 검토 기록은 회차당 최대 1개입니다.
                       검토 대상·참고 회차와 사건의 연결 회차는 문서 안에 존재해야 합니다.
                       사건의 연결 회차는 빈 문자열을 허용합니다.

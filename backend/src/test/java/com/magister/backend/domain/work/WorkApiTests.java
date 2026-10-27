@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -76,6 +77,35 @@ class WorkApiTests {
 
     private String body() {
         return "{\"title\":\"새 작품\",\"genre\":\"판타지\",\"era\":\"중세\",\"description\":\"소개\"}";
+    }
+
+    @Test
+    void deletionRequiresOwnershipCsrfAndNonnegativeVersion() throws Exception {
+        Work work =
+                transaction.execute(
+                        transactionStatus ->
+                                works.saveAndFlush(
+                                        new Work(
+                                                users.findById(
+                                                                ((LoginUser) owner.getPrincipal())
+                                                                        .id())
+                                                        .orElseThrow(),
+                                                "삭제",
+                                                "판타지",
+                                                "",
+                                                "")));
+        String path = "/api/work/" + work.getId();
+        mvc.perform(delete(path).with(csrf()).param("version", "0"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete(path).with(authentication(owner)).param("version", "0"))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete(path).with(authentication(other)).with(csrf()).param("version", "0"))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete(path).with(authentication(owner)).with(csrf()).param("version", "-1"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(delete(path).with(authentication(owner)).with(csrf()))
+                .andExpect(status().isBadRequest());
+        assertEquals(true, works.existsById(work.getId()));
     }
 
     @Test
@@ -203,8 +233,8 @@ class WorkApiTests {
         String path = "/api/work/" + id + "/setting";
         String settingBody =
                 "{\"title\":\"인물"
-                        + " 능력\",\"kind\":\"CHARACTER\",\"status\":\"CONFIRMED\",\"content\":\"마법 사용"
-                        + " 불가\"}";
+                    + " 능력\",\"kind\":\"CHARACTER\",\"status\":\"CONFIRMED\",\"content\":\"마법 사용"
+                    + " 불가\"}";
         String response =
                 mvc.perform(
                                 post(path)

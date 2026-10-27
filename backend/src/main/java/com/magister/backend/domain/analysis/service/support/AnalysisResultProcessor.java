@@ -107,7 +107,9 @@ public class AnalysisResultProcessor {
                 수용·보류는 오류가 없다는 허가가 아니다. 의도된 설정도 조건에 맞는 관련 근거에만 참고하라.
                 과거 판단을 새 후보의 처리 상태로 복사하지 마라. 상충하는 판단은 임의로 하나를 택하지 말고 확인 질문을 제시하라.
         응답은 코드블록 없이 다음 JSON만 반환하라. 문제가 없으면 reviews는 빈 배열이다.
-        {"reviews":[{"type":"설정 충돌 후보 또는 설명 보완","quote":"현재 회차 원고의 정확한 인용문","startOffset":0,"endOffset":10,"evidences":[{"sourceType":"SETTING 또는 PREVIOUS","sourceKey":"설정 id 또는 이전 회차 id","quote":"근거의 정확한 인용문","startOffset":0,"endOffset":10,"explanation":"관련 이유"}],"reason":"이유","suggestion":"수정 방향"}]}
+        {"reviews":[{"type":"설정 충돌 후보","quote":"현재 회차 원고의 정확한 인용문","startOffset":0,"endOffset":10,"evidences":[{"sourceType":"SETTING","sourceKey":"설정 id 또는 이전 회차 id","quote":"근거의 정확한 인용문","startOffset":0,"endOffset":10,"explanation":"관련 이유"}],"reason":"이유","suggestion":"수정 방향"}]}
+        type은 정확히 "설정 충돌 후보" 또는 "설명 보완" 중 하나이고, sourceType은 "SETTING" 또는 "PREVIOUS" 중 하나다.
+        목표·가치관과 행동 사이에 설명이 빠진 장면은 motivation=true일 때 "설명 보완" 질문으로 제시하라.
         모든 위치는 각 원문 문자열의 UTF-16 코드 단위 기준 [startOffset,endOffset)이다. 줄바꿈도 포함한다.
         반복 문장은 실제 문제 장면의 위치를 지정하라. 인용문은 해당 구간과 정확히 같아야 한다.
         후보마다 선택한 확정 설정 또는 이전 원고에서 근거를 1~10개 제시하라. 없는 출처와 근거를 만들지 마라.

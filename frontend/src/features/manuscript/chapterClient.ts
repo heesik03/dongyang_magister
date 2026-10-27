@@ -40,6 +40,9 @@ export const chapterClient = {
   rebase(workId: string, chapterId: string) {
     mutations.delete(workId + ':' + chapterId)
   },
+  forget(workId: string) {
+    for (const key of mutations.keys()) if (key.startsWith(workId + ':')) mutations.delete(key)
+  },
   reset() {
     mutations.clear()
   },

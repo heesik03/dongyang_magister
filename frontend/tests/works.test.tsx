@@ -15,7 +15,7 @@ vi.mock('../src/features/works/workClient', async (importOriginal) => {
   const original = await importOriginal<typeof import('../src/features/works/workClient')>()
   return {
     ...original,
-    workClient: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn() },
+    workClient: { delete: vi.fn(), list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn() },
   }
 })
 vi.mock('../src/features/settings/settingClient', () => ({
@@ -33,6 +33,7 @@ vi.mock('../src/features/manuscript/chapterClient', async (importOriginal) => {
       get: vi.fn(),
       save: vi.fn(),
       reset: vi.fn(),
+      forget: vi.fn(),
       rebase: vi.fn(),
     },
   }
@@ -56,6 +57,7 @@ const page = { items: [], page: 0, size: 100, totalElements: 0, totalPages: 0 }
 beforeEach(() => {
   useWorksStore.getState().reset()
   localStorage.clear()
+  sessionStorage.clear()
   vi.resetAllMocks()
   savedChapters = []
   vi.mocked(chapterClient.listAll).mockImplementation(async () => savedChapters)
@@ -467,4 +469,38 @@ test('작가가 비교 후 선택한 충돌 회차만 최신 서버 버전으로
   )
   expect(useWorksStore.getState().conflicts).toEqual([])
   expect(useWorksStore.getState().dirtyIds).toEqual([])
+})
+
+test('삭제 충돌은 초안을 보존하고 성공 뒤 지연 목록이 작품을 복원하지 않는다', async () => {
+  await useWorksStore.getState().loadWork('1')
+  useWorksStore.getState().updateWork({
+    ...remote,
+    events: [{ id: 'draft', title: '초안', time: '', characters: '', chapterId: '', quote: '' }],
+  })
+  const recovery = sessionStorage.getItem('magister.recovery:writer@example.com:1')
+  vi.mocked(workClient.delete).mockRejectedValueOnce(new ApiError('버전 충돌', 409))
+  await expect(useWorksStore.getState().deleteWork('1', 0)).rejects.toThrow('버전 충돌')
+  expect(sessionStorage.getItem('magister.recovery:writer@example.com:1')).toBe(recovery)
+  expect(useWorksStore.getState().dirtyIds).toContain('1')
+  let respond: (value: {
+    items: Work[]
+    page: number
+    size: number
+    totalElements: number
+    totalPages: number
+  }) => void = () => {}
+  vi.mocked(workClient.list).mockReturnValueOnce(
+    new Promise((resolve) => {
+      respond = resolve
+    }),
+  )
+  const list = useWorksStore.getState().loadWorks()
+  vi.mocked(workClient.delete).mockResolvedValueOnce(undefined)
+  await useWorksStore.getState().deleteWork('1', 0)
+  respond({ ...page, items: [remote] })
+  await list
+  expect(useWorksStore.getState().works).toEqual([])
+  expect(useWorksStore.getState().dirtyIds).toEqual([])
+  expect(sessionStorage.getItem('magister.recovery:writer@example.com:1')).toBeNull()
+  expect(useWorksStore.getState().listedIds).toEqual([])
 })

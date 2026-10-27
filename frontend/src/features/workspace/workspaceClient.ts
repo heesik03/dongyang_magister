@@ -54,7 +54,8 @@ export const workspaceClient = {
         version,
         mutationId,
         separateChapters: true,
-        content: { ...content, chapters: [] },
+        separateReviews: true,
+        content: { ...content, chapters: [], analyses: [] },
       }),
     )
   },

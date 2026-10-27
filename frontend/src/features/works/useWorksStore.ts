@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { clearDecisionDrafts } from '../review/decisionDraftStorage'
 import { workClient, type WorkInput } from './workClient'
 import { settingClient, type SettingInput } from '../settings/settingClient'
 import { workspaceClient } from '../workspace/workspaceClient'
@@ -32,6 +33,7 @@ interface WorksState {
   detailError: string
   storageError: string
   settingView: SettingView
+  deletedIds: string[]
   loadedIds: string[]
   dirtyIds: string[]
   savingIds: string[]
@@ -44,6 +46,8 @@ interface WorksState {
   loadWork: (id: string) => Promise<void>
   loadSettings: (id: string, kind?: string, cursor?: string) => Promise<void>
   createWork: (input: WorkInput) => Promise<Work>
+  deleteWork: (id: string, version: number) => Promise<void>
+  forgetDeletedWork: (id: string) => Promise<void>
   saveWorkInfo: (work: Work, input: WorkInput) => Promise<void>
   saveSetting: (work: Work, input: SettingInput, existing?: Setting) => Promise<Setting>
   updateWork: (work: Work) => void
@@ -79,6 +83,7 @@ const initial = {
   detailError: '',
   storageError: '',
   settingView: emptyView,
+  deletedIds: [],
   loadedIds: [],
   dirtyIds: [],
   savingIds: [],
@@ -98,6 +103,7 @@ const flights = new Map<string, Promise<void>>()
 const mutations = new Map<string, { body: string; id: string; version: number }>()
 const chapterSnapshots = new Map<string, Map<string, string>>()
 const workspaceDirty = new Set<string>()
+const deletedWorkIds = new Set<string>()
 function rememberChapters(work: Work) {
   chapterSnapshots.set(
     work.id,
@@ -153,6 +159,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     mutations.clear()
     chapterSnapshots.clear()
     workspaceDirty.clear()
+    deletedWorkIds.clear()
     chapterClient.reset()
     legacyDrafts = []
     legacyBlocked = false
@@ -174,22 +181,24 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         signal: controller.signal,
       })
       if (revision !== accountRevision || controller.signal.aborted) return
-      const works = result.items.reduce((all, work) => {
-        const cached = all.find((item) => item.id === work.id)
-        return mergeWorkByVersion(
-          all,
-          cached
-            ? {
-                ...cached,
-                ...work,
-                ...contentOf(cached),
-                settings: cached.settings,
-                workspaceVersion: cached.workspaceVersion,
-              }
-            : work,
-        )
-      }, get().works)
-      const ids = result.items.map((work) => work.id)
+      const works = result.items
+        .filter((work) => !deletedWorkIds.has(work.id))
+        .reduce((all, work) => {
+          const cached = all.find((item) => item.id === work.id)
+          return mergeWorkByVersion(
+            all,
+            cached
+              ? {
+                  ...cached,
+                  ...work,
+                  ...contentOf(cached),
+                  settings: cached.settings,
+                  workspaceVersion: cached.workspaceVersion,
+                }
+              : work,
+          )
+        }, get().works)
+      const ids = result.items.filter((work) => !deletedWorkIds.has(work.id)).map((work) => work.id)
       set({
         works,
         listedIds: page === 0 ? ids : [...new Set([...get().listedIds, ...ids])],
@@ -208,27 +217,36 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     try {
       const result = await workClient.list()
       if (revision !== accountRevision) return
-      const works = result.items.reduce((all, work) => {
-        const cached = all.find((item) => item.id === work.id)
-        return mergeWorkByVersion(
-          all,
-          cached
-            ? {
-                ...cached,
-                ...work,
-                ...contentOf(cached),
-                settings: cached.settings,
-                workspaceVersion: cached.workspaceVersion,
-              }
-            : work,
-        )
-      }, get().works)
-      set({ works, shortcutIds: result.items.map((work) => work.id), shortcutError: '' })
+      const works = result.items
+        .filter((work) => !deletedWorkIds.has(work.id))
+        .reduce((all, work) => {
+          const cached = all.find((item) => item.id === work.id)
+          return mergeWorkByVersion(
+            all,
+            cached
+              ? {
+                  ...cached,
+                  ...work,
+                  ...contentOf(cached),
+                  settings: cached.settings,
+                  workspaceVersion: cached.workspaceVersion,
+                }
+              : work,
+          )
+        }, get().works)
+      set({
+        works,
+        shortcutIds: result.items
+          .filter((work) => !deletedWorkIds.has(work.id))
+          .map((work) => work.id),
+        shortcutError: '',
+      })
     } catch (error) {
       if (revision === accountRevision) set({ shortcutError: message(error) })
     }
   },
   async loadWork(id) {
+    if (deletedWorkIds.has(id)) return
     detailRequest?.abort()
     set({ detailLoading: false, detailError: '' })
     if (
@@ -251,7 +269,8 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         workspaceClient.get(id, controller.signal),
         chapterClient.listAll(id, controller.signal),
       ])
-      if (revision !== accountRevision || controller.signal.aborted) return
+      if (revision !== accountRevision || deletedWorkIds.has(id) || controller.signal.aborted)
+        return
       const cached = get().works.find((item) => item.id === id)
       if (get().dirtyIds.includes(id)) {
         set({
@@ -279,7 +298,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         detailLoading: false,
       })
     } catch (error) {
-      if (revision === accountRevision && !controller.signal.aborted)
+      if (revision === accountRevision && !deletedWorkIds.has(id) && !controller.signal.aborted)
         set({ detailLoading: false, detailError: message(error) })
     }
   },
@@ -311,7 +330,8 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         cursor: requestedCursor,
         signal: controller.signal,
       })
-      if (revision !== accountRevision || controller.signal.aborted) return
+      if (revision !== accountRevision || deletedWorkIds.has(id) || controller.signal.aborted)
+        return
       const ids = result.items.map((setting) => setting.id)
       set({
         works: get().works.map((work) =>
@@ -330,7 +350,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         },
       })
     } catch (error) {
-      if (revision === accountRevision && !controller.signal.aborted)
+      if (revision === accountRevision && !deletedWorkIds.has(id) && !controller.signal.aborted)
         set({ settingView: { ...get().settingView, loading: false, error: message(error) } })
     }
   },
@@ -346,6 +366,58 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       totalElements: get().totalElements + 1,
     })
     return work
+  },
+  async deleteWork(id, version) {
+    const revision = accountRevision
+    // 삭제 실패 시 입력과 복구 자료를 남기며, 서버 삭제가 확인된 뒤에만 제거한다.
+    try {
+      await workClient.delete(id, version)
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 404)) throw error
+    }
+    if (revision !== accountRevision) return
+    await get().forgetDeletedWork(id)
+    try {
+      localStorage.setItem(
+        'magister.work-deleted:' + get().account,
+        JSON.stringify({ id, nonce: crypto.randomUUID() }),
+      )
+    } catch {
+      set({ storageError: '서버 작품은 삭제되었지만 다른 탭에 알리지 못했습니다.' })
+    }
+  },
+  async forgetDeletedWork(id) {
+    deletedWorkIds.add(id)
+    clearTimeout(timers.get(id))
+    timers.delete(id)
+    mutations.delete(id)
+    chapterSnapshots.delete(id)
+    chapterClient.forget(id)
+    workspaceDirty.delete(id)
+    const errors = { ...get().workspaceErrors }
+    delete errors[id]
+    set({
+      deletedIds: [...new Set([...get().deletedIds, id])],
+      works: get().works.filter((work) => work.id !== id),
+      listedIds: get().listedIds.filter((key) => key !== id),
+      shortcutIds: get().shortcutIds.filter((key) => key !== id),
+      loadedIds: get().loadedIds.filter((key) => key !== id),
+      dirtyIds: get().dirtyIds.filter((key) => key !== id),
+      savingIds: get().savingIds.filter((key) => key !== id),
+      conflicts: get().conflicts.filter((key) => key !== id),
+      workspaceErrors: errors,
+      settingView: get().settingView.workId === id ? emptyView : get().settingView,
+      detailLoading: false,
+    })
+    try {
+      sessionStorage.removeItem('magister.recovery:' + get().account + ':' + id)
+      clearDecisionDrafts(get().account, id)
+    } catch {
+      set({
+        storageError:
+          '서버 작품은 삭제되었지만 이 탭의 복구 정보 삭제에 실패했습니다. 브라우저 저장소를 확인해 주세요.',
+      })
+    }
   },
   async saveWorkInfo(work, input) {
     if (work.source !== 'server') {
@@ -458,7 +530,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         // 각 회차의 저장 버전만 전달한다. 판단·다른 회차를 저장해도 원고의 기준 버전은 유지된다.
         for (const chapter of pendingChapters(work)) {
           const saved = await chapterClient.save(id, chapter)
-          if (revision !== accountRevision) return
+          if (revision !== accountRevision || deletedWorkIds.has(id)) return
           const snapshots = chapterSnapshots.get(id) || new Map<string, string>()
           snapshots.set(chapter.id, chapterSignature(chapter))
           chapterSnapshots.set(id, snapshots)
@@ -501,7 +573,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
               : { body, id: crypto.randomUUID(), version: latest.workspaceVersion ?? 0 }
           mutations.set(id, mutation)
           const response = await workspaceClient.save(id, mutation.version, mutation.id, content)
-          if (revision !== accountRevision) return
+          if (revision !== accountRevision || deletedWorkIds.has(id)) return
           const current = get().works.find((item) => item.id === id)
           if (!current) return
           if (current.analyses === content.analyses && current.events === content.events)
@@ -544,7 +616,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
           })
         }
       } catch (error) {
-        if (revision !== accountRevision) return
+        if (revision !== accountRevision || deletedWorkIds.has(id)) return
         try {
           sessionStorage.setItem(
             'magister.recovery:' + account + ':' + id,
@@ -561,13 +633,13 @@ export const useWorksStore = create<WorksState>((set, get) => ({
               : get().conflicts,
         })
       } finally {
-        if (revision === accountRevision)
+        if (revision === accountRevision && !deletedWorkIds.has(id))
           set({ savingIds: get().savingIds.filter((key) => key !== id) })
       }
     })()
     flights.set(id, task)
     await task
-    if (revision !== accountRevision) return
+    if (revision !== accountRevision || deletedWorkIds.has(id)) return
     flights.delete(id)
     if (get().dirtyIds.includes(id) && !get().workspaceErrors[id] && !get().conflicts.includes(id))
       await get().flushWorkspace(id)
@@ -577,13 +649,13 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     const inFlight = flights.get(id)
     if (inFlight) {
       await inFlight.catch(() => {})
-      if (revision !== accountRevision) return
+      if (revision !== accountRevision || deletedWorkIds.has(id)) return
     }
     const [response, chapters] = await Promise.all([
       workspaceClient.get(id),
       chapterClient.listAll(id),
     ])
-    if (revision !== accountRevision) return
+    if (revision !== accountRevision || deletedWorkIds.has(id)) return
     const existing = get().works.find((work) => work.id === id)
     if (!existing) return
     rememberChapters({ ...existing, chapters })
@@ -628,7 +700,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     const revision = accountRevision
     try {
       const saved = await chapterClient.get(id, chapterId)
-      if (revision !== accountRevision) return
+      if (revision !== accountRevision || deletedWorkIds.has(id)) return
       const latest = get().works.find((item) => item.id === id)
       if (!latest) return
       if ((latest.chapters.find((item) => item.id === chapterId)?.version ?? -1) > saved.version)
@@ -662,7 +734,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         ),
       })
     } catch (error) {
-      if (revision === accountRevision)
+      if (revision === accountRevision && !deletedWorkIds.has(id))
         set({ workspaceErrors: { ...get().workspaceErrors, [id]: message(error) } })
     }
   },

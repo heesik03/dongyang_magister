@@ -46,7 +46,7 @@ interface RequestOptions {
   expireSessionOnUnauthorized?: boolean
 }
 async function send(
-  method: 'GET' | 'POST' | 'PUT',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   options: RequestOptions,
   data?: object,
@@ -64,6 +64,7 @@ async function send(
     }
     throw new ApiError(parseErrorMessage(response.data), response.status)
   }
+  if (response.status === 204) return undefined
   const body = readRecord(response.data)
   if (body.success !== true || !('data' in body)) {
     throw new Error('서버 응답 형식이 올바르지 않습니다.')
@@ -106,7 +107,7 @@ async function getCsrfToken(
   }
 }
 async function sendWithCsrf(
-  method: 'POST' | 'PUT',
+  method: 'POST' | 'PUT' | 'DELETE',
   path: string,
   data?: object,
   options: RequestOptions = {},
@@ -127,6 +128,9 @@ async function sendWithCsrf(
 }
 // 쿠키·응답 봉투·CSRF는 여기서 처리하고, 도메인 client는 업무 요청과 응답 해석을 담당한다.
 export const httpClient = {
+  delete(path: string, options: RequestOptions = {}): Promise<unknown> {
+    return sendWithCsrf('DELETE', path, undefined, options)
+  },
   get(path: string, options: RequestOptions = {}): Promise<unknown> {
     return send('GET', path, options)
   },

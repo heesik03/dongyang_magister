@@ -7,7 +7,8 @@ import { decisionClient, type SavedDecision } from '../src/features/review/decis
 import type { LinkedReview } from '../src/features/review/reviewClient'
 import type { Work } from '../src/features/works/workTypes'
 
-vi.mock('../src/features/review/decisionClient', () => ({
+vi.mock('../src/features/review/decisionClient', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/features/review/decisionClient')>()),
   decisionClient: { get: vi.fn(), save: vi.fn(), history: vi.fn(), list: vi.fn() },
 }))
 const review: LinkedReview = {
@@ -54,6 +55,7 @@ const onSaved = vi.fn(),
   onClose = vi.fn()
 beforeEach(() => {
   vi.resetAllMocks()
+  sessionStorage.clear()
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '')
   }
@@ -185,6 +187,7 @@ test('변경된 근거는 명시적으로 재확인하고 인용이 달라졌으
     canReconfirm: false,
   })
   await show()
+  fireEvent.click(screen.getByRole('button', { name: '보관한 판단 초안 버리기' }))
   expect(screen.getByRole('button', { name: '판단 저장', exact: true })).toHaveProperty(
     'disabled',
     true,
@@ -239,4 +242,61 @@ test('저장 이력과 작품 전체의 최신 판단을 별도로 다시 확인
       expect.any(AbortSignal),
     ),
   )
+})
+
+test('재개한 초안은 실패한 요청의 식별자와 이전 버전을 유지한다', async () => {
+  vi.mocked(decisionClient.save).mockRejectedValueOnce(new Error('응답 유실'))
+  await show()
+  fill()
+  fireEvent.click(screen.getByRole('button', { name: '판단 저장', exact: true }))
+  await screen.findByText('응답 유실')
+  const original = vi.mocked(decisionClient.save).mock.calls[0][2]
+  cleanup()
+  vi.mocked(decisionClient.get).mockResolvedValue({ ...initial, version: 1, reason: '이미 처리됨' })
+  await show()
+  fireEvent.click(screen.getByRole('button', { name: '판단 초안 복구' }))
+  expect(screen.getByLabelText('의도와 판단 사유')).toHaveProperty('value', '의도한 능력 변화')
+  expect(screen.getByText('서버 최신 판단 · 버전 1 · 미검토')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: '판단 저장', exact: true }))
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+  expect(vi.mocked(decisionClient.save).mock.calls[1][2]).toEqual(original)
+  expect(sessionStorage.length).toBe(0)
+})
+
+test('손상된 초안은 명시적 폐기 전까지 보존한다', async () => {
+  sessionStorage.setItem('magister.decision-draft.v1::1:review', '{broken')
+  await show()
+  fill()
+  expect(screen.getByRole('button', { name: '판단 저장', exact: true })).toHaveProperty(
+    'disabled',
+    true,
+  )
+  expect(sessionStorage.getItem('magister.decision-draft.v1::1:review')).toBe('{broken')
+  fireEvent.click(screen.getByRole('button', { name: '읽을 수 없는 초안 원본 버리기' }))
+  expect(screen.getByRole('button', { name: '판단 저장', exact: true })).toHaveProperty(
+    'disabled',
+    false,
+  )
+})
+
+test('판단 초안 저장소 실패도 입력과 서버 저장 재시도를 막지 않는다', async () => {
+  const original = Storage.prototype.setItem
+  const storage = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+    this: Storage,
+    key,
+    value,
+  ) {
+    if (key.startsWith('magister.decision-draft')) throw new Error('quota')
+    original.call(this, key, value)
+  })
+  try {
+    await show()
+    fill()
+    await screen.findByText('판단 초안 보관에 실패했습니다. 작성 내용을 별도로 보관해 주세요.')
+    expect(screen.getByLabelText('의도와 판단 사유')).toHaveProperty('value', '의도한 능력 변화')
+    fireEvent.click(screen.getByRole('button', { name: '판단 저장', exact: true }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+  } finally {
+    storage.mockRestore()
+  }
 })
