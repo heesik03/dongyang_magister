@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { Dialog } from '../../shared/Dialog'
 import type { ReviewSource, SourceLocation } from './reviewClient'
 
@@ -12,15 +12,13 @@ export function ReviewSourceDialog({
   onClose: () => void
 }) {
   const editor = useRef<HTMLTextAreaElement>(null)
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      editor.current?.focus()
-      editor.current?.setSelectionRange(location.startOffset, location.endOffset)
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [location])
+  // 네이티브 dialog가 열린 직후 선택해 첫 포커스와 정확한 인용 범위가 함께 보이게 한다.
+  const selectSource = useCallback(() => {
+    editor.current?.focus()
+    editor.current?.setSelectionRange(location.startOffset, location.endOffset)
+  }, [location.startOffset, location.endOffset])
   return (
-    <Dialog title="분석 당시 근거 원문" onClose={onClose}>
+    <Dialog title="분석 당시 근거 원문" onClose={onClose} onOpen={selectSource}>
       <p>
         <strong>{source.title}</strong> · 버전 {source.revision}
       </p>

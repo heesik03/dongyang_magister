@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.magister.backend.domain.analysis.converter.AnalysisConverter;
+import com.magister.backend.domain.analysis.converter.AnalysisPromptConverter;
 import com.magister.backend.domain.analysis.dto.AnalysisInput;
 import com.magister.backend.domain.analysis.dto.AnalysisInput.SettingReference;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
@@ -26,7 +27,10 @@ class ReviewValidationTests {
     private final ObjectMapper mapper = new ObjectMapper();
     private final AnalysisResultProcessor processor =
             new AnalysisResultProcessor(
-                    mapper, FACTORY.getValidator(), new AnalysisConverter(mapper));
+                    mapper,
+                    FACTORY.getValidator(),
+                    new AnalysisConverter(mapper),
+                    new AnalysisPromptConverter());
     private final AnalysisInput input =
             new AnalysisInput(
                     new ChapterData("target", "2화", "😀장면\n마법 사용\n마법 사용", 1),
@@ -78,6 +82,39 @@ class ReviewValidationTests {
                                         "능력 획득 과정 확인 필요",
                                         "suggestion",
                                         "능력 변화 계기를 보완"))));
+    }
+
+    @Test
+    void promptProvidesExactRepeatedSentencePositionsWithoutChangingSnapshot() {
+        AnalysisPromptConverter converter = new AnalysisPromptConverter();
+        assertThat(converter.passages(input.chapter().content()))
+                .containsExactly(
+                        new AnalysisPromptConverter.Passage(0, 4, "😀장면"),
+                        new AnalysisPromptConverter.Passage(5, 10, "마법 사용"),
+                        new AnalysisPromptConverter.Passage(11, 16, "마법 사용"));
+        String prompt = processor.buildPrompt(input);
+        assertThat(prompt).contains("\"startOffset\":11,\"endOffset\":16,\"quote\":\"마법 사용\"");
+        assertThat(prompt).contains("\"settings\"", "\"previous\"", "motivation");
+        assertThat(input.chapter().content()).isEqualTo("😀장면\n마법 사용\n마법 사용");
+        String longSource = "가".repeat(1999) + "😀" + "나".repeat(2000) + "\r\n 끝. ";
+        List<AnalysisPromptConverter.Passage> passages = converter.passages(longSource);
+        assertThat(passages)
+                .allSatisfy(
+                        passage -> {
+                            assertThat(passage.quote())
+                                    .isEqualTo(
+                                            longSource.substring(
+                                                    passage.startOffset(), passage.endOffset()));
+                            assertThat(passage.quote().length()).isBetween(1, 2000);
+                            assertThat(Character.isLowSurrogate(passage.quote().charAt(0)))
+                                    .isFalse();
+                            assertThat(
+                                            Character.isHighSurrogate(
+                                                    passage.quote()
+                                                            .charAt(passage.quote().length() - 1)))
+                                    .isFalse();
+                        });
+        assertThat(passages).extracting(AnalysisPromptConverter.Passage::quote).contains("끝.");
     }
 
     @Test
@@ -139,6 +176,7 @@ class ReviewValidationTests {
                         List.of(),
                         false,
                         true);
+        assertThat(processor.buildPrompt(motivationOnly)).contains("\"type\":\"설명 보완\"");
         assertThatThrownBy(
                         () ->
                                 processor.validate(

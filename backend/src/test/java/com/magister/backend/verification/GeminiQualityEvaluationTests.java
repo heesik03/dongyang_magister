@@ -27,9 +27,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** 일반 test에서는 실행하지 않는다. 실제 작품·계정 자료는 읽지 않고 아래 합성 자료만 전송한다. */
 @SpringBootTest(
@@ -225,6 +228,19 @@ class GeminiQualityEvaluationTests {
                                 "설정 충돌 후보",
                                 "마법",
                                 false));
+        String selectedNames = System.getenv("MAGISTER_GEMINI_SCENARIOS");
+        if (selectedNames != null && !selectedNames.isBlank()) {
+            Set<String> requested =
+                    Arrays.stream(selectedNames.split(","))
+                            .map(String::strip)
+                            .collect(Collectors.toSet());
+            Set<String> known = scenarios.stream().map(Scenario::name).collect(Collectors.toSet());
+            assertThat(known).containsAll(requested);
+            scenarios =
+                    scenarios.stream()
+                            .filter(scenario -> requested.contains(scenario.name()))
+                            .toList();
+        }
         List<Observation> observations = new ArrayList<>();
         for (Scenario scenario : scenarios) {
             long started = System.nanoTime();

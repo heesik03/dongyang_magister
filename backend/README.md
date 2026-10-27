@@ -187,3 +187,10 @@ Java 코드는 google-java-format 1.28.0의 AOSP 스타일(4칸 들여쓰기)로
 PowerShell에서 `$env:MAGISTER_RUN_GEMINI_TESTS='true'` 설정 후 `.\gradlew.bat geminiTest --max-workers=2`를 실행한다. `.env` 또는 환경 변수의 `GEMINI_API_KEY`, `GEMINI_MODEL`을 사용하며 **최대 8회** 실제 호출·비용이 발생한다. 일반 `test`에서는 제외한다. 고정 합성 자료만 전송하며 `build/reports/gemini-evaluation.json`에 결과를 남긴다. 인증·호출 한도 등 공급자 오류가 발생하면 남은 호출을 중단한다.
 
 2026-10-27 평가에서 위치 오류와 동기 누락을 확인했다. 운영 품질 통과로 해석하지 않는다. [5단계 검증 기록](../docs/verification/issue-10-stage-five.md), [실제 합성 응답 기록](../docs/verification/issue-10-gemini-evaluation.json).
+
+
+### #10 최종 검토 보완
+
+분석 프롬프트에는 서버에서 원문으로부터 계산한 문장별 `passages(quote,startOffset,endOffset)`를 보낸다. 반복 문장·줄바꿈·UTF-16·긴 문장 경계를 유지하며 원본 스냅샷과 공개 API는 바꾸지 않는다. 공급자의 잘못된 구간을 보정하거나 후보를 버려 성공 처리하지 않고 기존 엄격 검증을 유지한다. 설명 보완 단독 요청의 작업 지시와 출력 예시도 해당 유형으로 맞춘다.
+
+실제 평가 중 실패한 사례만 실행하려면 `MAGISTER_GEMINI_SCENARIOS`에 테스트에 정의된 이름을 쉼표로 지정한다(예: `motivation-gap`). 미지정 시 8개 전체이며 알 수 없는 이름은 호출 전에 거절한다. 마지막 전체 평가에서 위치 계약 8/8, 의미 기대 7/8을 통과했으나 명시된 반전 오탐 1건이 남아 품질 게이트는 실패했다. [최종 검토 기록](../docs/verification/issue-10-final-review.md)을 확인하고 정상 품질 통과로 간주하지 않는다.

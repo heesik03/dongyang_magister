@@ -6,11 +6,13 @@ export function Dialog({
   onClose,
   children,
   closeMessage = '입력한 내용을 저장하지 않고 닫을까요?',
+  onOpen,
   confirmCloseLabel = '입력 버리고 닫기',
 }: {
   title: string
   onClose: () => void
   children: ReactNode
+  onOpen?: () => void
   closeMessage?: string
   confirmCloseLabel?: string
 }) {
@@ -34,11 +36,12 @@ export function Dialog({
       ) ??
       dialog?.querySelector('a[href], button:not(:disabled), [tabindex="0"]')
     if (firstInput instanceof HTMLElement) firstInput.focus()
+    onOpen?.()
     return () => {
       dialog?.close()
       if (previous instanceof HTMLElement) previous.focus()
     }
-  }, [])
+  }, [onOpen])
   return (
     <dialog
       ref={ref}

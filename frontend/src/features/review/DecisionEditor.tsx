@@ -255,7 +255,9 @@ function DecisionForm({
       await decisionClient.save(work.id, review.id, request)
       completed.current = true
       try {
-        sessionStorage.removeItem(draftKey)
+        // 닫힌 폼의 응답이 새 폼에서 작성한 초안을 지우지 않도록 요청 소유권을 대조한다.
+        const stored = readDecisionDraft(draftKey)
+        if (stored?.pending?.mutationId === request.mutationId) sessionStorage.removeItem(draftKey)
       } catch {
         useWorksStore.setState({
           storageError: '판단은 서버에 저장했지만 이 탭의 초안 정리에 실패했습니다.',

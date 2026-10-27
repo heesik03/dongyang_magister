@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { DecisionEditor } from '../src/features/review/DecisionEditor'
 import { DecisionLedger } from '../src/features/review/DecisionLedger'
 import { decisionClient, type SavedDecision } from '../src/features/review/decisionClient'
@@ -299,4 +299,30 @@ test('판단 초안 저장소 실패도 입력과 서버 저장 재시도를 막
   } finally {
     storage.mockRestore()
   }
+})
+
+test('닫힌 폼의 늦은 저장 성공이 새로 작성한 복구 초안을 지우지 않는다', async () => {
+  let finish: (value: SavedDecision) => void = () => {}
+  vi.mocked(decisionClient.save).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve
+    }),
+  )
+  await show()
+  fill()
+  fireEvent.click(screen.getByRole('button', { name: '판단 저장', exact: true }))
+  await waitFor(() => expect(decisionClient.save).toHaveBeenCalledOnce())
+  cleanup()
+  await show()
+  fireEvent.click(screen.getByRole('button', { name: '판단 초안 복구' }))
+  fireEvent.change(screen.getByLabelText('의도와 판단 사유'), {
+    target: { value: '새 창에서 작성한 판단' },
+  })
+  await act(async () => {
+    finish({ ...initial, id: 1, version: 1, status: '의도된 설정' })
+  })
+  expect(sessionStorage.getItem('magister.decision-draft.v1::1:review')).toContain(
+    '새 창에서 작성한 판단',
+  )
+  expect(onSaved).not.toHaveBeenCalled()
 })
