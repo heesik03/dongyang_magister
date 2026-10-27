@@ -46,20 +46,40 @@ public class DecisionReferenceService {
             Long workId, String chapterKey, List<String> settingKeys, List<String> previousKeys) {
         Chapter chapter =
                 chapterRepository.findByWork_IdAndChapterKey(workId, chapterKey).orElseThrow();
-        List<ReviewDecision> decisions =
-                decisionRepository.findApplicable(
-                        workId,
-                        chapter.getId(),
-                        chapter.getChapterNo(),
-                        settingKeys.isEmpty() ? List.of("") : settingKeys,
-                        previousKeys.isEmpty() ? List.of("") : previousKeys,
-                        PageRequest.of(0, 101));
-        if (decisions.size() > 100) {
-            throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+        List<DecisionReference> result = new ArrayList<>();
+        List<String> effectiveSettings = settingKeys.isEmpty() ? List.of("") : settingKeys;
+        List<String> effectivePrevious = previousKeys.isEmpty() ? List.of("") : previousKeys;
+
+        for (int page = 0; ; page++) {
+            List<ReviewDecision> decisions =
+                    decisionRepository.findApplicable(
+                            workId,
+                            chapter.getId(),
+                            chapter.getChapterNo(),
+                            effectiveSettings,
+                            effectivePrevious,
+                            PageRequest.of(page, 100));
+            if (decisions.isEmpty()) {
+                break;
+            }
+            appendMatchingReferences(workId, chapter, settingKeys, previousKeys, decisions, result);
+            if (result.size() > 100) {
+                throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+            }
+            if (decisions.size() < 100) {
+                break;
+            }
         }
-        if (decisions.isEmpty()) {
-            return List.of();
-        }
+        return List.copyOf(result);
+    }
+
+    private void appendMatchingReferences(
+            Long workId,
+            Chapter chapter,
+            List<String> settingKeys,
+            List<String> previousKeys,
+            List<ReviewDecision> decisions,
+            List<DecisionReference> result) {
         List<ReviewCandidate> candidates =
                 decisions.stream().map(ReviewDecision::getReview).toList();
         List<ReviewEvidence> evidences =
@@ -73,7 +93,7 @@ public class DecisionReferenceService {
         Map<Long, ReviewDecision> byId =
                 decisions.stream()
                         .collect(Collectors.toMap(ReviewDecision::getId, Function.identity()));
-        List<DecisionReference> result = new ArrayList<>();
+
         for (ReviewDecisionScope scope :
                 scopeRepository.findForDecisions(
                         decisions.stream().map(ReviewDecision::getId).toList())) {
@@ -115,10 +135,6 @@ public class DecisionReferenceService {
                                 byReview.getOrDefault(decision.getReview().getId(), List.of())));
             }
         }
-        if (result.size() > 100) {
-            throw new CustomException(CommonErrorCode.INVALID_REQUEST);
-        }
-        return List.copyOf(result);
     }
 
     /** 접수 트랜잭션에서 실제 전송한 판단 범위의 FK를 고정한다. 이후 판단 변경으로 이 행을 바꾸지 않는다. */

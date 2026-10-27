@@ -186,6 +186,32 @@ class WorkspaceApiTests {
                                 .with(authentication(owner))
                                 .with(csrf())
                                 .contentType("application/json")
+                                .content(body(0, "first-save", "원고 B")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(
+                        put(path())
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content(
+                                        json.writeValueAsString(
+                                                Map.of(
+                                                        "version",
+                                                        1,
+                                                        "mutationId",
+                                                        "separate-with-chapters",
+                                                        "separateChapters",
+                                                        true,
+                                                        "content",
+                                                        content("원고 A")))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(
+                        put(path())
+                                .with(authentication(owner))
+                                .with(csrf())
+                                .contentType("application/json")
                                 .content(body(0, "other-tab", "원고 B")))
                 .andExpect(status().isConflict());
         mvc.perform(get(path()).with(authentication(owner)))

@@ -34,15 +34,19 @@ public class WorkspacePersistenceService {
         Work work = workAccessService.lockOwned(ownerId, workId);
         Workspace workspace =
                 workspaceRepository.findById(workId).orElseGet(() -> new Workspace(work));
-        if (!Boolean.TRUE.equals(request.separateChapters())) {
-            chapterWorkspaceService.acceptLegacy(
-                    work, workspace.getRevision(), request.content().chapters());
-        }
         if (request.mutationId().equals(workspace.getMutationId())) {
             if (!content.equals(workspace.getContent())) {
                 throw new CustomException(CommonErrorCode.INVALID_REQUEST);
             }
+            if (!Boolean.TRUE.equals(request.separateChapters())
+                    && !chapterWorkspaceService.read(workId).equals(request.content().chapters())) {
+                throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+            }
             return snapshotService.getForOwnedWork(work);
+        }
+        if (!Boolean.TRUE.equals(request.separateChapters())) {
+            chapterWorkspaceService.acceptLegacy(
+                    work, workspace.getRevision(), request.content().chapters());
         }
         if (workspace.getRevision() != request.version()) {
             throw new CustomException(WorkErrorCode.VERSION_CONFLICT);

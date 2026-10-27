@@ -12,15 +12,18 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.sql.SQLException;
@@ -83,6 +86,37 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         .toList();
         ApiResult<Void> body = ApiResult.failure(CommonErrorCode.VALIDATION_ERROR, errors);
         return handleExceptionInternal(exception, body, headers, statusCode, request);
+    }
+
+    @Override
+    protected @Nullable ResponseEntity<Object> handleHandlerMethodValidationException(
+            HandlerMethodValidationException exception,
+            HttpHeaders headers,
+            HttpStatusCode statusCode,
+            WebRequest request) {
+        List<FieldErrorDetail> errors =
+                exception.getParameterValidationResults().stream()
+                        .flatMap(
+                                result -> {
+                                    String parameterName =
+                                            result.getMethodParameter().getParameterName();
+                                    String fallbackField =
+                                            parameterName == null ? "parameter" : parameterName;
+                                    return result.getResolvableErrors().stream()
+                                            .map(error -> toFieldErrorDetail(fallbackField, error));
+                                })
+                        .toList();
+        ApiResult<Void> body = ApiResult.failure(CommonErrorCode.VALIDATION_ERROR, errors);
+        return handleExceptionInternal(exception, body, headers, statusCode, request);
+    }
+
+    private FieldErrorDetail toFieldErrorDetail(
+            String fallbackField, MessageSourceResolvable error) {
+        String field =
+                error instanceof FieldError fieldError ? fieldError.getField() : fallbackField;
+        String message =
+                error.getDefaultMessage() == null ? "올바르지 않은 값입니다." : error.getDefaultMessage();
+        return new FieldErrorDetail(field, message);
     }
 
     @ExceptionHandler(CustomException.class)

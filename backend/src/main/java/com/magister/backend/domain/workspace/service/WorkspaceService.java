@@ -6,6 +6,8 @@ import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceResponse;
 import com.magister.backend.domain.workspace.service.support.WorkspaceCodec;
 import com.magister.backend.domain.workspace.service.validation.WorkspaceReferenceValidator;
+import com.magister.backend.global.error.code.CommonErrorCode;
+import com.magister.backend.global.error.exception.CustomException;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,7 +33,11 @@ public class WorkspaceService {
 
     /** 검토·사건 JSON 직렬화는 잠금 밖에서 처리한다. 최신 회차 참조 검증은 저장 트랜잭션에서 수행한다. */
     public WorkspaceResponse save(Long ownerId, Long workId, SaveWorkspaceRequest request) {
-        if (!Boolean.TRUE.equals(request.separateChapters())) {
+        if (Boolean.TRUE.equals(request.separateChapters())) {
+            if (!request.content().chapters().isEmpty()) {
+                throw new CustomException(CommonErrorCode.INVALID_REQUEST);
+            }
+        } else {
             // 구형 초안의 중복 ID·잘못된 참조를 INSERT 이전에 400으로 거절한다.
             referenceValidator.validate(request.content());
             workspaceCodec.encode(request.content());

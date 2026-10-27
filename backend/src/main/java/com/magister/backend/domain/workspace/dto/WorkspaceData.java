@@ -19,7 +19,7 @@ public record WorkspaceData(
     }
 
     public record ChapterData(
-            @NotBlank @Size(max = 64) String id,
+            @NotBlank @Size(max = 64) @Pattern(regexp = "[A-Za-z0-9_-]+") String id,
             @NotBlank @Size(max = 100) String title,
             @NotNull @Size(max = 200000) String content,
             @Min(1) long revision) {}

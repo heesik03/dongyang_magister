@@ -210,9 +210,57 @@ class DecisionFlowTests {
                         new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
         mockMvc.perform(get(path()).with(authentication(other))).andExpect(status().isNotFound());
         mockMvc.perform(get(path() + "/history").with(authentication(owner)).param("size", "101"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         mockMvc.perform(get("/api/work/" + workId + "/decision").with(authentication(owner)))
                 .andExpect(jsonPath("$.data.items[0].status").value("미검토"));
+    }
+
+    @Test
+    void overOneHundredStaleDecisionsDoNotBlockPreviewOfCurrentChapter() {
+        Long chapterEntityId =
+                jdbcTemplate.queryForObject(
+                        "SELECT id FROM chapters WHERE work_id=? AND chapter_key='c2'",
+                        Long.class,
+                        workId);
+        Long targetSourceId =
+                jdbcTemplate.queryForObject(
+                        "SELECT target_source_id FROM review_candidates WHERE id=?",
+                        Long.class,
+                        reviewId);
+        Long evidenceSourceId =
+                jdbcTemplate.queryForObject(
+                        "SELECT source_id FROM review_evidences WHERE review_id=?",
+                        Long.class,
+                        reviewId);
+        for (int index = 0; index < 105; index++) {
+            String candidateId = "stale-review-" + index;
+            jdbcTemplate.update(
+                    "INSERT INTO review_candidates (id, job_id, target_source_id, type, quote, start_offset, end_offset, reason, suggestion) VALUES (?, ?, ?, '설정 충돌 후보', '마법 사용', 0, 5, '이유', '제안')",
+                    candidateId,
+                    jobId,
+                    targetSourceId);
+            jdbcTemplate.update(
+                    "INSERT INTO review_evidences (job_id, review_id, source_id, quote, start_offset, end_offset, explanation) VALUES (?, ?, ?, '마법 불가', 0, 5, '설명')",
+                    jobId,
+                    candidateId,
+                    evidenceSourceId);
+            jdbcTemplate.update(
+                    "INSERT INTO review_decisions (review_id, decision_version, status, reason, mutation_id, request_body, basis_hash, created_at) VALUES (?, 1, '의도된 설정', '이전 사유', ?, '{}', 'stale-hash', CURRENT_TIMESTAMP)",
+                    candidateId,
+                    "stale-mutation-" + index);
+            Long decisionId =
+                    jdbcTemplate.queryForObject(
+                            "SELECT id FROM review_decisions WHERE review_id=?",
+                            Long.class,
+                            candidateId);
+            jdbcTemplate.update(
+                    "INSERT INTO review_decision_scopes (decision_id, scope_type, from_chapter_id, condition_text) VALUES (?, 'CHAPTER_RANGE', ?, '조건')",
+                    decisionId,
+                    chapterEntityId);
+        }
+        save(intent(0, List.of(range("c2", "c3"))));
+        assertThat(preview("c3").input().decisionReferences()).hasSize(1);
     }
 
     @Test

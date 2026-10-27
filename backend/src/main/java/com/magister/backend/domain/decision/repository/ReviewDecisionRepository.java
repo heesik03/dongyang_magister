@@ -37,7 +37,7 @@ public interface ReviewDecisionRepository extends JpaRepository<ReviewDecision, 
     Page<ReviewDecision> findLatestForWork(
             Long workId, String chapterKey, String status, Pageable page);
 
-    /** 현재 회차·참고 자료와 관련된 최신 판단만 최대 101개 읽어 묵시적인 잘림을 방지한다. */
+    /** 현재 회차·참고 자료와 관련된 최신 판단을 페이지 단위로 조회한다. */
     @Query(
             """
             select d from ReviewDecision d join fetch d.review r join fetch r.targetSource t
@@ -50,6 +50,9 @@ public interface ReviewDecisionRepository extends JpaRepository<ReviewDecision, 
               and exists(select e.id from ReviewEvidence e where e.review=r and
                 ((e.source.type='SETTING' and e.source.sourceKey in :settingKeys) or
                  (e.source.type='PREVIOUS' and e.source.sourceKey in :previousKeys)))
+              and not exists(select e.id from ReviewEvidence e where e.review=r and
+                not ((e.source.type='SETTING' and e.source.sourceKey in :settingKeys) or
+                     (e.source.type='PREVIOUS' and e.source.sourceKey in :previousKeys)))
             order by d.id
             """)
     List<ReviewDecision> findApplicable(
