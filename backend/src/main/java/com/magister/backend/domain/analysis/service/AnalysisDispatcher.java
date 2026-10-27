@@ -8,8 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
@@ -21,10 +24,21 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Slf4j
 public class AnalysisDispatcher {
+    private static final int MAX_PRE_CANCELLED = 1_000;
     private final ThreadPoolExecutor analysisExecutor;
     private final AnalysisWorker analysisWorker;
     private final AnalysisJobStateService jobStateService;
     private final Map<String, TrackedTask> tasks = new ConcurrentHashMap<>();
+    private final Set<String> preCancelledJobIds =
+            Collections.synchronizedSet(
+                    Collections.newSetFromMap(
+                            new LinkedHashMap<String, Boolean>() {
+                                @Override
+                                protected boolean removeEldestEntry(
+                                        Map.Entry<String, Boolean> eldest) {
+                                    return size() > MAX_PRE_CANCELLED;
+                                }
+                            }));
 
     /**
      * 커밋된 작업 ID를 실행기에 제출하고 동일 ID의 로컬 중복 제출은 생략한다.
@@ -32,8 +46,15 @@ public class AnalysisDispatcher {
      * 엔티티를 람다로 넘기지 않아 다른 스레드가 기존 영속성 컨텍스트에 접근하지 않게 한다.
      */
     public void submit(String jobId) {
+        if (preCancelledJobIds.remove(jobId)) {
+            return;
+        }
         TrackedTask task = new TrackedTask(jobId);
         if (tasks.putIfAbsent(jobId, task) != null) {
+            return;
+        }
+        if (preCancelledJobIds.remove(jobId)) {
+            tasks.remove(jobId, task);
             return;
         }
 
@@ -51,10 +72,12 @@ public class AnalysisDispatcher {
      * DB 취소가 커밋된 뒤 호출해야 워커의 실패 저장보다 CANCELLED가 먼저 확정된다.
      */
     public void cancel(String jobId) {
+        preCancelledJobIds.add(jobId);
         TrackedTask task = tasks.get(jobId);
         if (task == null) {
             return;
         }
+        preCancelledJobIds.remove(jobId);
 
         analysisExecutor.remove(task);
         task.cancel(true);

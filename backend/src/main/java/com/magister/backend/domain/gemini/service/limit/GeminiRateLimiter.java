@@ -88,14 +88,16 @@ public class GeminiRateLimiter {
     }
 
     private void cleanup(long now) {
-        if (now - lastCleanup < CLEANUP_INTERVAL_NANOS) {
+        boolean capacityReached = windows.size() >= MAX_USERS;
+        if (!capacityReached && now - lastCleanup < CLEANUP_INTERVAL_NANOS) {
             return;
         }
+        long threshold = capacityReached ? INTERVAL_NANOS : RETENTION_NANOS;
         windows.entrySet()
                 .removeIf(
                         entry ->
                                 !entry.getValue().busy
-                                        && now - entry.getValue().started > RETENTION_NANOS);
+                                        && now - entry.getValue().started >= threshold);
         lastCleanup = now;
     }
 

@@ -94,11 +94,12 @@ public class AnalysisJobStateService {
     @Transactional
     public List<String> maintain(List<String> localJobIds) {
         Instant now = Instant.now();
+        List<String> sortedJobIds = localJobIds.stream().sorted().toList();
         // 취소·실제 종료된 작업과 이미 만료된 lease는 갱신 조건에서 제외해 되살리지 않는다.
-        if (!localJobIds.isEmpty()) {
+        if (!sortedJobIds.isEmpty()) {
             analysisJobRepository.renewLeases(
                     executionProperties.getInstanceId(),
-                    localJobIds,
+                    sortedJobIds,
                     ACTIVE,
                     now,
                     now.plus(executionProperties.getLeaseDuration()));
@@ -120,8 +121,8 @@ public class AnalysisJobStateService {
             }
         }
 
-        return localJobIds.isEmpty()
+        return sortedJobIds.isEmpty()
                 ? List.of()
-                : analysisJobRepository.findTerminalIds(localJobIds, ACTIVE);
+                : analysisJobRepository.findTerminalIds(sortedJobIds, ACTIVE);
     }
 }

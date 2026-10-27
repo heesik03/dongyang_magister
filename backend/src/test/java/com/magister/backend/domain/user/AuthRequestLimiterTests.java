@@ -72,6 +72,7 @@ class AuthRequestLimiterTests {
     void heavyRequestsShareCapacityAndReleaseItEvenWhenChainFails() throws Exception {
         AuthRateLimitProperties properties = new AuthRateLimitProperties();
         properties.setConcurrentHashes(1);
+        properties.setSignupAttempts(1);
         AuthRequestLimiter limiter = new AuthRequestLimiter(properties);
         try (Permit permit = limiter.reserve("/api/user/login", "client")) {
             assertThatThrownBy(() -> limiter.reserve("/api/user", "another"))
@@ -79,6 +80,8 @@ class AuthRequestLimiterTests {
             // 이메일 조회에는 고비용 해싱 슬롯이 필요하지 않다.
             limiter.reserve("/api/user/email/check", "another").close();
         }
+        // 전역 해싱 슬롯 포화로 거절된 요청은 개별 클라이언트의 시도 횟수를 소진하지 않는다.
+        limiter.reserve("/api/user", "another").close();
 
         AuthRateLimitFilter filter = new AuthRateLimitFilter(limiter, JsonMapper.builder().build());
         assertThatThrownBy(

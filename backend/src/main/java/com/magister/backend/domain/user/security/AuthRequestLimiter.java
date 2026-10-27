@@ -21,6 +21,7 @@ public class AuthRequestLimiter {
     private final Semaphore hashingSlots;
     private final Map<String, Window> windows = new HashMap<>();
     private long lastCleanup;
+    private long oldestWindowStart;
 
     private static final class Window {
         private final long started;
@@ -41,6 +42,7 @@ public class AuthRequestLimiter {
         this.clock = clock;
         hashingSlots = new Semaphore(properties.getConcurrentHashes());
         lastCleanup = clock.getAsLong();
+        oldestWindowStart = lastCleanup;
     }
 
     public boolean appliesTo(String method, String path) {
@@ -49,22 +51,42 @@ public class AuthRequestLimiter {
 
     /** 신뢰되지 않은 X-Forwarded-For 대신 서버가 확인한 remoteAddr를 사용한다. */
     public Permit reserve(String path, String remoteAddress) {
-        recordAttempt(path, remoteAddress);
-
         boolean hashing = !path.equals("/api/user/email/check");
-        if (hashing && !hashingSlots.tryAcquire()) {
-            throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
+        if (hashing) {
+            if (!hashingSlots.tryAcquire()) {
+                throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
+            }
+            boolean recorded = false;
+            try {
+                recordAttempt(path, remoteAddress);
+                recorded = true;
+                return new Permit(true);
+            } finally {
+                if (!recorded) {
+                    hashingSlots.release();
+                }
+            }
         }
-        return new Permit(hashing);
+        recordAttempt(path, remoteAddress);
+        return new Permit(false);
     }
 
     private synchronized void recordAttempt(String path, String remoteAddress) {
         long now = clock.getAsLong();
         long windowNanos = properties.getWindow().toNanos();
-        if (now - lastCleanup >= windowNanos
-                || windows.size() >= properties.getMaxTrackedClients()) {
+        boolean periodicCleanup = now - lastCleanup >= windowNanos;
+        boolean capacityCleanup =
+                windows.size() >= properties.getMaxTrackedClients()
+                        && now - oldestWindowStart >= windowNanos;
+        if (periodicCleanup || capacityCleanup) {
             windows.entrySet().removeIf(entry -> now - entry.getValue().started >= windowNanos);
             lastCleanup = now;
+            oldestWindowStart = now;
+            for (Window existing : windows.values()) {
+                if (existing.started < oldestWindowStart) {
+                    oldestWindowStart = existing.started;
+                }
+            }
         }
 
         String key = path + ":" + remoteAddress;
@@ -77,6 +99,9 @@ public class AuthRequestLimiter {
         if (window == null) {
             if (windows.size() >= properties.getMaxTrackedClients()) {
                 throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
+            }
+            if (windows.isEmpty() || now < oldestWindowStart) {
+                oldestWindowStart = now;
             }
             window = new Window(now);
             windows.put(key, window);
