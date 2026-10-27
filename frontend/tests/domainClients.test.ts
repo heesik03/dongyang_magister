@@ -11,6 +11,11 @@ import { analysisClient, parseJob, parseInput } from '../src/features/analysis/a
 import { chapterClient, parseChapter } from '../src/features/manuscript/chapterClient'
 import { workspaceClient } from '../src/features/workspace/workspaceClient'
 import { SESSION_EXPIRED_EVENT } from '../src/shared/httpClient'
+import {
+  decisionClient,
+  parseDecision,
+  parseDecisionReference,
+} from '../src/features/review/decisionClient'
 import { reviewClient, parseLinkedReview } from '../src/features/review/reviewClient'
 
 const work = {
@@ -39,6 +44,99 @@ const settingInput = {
 function success(data: unknown) {
   return { status: 200, data: { success: true, data } }
 }
+
+test('판단의 버전·멱등 키·범위를 보내고 최신 상태와 이력을 읽는다', async () => {
+  const decision = {
+    id: 1,
+    reviewId: 'candidate',
+    quote: '마법 사용',
+    version: 1,
+    status: '의도된 설정',
+    reason: '능력 변화',
+    basisHash: 'a'.repeat(64),
+    stale: false,
+    canReconfirm: true,
+    createdAt: '2026-10-27T00:00:00Z',
+    scopes: [
+      {
+        id: 1,
+        scopeType: 'CHAPTER_RANGE',
+        fromChapterId: 'c2',
+        toChapterId: null,
+        sceneSourceId: null,
+        startOffset: null,
+        endOffset: null,
+        conditionText: '봉인 해제 후',
+        fromChapterTitle: '2화',
+        toChapterTitle: null,
+      },
+    ],
+  }
+  request.mockResolvedValueOnce(success(decision))
+  expect((await decisionClient.get('1', 'candidate')).version).toBe(1)
+  const payload = {
+    status: '보류' as const,
+    reason: '확인 필요',
+    expectedVersion: 1,
+    mutationId: 'same-mutation',
+    basisHash: decision.basisHash,
+    reconfirm: false,
+    scopes: [],
+  }
+  request
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(success({ ...decision, status: '보류', version: 2 }))
+  await decisionClient.save('1', 'candidate', payload)
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      url: '/work/1/review/candidate/decision',
+      method: 'PUT',
+      data: payload,
+    }),
+  )
+  request.mockResolvedValueOnce(
+    success({ items: [decision], page: 0, size: 20, totalElements: 1, totalPages: 1 }),
+  )
+  expect((await decisionClient.history('1', 'candidate')).items[0].scopes[0].fromChapterTitle).toBe(
+    '2화',
+  )
+  request.mockResolvedValueOnce(
+    success({ items: [decision], page: 0, size: 20, totalElements: 1, totalPages: 1 }),
+  )
+  expect((await decisionClient.list('1', 0, '의도된 설정')).items).toHaveLength(1)
+  expect(() => parseDecision({ ...decision, basisHash: 'bad' })).toThrow()
+  expect(() => parseDecision({ ...decision, version: -1 })).toThrow()
+  expect(() =>
+    parseDecision({ ...decision, scopes: [{ ...decision.scopes[0], scopeType: 'SCENE' }] }),
+  ).toThrow()
+})
+
+test('분석 입력의 실제 판단 버전·범위·조건을 검증한다', () => {
+  const reference = {
+    scopeId: 1,
+    decisionId: 1,
+    reviewId: 'candidate',
+    version: 2,
+    status: '의도된 설정',
+    reason: '반전',
+    basisHash: 'a'.repeat(64),
+    quote: '마법 사용',
+    scopeType: 'SCENE',
+    fromChapterId: null,
+    toChapterId: null,
+    sceneSourceId: 1,
+    startOffset: 11,
+    endOffset: 16,
+    conditionText: '이 장면만',
+    evidenceQuotes: ['능력 · 마법 불가'],
+    fromChapterTitle: null,
+    toChapterTitle: null,
+  }
+  expect(parseDecisionReference(reference).version).toBe(2)
+  expect(() => parseDecisionReference({ ...reference, endOffset: 10 })).toThrow()
+  expect(() => parseDecisionReference({ ...reference, scopeId: '1' })).toThrow()
+  expect(() => parseDecisionReference({ ...reference, evidenceQuotes: [1] })).toThrow()
+})
 
 const linkedReview = {
   id: 'candidate',

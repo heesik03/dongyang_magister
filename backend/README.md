@@ -112,7 +112,30 @@ Hibernate JDBC 오류 전문은 중복 이메일 등 입력값을 포함할 수 
 - 예시 공급자 결과: `{"reviews":[{"type":"설정 충돌 후보","quote":"마법 사용","startOffset":0,"endOffset":5,"evidences":[{"sourceType":"SETTING","sourceKey":"1","quote":"마법 불가","startOffset":0,"endOffset":5,"explanation":"능력 제약"}],"reason":"변화의 계기 확인","suggestion":"계기 설명 보완"}]}`. `PREVIOUS` 근거는 선택한 이전 회차 키를 사용합니다. 근거 없는 단정은 피하고 빈 후보를 작품 전체의 통과 판정으로 해석하지 않습니다.
 - Flyway V11은 `review_candidates`, `review_evidences`, `analysis_jobs.result_format_version`을 추가합니다. 작업 완료와 후보·근거 저장은 같은 트랜잭션입니다. 복합 FK로 다른 분석의 스냅샷 연결을 차단하고 작업 삭제 시 함께 삭제합니다. 기존 JSON 결과는 보존하되 없는 위치를 만들어 이관하지 않습니다(`legacy=true`).
 - 화면은 반복 문장도 검증된 위치를 선택합니다. 현재 원고와 버전이 같으면 해당 회차로 이동하고, 변경된 원고·설정은 읽기 전용 스냅샷을 엽니다. 대상 원고·이전 회차·설정 변경은 이전 결과로 표시합니다.
-- 판단 저장은 4단계까지 기존 workspace 호환 경로를 사용합니다. 이전 회차만 근거인 경우 호환 필드 `settingId`에 `previous:<회차 키>`를 사용하며 확정 설정으로 표시하지 않습니다. 위치·범위 없는 과거 판단을 새로운 후보에 자동 복사하지 않습니다. 판단 이력·다음 회차 반영과 실제 Gemini 품질 평가는 후속 단계입니다.
+- 결과 JSON의 기존 호환 필드 `settingId`는 이전 회차만 근거인 경우 `previous:<회차 키>`로 표현합니다. 위치·범위 없는 과거 workspace 판단은 보존만 하고 새로운 후보에 자동 복사하지 않습니다. 현재 판단 저장·다음 회차 반영은 아래 전용 API를 사용합니다. 실제 Gemini 품질 평가는 후속 단계입니다.
+
+### 작가 판단 이력과 다음 분석 반영 (이슈 #10, 4단계)
+
+신규 판단은 workspace 대신 아래 API에 저장합니다. 기존 workspace 판단은 원본을 보존하며, 없는 적용 범위나 정확한 위치를 추측해서 이관하지 않습니다. 과거 형식의 결과는 재분석 후 범위를 정해 새 판단을 기록합니다.
+
+| API | 계약 |
+| --- | --- |
+| `GET /api/work/{workId}/review/{reviewId}/decision` | 최신 판단과 현재 `basisHash`, 근거 변경 `stale`, 인용 위치 재확인 가능 여부 `canReconfirm`. 미저장은 version=0 |
+| `PUT /api/work/{workId}/review/{reviewId}/decision` | `status`, `reason`, `expectedVersion`, `mutationId`, `basisHash`, `reconfirm`, `scopes`. 동일 mutation·내용 재전송은 같은 버전 반환 |
+| `GET /api/work/{workId}/review/{reviewId}/decision/history?page=0&size=20` | 버전 내림차순 이력, size 상한 100 |
+| `GET /api/work/{workId}/decision?chapterId=&status=&page=0&size=20` | 작품 내 최신 판단 목록. 원래 검토 회차·상태 필터, ID 내림차순, size 상한 100 |
+
+판단·범위 예시: `{"status":"의도된 설정","reason":"봉인 해제로 얻은 능력","expectedVersion":0,"mutationId":"writer-choice-1","basisHash":"GET에서 받은 64자리 해시","reconfirm":false,"scopes":[{"scopeType":"CHAPTER_RANGE","fromChapterId":"chapter-2","toChapterId":null,"sceneSourceId":null,"startOffset":null,"endOffset":null,"conditionText":"봉인 해제 이후 주인공의 능력 변화에만 적용"}]}`.
+
+- `의도된 설정`은 사유·적용 범위·조건이 필수입니다. `CHAPTER_RANGE`는 같은 작품의 시작/종료 회차 키이며 종료 null은 이후 회차를 포함합니다. `SCENE`은 해당 후보의 대상 스냅샷 ID와 검증한 문제 위치만 허용합니다. 최대 10개 범위이며 수용·보류에서 범위를 생략하면 해당 장면에만 기록합니다. `미검토`와 빈 scopes는 철회 버전을 추가합니다. 원고·설정은 수정하지 않습니다.
+- 본인 작품만 조회·저장합니다. 성공 200, 형식·범위 오류 400, 미인증 401, CSRF 누락 403, 다른 사용자·작품의 후보 404, 다른 탭/멱등 키 충돌 `409 DECISION_CONFLICT`, 근거 변경 `409 DECISION_BASIS_CHANGED`입니다. 공개 해시는 인증 수단이 아닙니다.
+- 부모 작품 → 분석 작업 순서로 잠그고 버전을 검사합니다. 판단과 범위는 같은 트랜잭션으로 추가하며 덮어쓰지 않습니다. 프런트엔드는 실패해도 사유·범위를 유지하고, 서버 최신 판단과 비교한 뒤 명시적으로 새 버전을 기준으로 준비합니다. 응답 유실 재시도는 같은 mutation을 유지합니다.
+- 현재 대상 원고·관련 근거의 전체 내용/버전/메타데이터가 달라지면 해당 판단은 분석 입력에서 제외됩니다. 인용 위치와 확정 상태가 유지되면 변경 자료를 직접 확인한 후 `reconfirm=true`로 새 버전을 저장할 수 있습니다. 인용 자체가 달라졌으면 재분석하며 철회는 계속 가능합니다.
+- 미리보기/접수는 최신 유효 판단 중 적용 회차·장면이 맞고 원래 근거가 모두 현재 선택에 포함된 것만 `input.decisionReferences`에 고정합니다. 조건·원래 문제 문장·관련 인용·정확한 판단 버전과 범위를 함께 전송하며, 최대 100개를 넘으면 400으로 범위를 제한하도록 합니다. 미리보기 이후 판단이 변경·철회되면 접수를 409로 거절합니다.
+- 판단은 관련 상황의 참고 정보이며 후보를 자동 제거하거나 새 후보의 처리 상태로 복사하지 않습니다. 상충하는 판단도 임의로 우선순위를 정하지 않고 프롬프트에서 확인 질문을 요구합니다. 실제 모델의 조건 해석·오탐 평가는 5단계에서 확인합니다.
+- Flyway V12는 `review_decisions`, `review_decision_scopes`, `analysis_decision_references`를 추가합니다. `(review_id,decision_version)`와 `(review_id,mutation_id)`가 유일합니다. 실제 전송한 참조는 FK로 추적하며 판단 수정 후에도 당시 입력·참조는 유지합니다. 판단 이력이 있는 작업은 자동 보관 정리에서 제외하고, 삭제 직전에도 다시 검사합니다. 작품 삭제 시 참조 작업을 먼저 삭제하는 의존 순서가 필요합니다.
+
+이 단계의 검증은 변경 영향 범위로 제한합니다. 백엔드는 `DecisionFlowTests`, `AnalysisFlowTests`, `AnalysisJobLifecycleTests`, `WorkspaceApiTests`, MySQL은 `MySqlRefactoringTests.decisionVersionsScopesAndReferencesOnMySql`, 프런트엔드는 `decision-flow`, `domainClients`, `review-flow`, `analysis-flow` 테스트를 선택 실행합니다.
 
 ### 회차별 원고 저장
 

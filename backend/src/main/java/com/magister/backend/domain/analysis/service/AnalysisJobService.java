@@ -11,6 +11,7 @@ import com.magister.backend.domain.analysis.repository.AnalysisAdmissionReposito
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.support.AnalysisInputFactory;
 import com.magister.backend.domain.chapter.repository.ChapterRepository;
+import com.magister.backend.domain.decision.service.DecisionReferenceService;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.service.WorkAccessService;
@@ -57,6 +58,7 @@ public class AnalysisJobService {
     private final AnalysisSnapshotService analysisSnapshotService;
     private final ChapterRepository chapterRepository;
     private final GeminiProperties geminiProperties;
+    private final DecisionReferenceService decisionReferenceService;
 
     /**
      * 선택한 원고·확정 설정의 현재 스냅샷을 저장하고 커밋 후 분석을 접수한다. 동일 작품의 requestId와 같은 요청은 종료 여부와 관계없이 기존 작업을 반환한다.
@@ -118,6 +120,7 @@ public class AnalysisJobService {
                 geminiProperties.model());
         analysisJobRepository.saveAndFlush(job);
         analysisSnapshotService.save(job, input);
+        decisionReferenceService.save(job, input.decisionReferences());
 
         String jobId = job.getId();
 

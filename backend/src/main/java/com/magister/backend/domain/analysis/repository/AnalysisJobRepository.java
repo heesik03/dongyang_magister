@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -98,7 +99,16 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
     /** 보존 기간 정리 시 원고 본문을 읽지 않고 제한된 수의 ID만 가져온다. */
     @Query(
             "select j.id from AnalysisJob j where j.status in :terminal and j.updatedAt < :before"
-                    + " order by j.updatedAt, j.id")
+                + " and not exists(select d.id from ReviewDecision d where d.review.job=j) order by"
+                + " j.updatedAt, j.id")
     List<String> findExpiredResultIds(
             Collection<AnalysisJobStatus> terminal, Instant before, Pageable limit);
+
+    /** 이력 스캔 이후 새 판단이 저장되었더라도 삭제 직전에 다시 제외한다. */
+    @Modifying
+    @Transactional
+    @Query(
+            "delete from AnalysisJob j where j.id in :ids and not exists(select d.id from"
+                    + " ReviewDecision d where d.review.job=j)")
+    int deleteExpiredWithoutDecisions(List<String> ids);
 }

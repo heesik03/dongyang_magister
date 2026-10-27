@@ -4,13 +4,13 @@ import com.magister.backend.domain.analysis.converter.AnalysisConverter;
 import com.magister.backend.domain.analysis.dto.AnalysisInput;
 import com.magister.backend.domain.analysis.dto.AnalysisInput.SettingReference;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
+import com.magister.backend.domain.decision.service.DecisionReferenceService;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
-import com.magister.backend.domain.workspace.dto.WorkspaceData.ReviewData;
 import com.magister.backend.domain.workspace.dto.WorkspaceResponse;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
@@ -29,6 +29,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AnalysisInputFactory {
     private final WorkSettingRepository workSettingRepository;
+    private final DecisionReferenceService decisionReferenceService;
 
     /**
      * 호출자의 작품 잠금 아래에서 현재 회차·확정 설정·선택한 이전 회차·과거 판단을 묶는다. 다른 작품의 설정, 선택하지 못한 회차, 현재 회차의 이전 회차 지정은
@@ -84,16 +85,15 @@ public class AnalysisInputFactory {
             throw new CustomException(CommonErrorCode.INVALID_REQUEST);
         }
 
-        // 이전 판단은 같은 회차의 원문·설정 근거가 일치하는 경우에만 결과 검증기가 재사용한다.
-        List<ReviewData> decisions =
-                content.analyses().stream()
-                        .filter(item -> item.chapterId().equals(chapter.id()))
-                        .flatMap(item -> item.reviews().stream())
-                        .filter(item -> !item.decision().equals("미검토"))
-                        .sorted(Comparator.comparing(ReviewData::id))
-                        .toList();
-
-        return AnalysisConverter.toInput(chapter, references, previous, decisions, request);
+        // workspace의 범위 없는 기존 판단은 보존만 한다. 검증된 최신 범위만 다음 분석에 전송한다.
+        return AnalysisConverter.toInput(
+                chapter,
+                references,
+                previous,
+                List.of(),
+                request,
+                decisionReferenceService.select(
+                        workId, chapter.id(), request.settingIds(), request.previousIds()));
     }
 
     /** 외부 문자열 ID를 영속 ID로 변환하며 숫자가 아닌 값은 DB 조회 전에 거절한다. */

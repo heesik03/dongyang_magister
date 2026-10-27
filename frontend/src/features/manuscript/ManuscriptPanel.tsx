@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import type { Chapter, Decision, Work } from '../works/workTypes'
+import type { Chapter, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
 import { ReviewPanel } from '../review/ReviewPanel'
+import { DecisionLedger } from '../review/DecisionLedger'
 import { useReviewReport } from '../review/useReviewReport'
 import { reviewClient, type ReviewSource, type SourceLocation } from '../review/reviewClient'
 import { ReviewSourceDialog } from '../review/ReviewSourceDialog'
@@ -35,17 +36,8 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const [jumpLoading, setJumpLoading] = useState<string | null>(null)
   const jumpRequest = useRef<AbortController | null>(null)
   const savedAnalysis = work.analyses.find((item) => item.chapterId === chapter?.id)
-  const analysis = jobs.job?.result
-    ? savedAnalysis?.createdAt === jobs.job.result.createdAt
-      ? {
-          ...jobs.job.result,
-          reviews: jobs.job.result.reviews.map((review) => {
-            const saved = savedAnalysis.reviews.find((item) => item.id === review.id)
-            return saved ? { ...review, decision: saved.decision, note: saved.note } : review
-          }),
-        }
-      : jobs.job.result
-    : savedAnalysis
+  const analysis = jobs.job?.result ?? savedAnalysis
+  const [ledgerOpen, setLedgerOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [settingIds, setSettingIds] = useState(
@@ -292,22 +284,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       setError(failure instanceof Error ? failure.message : '취소 요청 실패')
     }
   }
-  // 작가 판단은 해당 원고의 검토 항목에만 적용하며 작품 전체의 예외로 확대하지 않는다.
-  function decide(id: string, decision: Decision, note: string) {
-    if (!analysis || stale) return
-    updateWork({
-      ...work,
-      analyses: [
-        ...work.analyses.filter((item) => item.chapterId !== analysis.chapterId),
-        {
-          ...analysis,
-          reviews: analysis.reviews.map((review) =>
-            review.id === id ? { ...review, decision, note } : review,
-          ),
-        },
-      ],
-    })
-  }
   async function jump(location: SourceLocation) {
     if (!selectedJobId) return
     jumpRequest.current?.abort()
@@ -365,6 +341,8 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   }
   return (
     <div className="manuscript-workspace">
+      <button onClick={() => setLedgerOpen(true)}>작품 판단 기록</button>
+      {ledgerOpen && <DecisionLedger workId={work.id} onClose={() => setLedgerOpen(false)} />}
       {jumpLoading && jumpLoading === selectedJobId && (
         <p role="status">근거 원문을 불러오고 있습니다.</p>
       )}
@@ -612,7 +590,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           }
           retry={() => void retryAnalysis()}
           onJump={(location) => void jump(location)}
-          onDecision={decide}
+          onDecisionSaved={reportState.retry}
         />
       </div>
       {openedSource && (

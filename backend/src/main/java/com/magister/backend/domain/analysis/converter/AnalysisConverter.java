@@ -14,6 +14,7 @@ import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
 import com.magister.backend.domain.analysis.repository.AnalysisJobSummaryView;
 import com.magister.backend.domain.analysis.repository.AnalysisJobView;
+import com.magister.backend.domain.decision.dto.DecisionReference;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.AnalysisData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
@@ -45,7 +46,7 @@ public class AnalysisConverter {
         String notice =
                 retention.isZero()
                         ? "분석 입력과 결과는 서버에 저장되며 현재 자동 삭제되지 않습니다."
-                        : "분석 입력과 작업 결과는 작업 종료 후 "
+                        : "판단 이력이 없는 분석 입력과 작업 결과는 작업 종료 후 "
                                 + retention.toSeconds()
                                 + "초가 지나면 자동 삭제 대상이 됩니다. 별도로 저장한 원고와 판단은 유지됩니다.";
         return new AnalysisPreviewResponse(
@@ -113,14 +114,16 @@ public class AnalysisConverter {
             List<SettingReference> settings,
             List<ChapterData> previous,
             List<ReviewData> decisions,
-            AnalysisRequest request) {
+            AnalysisRequest request,
+            List<DecisionReference> decisionReferences) {
         return new AnalysisInput(
                 chapter,
                 settings,
                 previous,
                 decisions,
                 request.consistency(),
-                request.motivation());
+                request.motivation(),
+                decisionReferences);
     }
 
     public static SettingReference toReference(WorkSetting setting) {

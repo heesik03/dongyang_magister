@@ -1,5 +1,6 @@
 import { httpClient } from '../../shared/httpClient'
 import { parsePage, readInteger, readRecord, readString } from '../../shared/responseReader'
+import { parseDecision, type SavedDecision } from './decisionClient'
 
 export interface SourceLocation {
   sourceId: number
@@ -29,6 +30,7 @@ export interface ReviewReport {
   reviews: LinkedReview[]
   legacy: boolean
   stale: boolean
+  decisions?: Record<string, SavedDecision>
 }
 export interface ReviewSource {
   id: number
@@ -95,7 +97,16 @@ export const reviewClient = {
     const page = parsePage(value.candidates, parseLinkedReview)
     if (page.totalElements > 100 || page.items.length !== page.totalElements)
       throw new Error('검토 결과 범위를 초과했습니다.')
-    return { reviews: page.items, legacy: value.legacy, stale: value.stale }
+    const decisions: Record<string, SavedDecision> = {}
+    if (value.decisions !== undefined) {
+      for (const [id, raw] of Object.entries(readRecord(value.decisions))) {
+        const decision = parseDecision(raw)
+        if (decision.reviewId !== id || !page.items.some((review) => review.id === id))
+          throw new Error('판단과 후보가 일치하지 않습니다.')
+        decisions[id] = decision
+      }
+    }
+    return { reviews: page.items, legacy: value.legacy, stale: value.stale, decisions }
   },
   async source(
     workId: string,

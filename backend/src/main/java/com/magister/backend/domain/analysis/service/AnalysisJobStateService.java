@@ -116,7 +116,7 @@ public class AnalysisJobStateService {
                             now.minus(executionProperties.getRetention()),
                             PageRequest.of(0, 100));
             if (!expired.isEmpty()) {
-                analysisJobRepository.deleteAllByIdInBatch(expired);
+                analysisJobRepository.deleteExpiredWithoutDecisions(expired);
             }
         }
 

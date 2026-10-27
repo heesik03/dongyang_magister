@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ChapterRepository extends JpaRepository<Chapter, Long> {
+    /** 판단 근거에 실제 포함된 회차만 작품 범위 안에서 읽는다. */
+    List<Chapter> findByWork_IdAndChapterKeyIn(Long workId, List<String> keys);
+
     /** 작품 조건을 포함해 다른 작품의 같은 공개 회차 ID와 구분한다. */
     Optional<Chapter> findByWork_IdAndChapterKey(Long workId, String chapterKey);
 

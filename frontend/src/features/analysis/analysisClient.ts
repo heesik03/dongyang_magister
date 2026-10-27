@@ -2,6 +2,7 @@ import { httpClient } from '../../shared/httpClient'
 import { parsePage, readInteger, readRecord, readString } from '../../shared/responseReader'
 import { isWorks } from '../works/workStorage'
 import type { Analysis, Chapter, Review } from '../works/workTypes'
+import { parseDecisionReference, type DecisionReference } from '../review/decisionClient'
 
 export interface AnalysisInput {
   chapterId: string
@@ -13,6 +14,7 @@ export interface AnalysisInput {
   motivation: boolean
 }
 export interface InputSnapshot {
+  decisionReferences?: DecisionReference[]
   chapter: Chapter
   previous: Chapter[]
   settings: {
@@ -128,6 +130,11 @@ export function parseInput(raw: unknown): InputSnapshot {
   if (input.previous.length > 100 || input.settings.length > 1000 || input.decisions.length > 100)
     throw new Error('전송 자료 범위를 초과했습니다.')
   const chapter = parseChapter(input.chapter)
+  if (
+    input.decisionReferences !== undefined &&
+    (!Array.isArray(input.decisionReferences) || input.decisionReferences.length > 100)
+  )
+    throw new Error('참고 판단 범위를 초과했습니다.')
   const settings = input.settings.map((raw) => {
     const value = readRecord(raw),
       status = readString(value, 'status')
@@ -157,6 +164,9 @@ export function parseInput(raw: unknown): InputSnapshot {
     decisions,
     consistency: input.consistency,
     motivation: input.motivation,
+    decisionReferences: Array.isArray(input.decisionReferences)
+      ? input.decisionReferences.map(parseDecisionReference)
+      : [],
   }
 }
 export const analysisClient = {

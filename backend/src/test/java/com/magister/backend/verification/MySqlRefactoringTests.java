@@ -14,10 +14,14 @@ import com.magister.backend.domain.analysis.service.AnalysisJobStateService;
 import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.chapter.dto.ChapterResponse;
+import com.magister.backend.domain.chapter.dto.CreateChapterRequest;
 import com.magister.backend.domain.chapter.dto.UpdateChapterRequest;
 import com.magister.backend.domain.chapter.entity.Chapter;
 import com.magister.backend.domain.chapter.repository.ChapterRepository;
 import com.magister.backend.domain.chapter.service.ChapterService;
+import com.magister.backend.domain.decision.dto.DecisionRequest;
+import com.magister.backend.domain.decision.dto.DecisionResponse;
+import com.magister.backend.domain.decision.service.DecisionService;
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
@@ -42,6 +46,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -85,6 +90,7 @@ class MySqlRefactoringTests {
     @Autowired AnalysisPreviewService previewService;
     @Autowired AnalysisJobStateService stateService;
     @Autowired AnalysisResultProcessor resultProcessor;
+    @Autowired DecisionService decisionService;
     @Autowired ChapterRepository chapterRepository;
     @Autowired ChapterService chapterService;
     @Autowired UserRepository users;
@@ -98,6 +104,115 @@ class MySqlRefactoringTests {
     @Autowired JdbcTemplate jdbc;
     @MockitoBean AnalysisDispatcher dispatcher;
     @MockitoSpyBean PasswordEncoder passwordEncoder;
+
+    @Test
+    void decisionVersionsScopesAndReferencesOnMySql() {
+        Fixture fixture = fixture(null);
+        chapterService.create(
+                fixture.ownerId(),
+                fixture.workId(),
+                new CreateChapterRequest("c2", "next", "text", "create-next"));
+        AnalysisRequest selection = fixture.request();
+        AnalysisPreviewResponse preview =
+                previewService.preview(fixture.ownerId(), fixture.workId(), selection);
+        String jobId =
+                jobs.create(
+                                fixture.ownerId(),
+                                fixture.workId(),
+                                selection.confirmed(
+                                        preview.previewToken(), preview.policyVersion()))
+                        .id();
+        stateService.claim(jobId).orElseThrow();
+        String provider =
+                """
+                {"reviews":[{"type":"설정 충돌 후보","quote":"text","startOffset":0,"endOffset":4,"evidences":[{"sourceType":"SETTING","sourceKey":"%s","quote":"evidence","startOffset":0,"endOffset":8,"explanation":"rule"}],"reason":"check","suggestion":"explain"}]}
+                """
+                        .formatted(fixture.settingId());
+        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, preview.input()));
+        String reviewId =
+                jobs.get(fixture.ownerId(), fixture.workId(), jobId)
+                        .result()
+                        .reviews()
+                        .getFirst()
+                        .id();
+        DecisionResponse initial =
+                decisionService.get(fixture.ownerId(), fixture.workId(), reviewId);
+        DecisionRequest request =
+                new DecisionRequest(
+                        "의도된 설정",
+                        "ability change",
+                        0,
+                        "mysql-decision",
+                        initial.basisHash(),
+                        false,
+                        List.of(
+                                new DecisionRequest.Scope(
+                                        "CHAPTER_RANGE",
+                                        "c1",
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        "after seal release")));
+        DecisionResponse saved =
+                decisionService.save(fixture.ownerId(), fixture.workId(), reviewId, request);
+        assertThat(saved.version()).isEqualTo(1);
+        assertThat(
+                        decisionService
+                                .save(fixture.ownerId(), fixture.workId(), reviewId, request)
+                                .id())
+                .isEqualTo(saved.id());
+        AnalysisRequest next =
+                new AnalysisRequest(
+                        "mysql-next",
+                        "c2",
+                        1,
+                        List.of(fixture.settingId().toString()),
+                        List.of(),
+                        true,
+                        true,
+                        1L);
+        AnalysisPreviewResponse nextPreview =
+                previewService.preview(fixture.ownerId(), fixture.workId(), next);
+        assertThat(nextPreview.input().decisionReferences()).hasSize(1);
+        String nextId =
+                jobs.create(
+                                fixture.ownerId(),
+                                fixture.workId(),
+                                next.confirmed(
+                                        nextPreview.previewToken(), nextPreview.policyVersion()))
+                        .id();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM analysis_decision_references WHERE job_id=?",
+                                Long.class,
+                                nextId))
+                .isEqualTo(1);
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM analysis_jobs WHERE id=?", jobId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "INSERT INTO"
+                                            + " review_decisions(review_id,decision_version,status,reason,mutation_id,request_body,basis_hash,created_at)"
+                                            + " SELECT"
+                                            + " review_id,decision_version,status,reason,'duplicate-version',request_body,basis_hash,created_at"
+                                            + " FROM review_decisions WHERE id=?",
+                                        saved.id()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "INSERT INTO"
+                                            + " review_decision_scopes(decision_id,scope_type,condition_text)"
+                                            + " VALUES(?,'SCENE','invalid')",
+                                        saved.id()))
+                .isInstanceOfSatisfying(
+                        UncategorizedSQLException.class,
+                        error ->
+                                assertThat(error.getSQLException().getErrorCode()).isEqualTo(3819));
+        jobs.cancel(fixture.ownerId(), fixture.workId(), nextId);
+    }
 
     @Test
     void reviewEvidencePersistsAtomicallyAndRejectsOtherJobSourcesOnMySql() {

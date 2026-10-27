@@ -13,6 +13,7 @@ import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
 import com.magister.backend.domain.analysis.repository.ReviewCandidateRepository;
 import com.magister.backend.domain.analysis.repository.ReviewEvidenceRepository;
+import com.magister.backend.domain.decision.service.DecisionService;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.pagination.OffsetPageRequest;
@@ -39,6 +40,7 @@ public class ReviewResultService {
     private final ReviewEvidenceRepository evidenceRepository;
     private final AnalysisSnapshotService snapshotService;
     private final ReviewConverter reviewConverter;
+    private final DecisionService decisionService;
 
     /** 완료 상태와 같은 트랜잭션에서만 저장한다. 출처·후보는 같은 작업의 FK로도 묶는다. */
     @Transactional(propagation = Propagation.MANDATORY)
@@ -106,6 +108,7 @@ public class ReviewResultService {
                 candidates,
                 evidences,
                 job.getResultFormatVersion() == 0,
-                snapshotService.get(ownerId, workId, jobId).stale());
+                snapshotService.get(ownerId, workId, jobId).stale(),
+                decisionService.summaries(workId, candidates.getContent(), evidences));
     }
 }

@@ -28,7 +28,26 @@ export function AnalysisMaterials({ input }: { input: InputSnapshot }) {
           <p style={{ whiteSpace: 'pre-wrap' }}>{chapter.content}</p>
         </details>
       ))}
-      <strong>참고할 저장 판단 {input.decisions.length}개</strong>
+      <strong>참고할 저장 판단 {(input.decisionReferences ?? []).length}개</strong>
+      {(input.decisionReferences ?? []).map((reference) => (
+        <details key={reference.scopeId}>
+          <summary>
+            {reference.status} · 버전 {reference.version} · {reference.quote}
+          </summary>
+          <p>작가 사유: {reference.reason || '없음'}</p>
+          <p>
+            적용 범위:{' '}
+            {reference.scopeType === 'SCENE'
+              ? '해당 회차의 특정 장면'
+              : `${reference.fromChapterTitle ?? '시작 회차'}부터 ${reference.toChapterTitle ?? '이후 회차'}까지`}
+          </p>
+          <p>적용 조건: {reference.conditionText}</p>
+          <p>관련 근거: {reference.evidenceQuotes.join(' / ')}</p>
+        </details>
+      ))}
+      {input.decisions.length > 0 && (
+        <strong>과거 분석에 포함했던 기존 판단 {input.decisions.length}개</strong>
+      )}
       {input.decisions.map((decision) => (
         <details key={decision.id}>
           <summary>
@@ -39,7 +58,10 @@ export function AnalysisMaterials({ input }: { input: InputSnapshot }) {
           <p>작가 사유: {decision.note || '없음'}</p>
         </details>
       ))}
-      <p className="small muted">저장 판단은 현재 회차의 해당 원문·근거에 한해 참고합니다.</p>
+      <p className="small muted">
+        현재 선택한 근거가 모두 포함되고 유효한 판단만 전송합니다. 저장 판단은 표시한
+        회차·장면·조건에 해당하는 관련 근거에만 참고합니다. 범위 밖의 충돌을 무시하지 않습니다.
+      </p>
     </div>
   )
 }

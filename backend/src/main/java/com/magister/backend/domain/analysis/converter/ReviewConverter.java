@@ -5,6 +5,7 @@ import com.magister.backend.domain.analysis.dto.ReviewResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
 import com.magister.backend.domain.analysis.entity.ReviewCandidate;
 import com.magister.backend.domain.analysis.entity.ReviewEvidence;
+import com.magister.backend.domain.decision.dto.DecisionResponse;
 import com.magister.backend.global.pagination.OffsetPageResponse;
 
 import org.springframework.data.domain.Page;
@@ -20,7 +21,8 @@ public class ReviewConverter {
             Page<ReviewCandidate> candidates,
             List<ReviewEvidence> evidences,
             boolean legacy,
-            boolean stale) {
+            boolean stale,
+            Map<String, DecisionResponse> decisions) {
         Map<String, List<ReviewEvidence>> byReview =
                 evidences.stream().collect(Collectors.groupingBy(item -> item.getReview().getId()));
         return new ReviewReportResponse(
@@ -42,7 +44,8 @@ public class ReviewConverter {
                                                         .map(this::toEvidence)
                                                         .toList()))),
                 legacy,
-                stale);
+                stale,
+                decisions);
     }
 
     private ReviewResponse.Evidence toEvidence(ReviewEvidence evidence) {

@@ -12,6 +12,7 @@ import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
 import com.magister.backend.domain.chapter.entity.Chapter;
 import com.magister.backend.domain.chapter.repository.ChapterRepository;
+import com.magister.backend.domain.decision.service.DecisionReferenceService;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.work.error.WorkErrorCode;
@@ -49,6 +50,7 @@ public class AnalysisSnapshotService {
     private final WorkspaceSnapshotService workspaceSnapshotService;
     private final AnalysisConverter analysisConverter;
     private final ObjectMapper objectMapper;
+    private final DecisionReferenceService decisionReferenceService;
 
     /** 본인 작업에 포함된 불변 원문 하나만 반환한다. 다른 작업의 출처 ID도 거절한다. */
     @Transactional(readOnly = true)
@@ -141,7 +143,10 @@ public class AnalysisSnapshotService {
                         || settings.size() != input.settings().size()
                         || !settings.containsAll(input.settings());
         return analysisConverter.toSnapshot(
-                job, input, sourceRepository.findByJob_IdOrderByIdAsc(jobId), stale);
+                job,
+                input,
+                sourceRepository.findByJob_IdOrderByIdAsc(jobId),
+                stale || decisionReferenceService.changed(workId, input.decisionReferences()));
     }
 
     private AnalysisSource fromChapter(
