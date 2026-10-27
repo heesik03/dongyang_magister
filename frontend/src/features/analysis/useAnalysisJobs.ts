@@ -34,7 +34,7 @@ export function useAnalysisJobs(workId: string, chapterId: string | undefined, e
         setSelection((previous) =>
           previous && result.items.some((item) => item.id === previous)
             ? previous
-            : (result.items[0]?.id ?? null),
+            : (result.items[0]?.id ?? previous ?? null),
         )
       })
       .catch((error) => {
@@ -107,7 +107,6 @@ export function useAnalysisJobs(workId: string, chapterId: string | undefined, e
     select,
     changePage: (page: number) => {
       setPollError('')
-      setSelection(null)
       setPage(page)
     },
     accept,

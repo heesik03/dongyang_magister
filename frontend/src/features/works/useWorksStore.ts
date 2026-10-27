@@ -234,8 +234,12 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     if (
       get().works.some((work) => work.id === id && work.source !== 'server') ||
       get().dirtyIds.includes(id)
-    )
+    ) {
+      if (get().works.some((work) => work.id === id)) {
+        set({ loadedIds: [...new Set([...get().loadedIds, id])] })
+      }
       return
+    }
     const revision = accountRevision,
       controller = new AbortController()
     detailRequest = controller
@@ -250,7 +254,10 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       if (revision !== accountRevision || controller.signal.aborted) return
       const cached = get().works.find((item) => item.id === id)
       if (get().dirtyIds.includes(id)) {
-        set({ detailLoading: false })
+        set({
+          loadedIds: [...new Set([...get().loadedIds, id])],
+          detailLoading: false,
+        })
         return
       }
       const full = {
@@ -566,8 +573,16 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       await get().flushWorkspace(id)
   },
   async reloadWorkspace(id) {
-    const revision = accountRevision,
-      [response, chapters] = await Promise.all([workspaceClient.get(id), chapterClient.listAll(id)])
+    const revision = accountRevision
+    const inFlight = flights.get(id)
+    if (inFlight) {
+      await inFlight.catch(() => {})
+      if (revision !== accountRevision) return
+    }
+    const [response, chapters] = await Promise.all([
+      workspaceClient.get(id),
+      chapterClient.listAll(id),
+    ])
     if (revision !== accountRevision) return
     const existing = get().works.find((work) => work.id === id)
     if (!existing) return

@@ -51,10 +51,13 @@ async function send(
   options: RequestOptions,
   data?: object,
   headers?: Record<string, string>,
+  requestRevision = csrfRevision,
 ): Promise<unknown> {
   const { expireSessionOnUnauthorized = true, ...config } = options
   const response = await transport.request<unknown>({ ...config, method, url: path, data, headers })
-  if (response.status === 401 || response.status === 403) clearCsrfToken()
+  if ((response.status === 401 || response.status === 403) && requestRevision === csrfRevision) {
+    clearCsrfToken()
+  }
   if (response.status < 200 || response.status >= 300) {
     if (response.status === 401 && expireSessionOnUnauthorized) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
@@ -75,9 +78,16 @@ async function getCsrfToken(
   const revision = csrfRevision
   const pending = (async () => {
     const raw = readRecord(
-      await send('GET', '/user/csrf', {
-        expireSessionOnUnauthorized: options.expireSessionOnUnauthorized,
-      }),
+      await send(
+        'GET',
+        '/user/csrf',
+        {
+          expireSessionOnUnauthorized: options.expireSessionOnUnauthorized,
+        },
+        undefined,
+        undefined,
+        revision,
+      ),
     )
     const headerName = readString(raw, 'headerName'),
       token = readString(raw, 'token')
@@ -102,10 +112,18 @@ async function sendWithCsrf(
   options: RequestOptions = {},
 ): Promise<unknown> {
   const { headerName, token } = await getCsrfToken(options)
-  return send(method, path, options, data, {
-    'Content-Type': 'application/json',
-    [headerName]: token,
-  })
+  const requestRevision = csrfRevision
+  return send(
+    method,
+    path,
+    options,
+    data,
+    {
+      'Content-Type': 'application/json',
+      [headerName]: token,
+    },
+    requestRevision,
+  )
 }
 // 쿠키·응답 봉투·CSRF는 여기서 처리하고, 도메인 client는 업무 요청과 응답 해석을 담당한다.
 export const httpClient = {

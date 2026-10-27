@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { Setting, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
 import { Dialog } from '../../shared/Dialog'
@@ -9,6 +9,10 @@ export function SettingsPanel({ work }: { work: Work }) {
   const loadSettings = useWorksStore((state) => state.loadSettings)
   const settingView = useWorksStore((state) => state.settingView)
   const [kind, setKind] = useState('전체')
+  const latestKind = useRef(kind)
+  useEffect(() => {
+    latestKind.current = kind
+  }, [kind])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => {
@@ -54,7 +58,7 @@ export function SettingsPanel({ work }: { work: Work }) {
       )
       setSelectedId(saved.id)
       setEditing(null)
-      await loadSettings(work.id, kind)
+      await loadSettings(work.id, latestKind.current)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : '설정을 저장하지 못했습니다.')
     } finally {

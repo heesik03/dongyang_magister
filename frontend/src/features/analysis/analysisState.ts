@@ -39,8 +39,15 @@ function signature(
 ) {
   return JSON.stringify(
     [...settings]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((s) => [s.id, s.title, s.content, s.kind, s.status, s.version ?? 0]),
+      .sort((first, second) => first.id.localeCompare(second.id))
+      .map((setting) => [
+        setting.id,
+        setting.title,
+        setting.content,
+        setting.kind,
+        setting.status,
+        setting.version ?? 0,
+      ]),
   )
 }
 export function settingsChanged(analysis: Analysis, settings: Setting[]): boolean {

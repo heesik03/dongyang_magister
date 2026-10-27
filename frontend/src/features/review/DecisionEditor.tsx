@@ -124,11 +124,15 @@ function DecisionForm({
     totalPages: number
   } | null>(null)
   const pending = useRef<DecisionRequest | null>(null)
+  const compareRequest = useRef<AbortController | null>(null)
+  const historyRequest = useRef<AbortController | null>(null)
   const mounted = useRef(true)
   useEffect(() => {
     mounted.current = true
     return () => {
       mounted.current = false
+      compareRequest.current?.abort()
+      historyRequest.current?.abort()
     }
   }, [])
   function changed() {
@@ -176,19 +180,27 @@ function DecisionForm({
     }
   }
   async function compare() {
+    compareRequest.current?.abort()
+    const controller = new AbortController()
+    compareRequest.current = controller
     try {
-      const latest = await decisionClient.get(work.id, review.id)
-      if (mounted.current) setComparison(latest)
+      const latest = await decisionClient.get(work.id, review.id, controller.signal)
+      if (mounted.current && !controller.signal.aborted) setComparison(latest)
     } catch (error) {
-      if (mounted.current) setError(error instanceof Error ? error.message : '최신 판단 조회 실패')
+      if (mounted.current && !controller.signal.aborted)
+        setError(error instanceof Error ? error.message : '최신 판단 조회 실패')
     }
   }
   async function loadHistory(page: number) {
+    historyRequest.current?.abort()
+    const controller = new AbortController()
+    historyRequest.current = controller
     try {
-      const history = await decisionClient.history(work.id, review.id, page)
-      if (mounted.current) setHistory(history)
+      const history = await decisionClient.history(work.id, review.id, page, controller.signal)
+      if (mounted.current && !controller.signal.aborted) setHistory(history)
     } catch (error) {
-      if (mounted.current) setError(error instanceof Error ? error.message : '판단 이력 조회 실패')
+      if (mounted.current && !controller.signal.aborted)
+        setError(error instanceof Error ? error.message : '판단 이력 조회 실패')
     }
   }
   return (

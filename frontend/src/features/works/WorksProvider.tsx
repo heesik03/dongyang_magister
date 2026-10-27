@@ -6,8 +6,9 @@ export function WorksProvider({ email, children }: { email: string; children: Re
   useEffect(() => {
     useWorksStore.getState().initialize(email)
     void useWorksStore.getState().loadShortcuts()
-    function preserve() {
+    function preserve(): Promise<void[]> {
       const state = useWorksStore.getState()
+      const tasks: Promise<void>[] = []
       for (const id of state.dirtyIds) {
         const work = state.works.find((item) => item.id === id)
         try {
@@ -17,13 +18,14 @@ export function WorksProvider({ email, children }: { email: string; children: Re
             storageError: '복구 정보 저장에 실패했습니다. 입력을 파일로 보관해 주세요.',
           })
         }
-        void state.flushWorkspace(id)
+        tasks.push(state.flushWorkspace(id))
       }
       state.retrySave()
+      return Promise.all(tasks)
     }
     function leave(event: BeforeUnloadEvent) {
       if (useWorksStore.getState().dirtyIds.length) {
-        preserve()
+        void preserve()
         event.preventDefault()
       }
     }
@@ -58,11 +60,14 @@ export function WorksProvider({ email, children }: { email: string; children: Re
     window.addEventListener('beforeunload', leave)
     window.addEventListener('storage', remote)
     return () => {
-      preserve()
       window.removeEventListener('pagehide', preserve)
       window.removeEventListener('beforeunload', leave)
       window.removeEventListener('storage', remote)
-      useWorksStore.getState().reset()
+      void preserve().finally(() => {
+        if (useWorksStore.getState().account === email) {
+          useWorksStore.getState().reset()
+        }
+      })
     }
   }, [email])
   if (account !== email) return <p role="status">작품을 준비하고 있습니다.</p>

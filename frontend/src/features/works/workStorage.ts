@@ -18,43 +18,45 @@ export function isWorks(value: unknown): value is Work[] {
       strings(work, ['id', 'title', 'genre', 'era', 'description', 'updatedAt']) &&
       arrayOf(
         work.settings,
-        (s) =>
-          record(s) &&
-          strings(s, ['id', 'title', 'content']) &&
-          ['인물', '세계관', '주요 사건', '의도한 각색'].includes(String(s.kind)) &&
-          ['확정', '아이디어', 'AI 후보'].includes(String(s.status)),
+        (setting) =>
+          record(setting) &&
+          strings(setting, ['id', 'title', 'content']) &&
+          ['인물', '세계관', '주요 사건', '의도한 각색'].includes(String(setting.kind)) &&
+          ['확정', '아이디어', 'AI 후보'].includes(String(setting.status)),
       ) &&
       arrayOf(
         work.chapters,
-        (c) =>
-          record(c) &&
-          strings(c, ['id', 'title', 'content']) &&
-          typeof c.revision === 'number' &&
-          Number.isSafeInteger(c.revision) &&
-          c.revision >= 1,
+        (chapter) =>
+          record(chapter) &&
+          strings(chapter, ['id', 'title', 'content']) &&
+          typeof chapter.revision === 'number' &&
+          Number.isSafeInteger(chapter.revision) &&
+          chapter.revision >= 1,
       ) &&
       arrayOf(
         work.events,
-        (e) => record(e) && strings(e, ['id', 'title', 'time', 'characters', 'chapterId', 'quote']),
+        (event) =>
+          record(event) &&
+          strings(event, ['id', 'title', 'time', 'characters', 'chapterId', 'quote']),
       ) &&
       arrayOf(
         work.analyses,
-        (a) =>
-          record(a) &&
-          strings(a, ['chapterId', 'source', 'createdAt']) &&
-          typeof a.revision === 'number' &&
-          Number.isSafeInteger(a.revision) &&
-          a.revision >= 1 &&
-          (a.settingsSnapshot === undefined ||
-            a.settingsSnapshot === null ||
-            typeof a.settingsSnapshot === 'string') &&
-          arrayOf(a.settingIds, (id) => typeof id === 'string') &&
-          arrayOf(a.previousIds, (id) => typeof id === 'string') &&
+        (analysis) =>
+          record(analysis) &&
+          strings(analysis, ['chapterId', 'source', 'createdAt']) &&
+          typeof analysis.revision === 'number' &&
+          Number.isSafeInteger(analysis.revision) &&
+          analysis.revision >= 1 &&
+          (analysis.settingsSnapshot === undefined ||
+            analysis.settingsSnapshot === null ||
+            typeof analysis.settingsSnapshot === 'string') &&
+          arrayOf(analysis.settingIds, (id) => typeof id === 'string') &&
+          arrayOf(analysis.previousIds, (id) => typeof id === 'string') &&
           arrayOf(
-            a.reviews,
-            (r) =>
-              record(r) &&
-              strings(r, [
+            analysis.reviews,
+            (review) =>
+              record(review) &&
+              strings(review, [
                 'id',
                 'quote',
                 'settingId',
@@ -63,8 +65,8 @@ export function isWorks(value: unknown): value is Work[] {
                 'suggestion',
                 'note',
               ]) &&
-              ['설정 충돌 후보', '설명 보완'].includes(String(r.type)) &&
-              ['미검토', '수용', '보류', '의도된 설정'].includes(String(r.decision)),
+              ['설정 충돌 후보', '설명 보완'].includes(String(review.type)) &&
+              ['미검토', '수용', '보류', '의도된 설정'].includes(String(review.decision)),
           ),
       ),
   )

@@ -183,14 +183,23 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         latest = state.works.find((item) => item.id === work.id)
       if (!latest || state.dirtyIds.includes(work.id))
         throw new Error('원고를 먼저 서버에 저장해 주세요.')
+      const confirmedSettingIds = settingIds.filter((id) =>
+        latest.settings.some((setting) => setting.id === id && setting.status === '확정'),
+      )
+      const validPreviousIds = previousIds.filter(
+        (id) =>
+          latest.chapters.findIndex((item) => item.id === id) >= 0 &&
+          latest.chapters.findIndex((item) => item.id === id) <
+            latest.chapters.findIndex((item) => item.id === chapter.id),
+      )
       const result = await analysisClient.preview(
         work.id,
         {
           chapterId: chapter.id,
           chapterRevision: latest.chapters.find((item) => item.id === chapter.id)?.revision,
           workspaceVersion: latest.workspaceVersion ?? 0,
-          settingIds,
-          previousIds,
+          settingIds: confirmedSettingIds,
+          previousIds: validPreviousIds,
           consistency,
           motivation,
         },
@@ -524,7 +533,9 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                     updateWork({
                       ...work,
                       chapters: work.chapters.map((item) =>
-                        item.id === chapter.id ? { ...item, title: event.target.value } : item,
+                        item.id === chapter.id
+                          ? { ...item, title: event.target.value, revision: item.revision + 1 }
+                          : item,
                       ),
                     })
                   }
