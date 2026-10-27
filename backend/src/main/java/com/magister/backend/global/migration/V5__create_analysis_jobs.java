@@ -8,8 +8,8 @@ import java.sql.Statement;
 public class V5__create_analysis_jobs extends BaseJavaMigration {
     @Override
     public void migrate(Context context) throws Exception {
-        try (Statement s = context.getConnection().createStatement()) {
-            s.execute(
+        try (Statement statement = context.getConnection().createStatement()) {
+            statement.execute(
                     "CREATE TABLE analysis_jobs(id VARCHAR(36) NOT NULL PRIMARY KEY,work_id BIGINT"
                             + " NOT NULL,request_id VARCHAR(64) NOT NULL,request_body LONGTEXT NOT"
                             + " NULL,input LONGTEXT NOT NULL,status VARCHAR(20) NOT NULL,result_json"

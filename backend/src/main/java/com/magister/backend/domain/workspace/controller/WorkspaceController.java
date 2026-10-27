@@ -21,19 +21,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/work/{workId}/workspace")
 public class WorkspaceController implements WorkspaceControllerDocs {
-    private final WorkspaceService service;
+    private final WorkspaceService workspaceService;
 
+    @Override
     @GetMapping
     public ApiResult<WorkspaceResponse> get(
             @AuthenticationPrincipal LoginUser user, @PathVariable Long workId) {
-        return ApiResult.success(service.get(user.id(), workId));
+        return ApiResult.success(workspaceService.get(user.id(), workId));
     }
 
+    @Override
     @PutMapping
     public ApiResult<WorkspaceResponse> save(
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @RequestBody SaveWorkspaceRequest request) {
-        return ApiResult.success(service.save(user.id(), workId, request));
+        return ApiResult.success(workspaceService.save(user.id(), workId, request));
     }
 }

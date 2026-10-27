@@ -36,7 +36,7 @@ import java.net.URI;
 @RequiredArgsConstructor
 @RequestMapping("/api/work/{workId}/analysis")
 public class AnalysisController implements AnalysisControllerDocs {
-    private final AnalysisJobService jobs;
+    private final AnalysisJobService analysisJobService;
     private final AnalysisPreviewService previewService;
     private final AnalysisSnapshotService snapshotService;
     private final ReviewResultService reviewResultService;
@@ -82,7 +82,8 @@ public class AnalysisController implements AnalysisControllerDocs {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ApiResult.success(
-                jobs.list(user.id(), workId, chapterId, status, OffsetPageRequest.of(page, size)));
+                analysisJobService.list(
+                        user.id(), workId, chapterId, status, OffsetPageRequest.of(page, size)));
     }
 
     @Override
@@ -94,30 +95,33 @@ public class AnalysisController implements AnalysisControllerDocs {
         return ApiResult.success(snapshotService.get(user.id(), workId, id));
     }
 
+    @Override
     @PostMapping
     public ResponseEntity<ApiResult<AnalysisJobResponse>> create(
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @RequestBody AnalysisRequest request) {
-        AnalysisJobResponse job = jobs.create(user.id(), workId, request);
+        AnalysisJobResponse job = analysisJobService.create(user.id(), workId, request);
         return ResponseEntity.accepted()
                 .location(URI.create("/api/work/" + workId + "/analysis/" + job.id()))
                 .body(ApiResult.success(job));
     }
 
+    @Override
     @GetMapping("/{id}")
     public ApiResult<AnalysisJobResponse> get(
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @PathVariable String id) {
-        return ApiResult.success(jobs.get(user.id(), workId, id));
+        return ApiResult.success(analysisJobService.get(user.id(), workId, id));
     }
 
+    @Override
     @PostMapping("/{id}/cancel")
     public ApiResult<AnalysisJobResponse> cancel(
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @PathVariable String id) {
-        return ApiResult.success(jobs.cancel(user.id(), workId, id));
+        return ApiResult.success(analysisJobService.cancel(user.id(), workId, id));
     }
 }

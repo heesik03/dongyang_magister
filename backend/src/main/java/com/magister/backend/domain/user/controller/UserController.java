@@ -33,21 +33,21 @@ import java.net.URI;
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
 public class UserController implements UserControllerDocs {
-    private final UserService users;
-    private final SessionAuthenticationService sessions;
+    private final UserService userService;
+    private final SessionAuthenticationService sessionAuthenticationService;
 
     @Override
     @PostMapping("/email/check")
     public ApiResult<EmailCheckResponse> checkEmail(@RequestBody EmailCheckRequest request) {
         return ApiResult.success(
-                UserConverter.toEmailCheckResponse(users.isEmailAvailable(request.email())));
+                UserConverter.toEmailCheckResponse(userService.isEmailAvailable(request.email())));
     }
 
     @Override
     @PostMapping
     public ResponseEntity<ApiResult<UserResponse>> signup(@RequestBody SignupRequest request) {
         return ResponseEntity.created(URI.create("/api/user/me"))
-                .body(ApiResult.success(users.signup(request)));
+                .body(ApiResult.success(userService.signup(request)));
     }
 
     @Override
@@ -62,7 +62,7 @@ public class UserController implements UserControllerDocs {
             @RequestBody LoginRequest input,
             HttpServletRequest request,
             HttpServletResponse response) {
-        return ApiResult.success(sessions.login(input, request, response));
+        return ApiResult.success(sessionAuthenticationService.login(input, request, response));
     }
 
     @Override

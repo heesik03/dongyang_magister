@@ -48,9 +48,9 @@ public class SecurityConfig {
 
     @Bean
     AuthenticationManager authenticationManager(
-            UserDetailsService users, PasswordEncoder passwords) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(users);
-        provider.setPasswordEncoder(passwords);
+            UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder);
         return new ProviderManager(provider);
     }
 
@@ -66,11 +66,11 @@ public class SecurityConfig {
 
     @Bean
     SessionAuthenticationStrategy sessionAuthenticationStrategy(
-            HttpSessionCsrfTokenRepository csrfTokens) {
+            HttpSessionCsrfTokenRepository csrfTokenRepository) {
         return new CompositeSessionAuthenticationStrategy(
                 List.of(
                         new ChangeSessionIdAuthenticationStrategy(),
-                        new CsrfAuthenticationStrategy(csrfTokens)));
+                        new CsrfAuthenticationStrategy(csrfTokenRepository)));
     }
 
     @Bean
@@ -79,7 +79,10 @@ public class SecurityConfig {
                     List<String> allowedOrigins) {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(
-                allowedOrigins.stream().map(String::strip).filter(s -> !s.isEmpty()).toList());
+                allowedOrigins.stream()
+                        .map(String::strip)
+                        .filter(origin -> !origin.isEmpty())
+                        .toList());
         configuration.setAllowedMethods(
                 List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Content-Type", "X-CSRF-TOKEN", "Accept"));
@@ -92,15 +95,16 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            SecurityResponseHandler responses,
-            HttpSessionSecurityContextRepository contexts,
-            HttpSessionCsrfTokenRepository csrfTokens)
+            SecurityResponseHandler securityResponseHandler,
+            HttpSessionSecurityContextRepository securityContextRepository,
+            HttpSessionCsrfTokenRepository csrfTokenRepository)
             throws Exception {
         // CSRF 기본값 유지: /api/user/csrf에서 마스킹된 토큰을 받아 헤더로 전달한다.
         // 저장소를 로그인 처리와 공유해 요청 사이에서 동일한 세션 인증을 복원한다.
         http.cors(Customizer.withDefaults())
-                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokens))
-                .securityContext(context -> context.securityContextRepository(contexts))
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository))
+                .securityContext(
+                        context -> context.securityContextRepository(securityContextRepository))
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(
                         auth ->
@@ -121,14 +125,14 @@ public class SecurityConfig {
                                         .authenticated())
                 .exceptionHandling(
                         errors ->
-                                errors.authenticationEntryPoint(responses)
-                                        .accessDeniedHandler(responses))
+                                errors.authenticationEntryPoint(securityResponseHandler)
+                                        .accessDeniedHandler(securityResponseHandler))
                 // 기본 LogoutFilter가 CSRF 확인 후 세션 무효화와 인증 컨텍스트 제거를 수행한다.
                 .logout(
                         logout ->
                                 logout.logoutUrl("/api/user/logout")
                                         .deleteCookies("JSESSIONID")
-                                        .logoutSuccessHandler(responses));
+                                        .logoutSuccessHandler(securityResponseHandler));
         return http.build();
     }
 }

@@ -119,7 +119,8 @@ public class DecisionBasis {
             for (ReviewEvidence evidence : candidateEvidences) {
                 relevant.put(evidence.getSource().getId(), evidence.getSource());
             }
-            List<String> originalValues = new ArrayList<>(), currentValues = new ArrayList<>();
+            List<String> originalValues = new ArrayList<>();
+            List<String> currentValues = new ArrayList<>();
             boolean quotesMatch =
                     matches(
                             current.get(candidate.getTargetSource().getId()),

@@ -89,7 +89,8 @@ public class V10__snapshot_analysis_sources extends BaseJavaMigration {
                         try {
                             JsonNode chapter =
                                     mapper.readTree(rows.getString("input")).path("chapter");
-                            JsonNode key = chapter.path("id"), title = chapter.path("title");
+                            JsonNode key = chapter.path("id");
+                            JsonNode title = chapter.path("title");
                             if (key.isString()
                                     && title.isString()
                                     && key.asString().length() <= 64

@@ -32,7 +32,7 @@ import java.net.URI;
 @RequestMapping("/api/work/{workId}/setting")
 @RequiredArgsConstructor
 public class SettingController implements SettingControllerDocs {
-    private final SettingService settings;
+    private final SettingService settingService;
 
     @Override
     @PostMapping
@@ -40,7 +40,7 @@ public class SettingController implements SettingControllerDocs {
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @RequestBody CreateSettingRequest request) {
-        SettingResponse result = settings.create(user.id(), workId, request);
+        SettingResponse result = settingService.create(user.id(), workId, request);
         return ResponseEntity.created(URI.create("/api/work/" + workId + "/setting/" + result.id()))
                 .body(ApiResult.success(result));
     }
@@ -54,7 +54,7 @@ public class SettingController implements SettingControllerDocs {
             @RequestParam(required = false) SettingStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResult.success(settings.list(user.id(), workId, kind, status, page, size));
+        return ApiResult.success(settingService.list(user.id(), workId, kind, status, page, size));
     }
 
     @Override
@@ -63,7 +63,7 @@ public class SettingController implements SettingControllerDocs {
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @PathVariable Long settingId) {
-        return ApiResult.success(settings.get(user.id(), workId, settingId));
+        return ApiResult.success(settingService.get(user.id(), workId, settingId));
     }
 
     @Override
@@ -76,7 +76,7 @@ public class SettingController implements SettingControllerDocs {
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResult.success(
-                settings.scroll(
+                settingService.scroll(
                         user.id(), workId, kind, status, CursorPageRequest.of(cursor, size)));
     }
 
@@ -87,6 +87,6 @@ public class SettingController implements SettingControllerDocs {
             @PathVariable Long workId,
             @PathVariable Long settingId,
             @RequestBody UpdateSettingRequest request) {
-        return ApiResult.success(settings.update(user.id(), workId, settingId, request));
+        return ApiResult.success(settingService.update(user.id(), workId, settingId, request));
     }
 }

@@ -145,8 +145,9 @@ public class DecisionService {
                                                 Chapter::getChapterKey, Function.identity()));
         for (DecisionRequest.Scope scope : request.scopes()) {
             if (scope.scopeType().equals("CHAPTER_RANGE")) {
-                Chapter from = chapters.get(scope.fromChapterId()),
-                        to = scope.toChapterId() == null ? null : chapters.get(scope.toChapterId());
+                Chapter from = chapters.get(scope.fromChapterId());
+                Chapter to =
+                        scope.toChapterId() == null ? null : chapters.get(scope.toChapterId());
                 if (from == null
                         || (scope.toChapterId() != null && to == null)
                         || (to != null && from.getChapterNo() > to.getChapterNo())

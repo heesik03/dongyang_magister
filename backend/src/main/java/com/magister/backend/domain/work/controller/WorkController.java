@@ -28,13 +28,13 @@ import java.net.URI;
 @RequestMapping("/api/work")
 @RequiredArgsConstructor
 public class WorkController implements WorkControllerDocs {
-    private final WorkService works;
+    private final WorkService workService;
 
     @Override
     @PostMapping
     public ResponseEntity<ApiResult<WorkResponse>> create(
             @AuthenticationPrincipal LoginUser user, @RequestBody CreateWorkRequest request) {
-        WorkResponse result = works.create(user.id(), request);
+        WorkResponse result = workService.create(user.id(), request);
         return ResponseEntity.created(URI.create("/api/work/" + result.id()))
                 .body(ApiResult.success(result));
     }
@@ -47,14 +47,14 @@ public class WorkController implements WorkControllerDocs {
             @RequestParam(defaultValue = "") String genre,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResult.success(works.list(user.id(), keyword, genre, page, size));
+        return ApiResult.success(workService.list(user.id(), keyword, genre, page, size));
     }
 
     @Override
     @GetMapping("/{workId}")
     public ApiResult<WorkResponse> get(
             @AuthenticationPrincipal LoginUser user, @PathVariable Long workId) {
-        return ApiResult.success(works.get(user.id(), workId));
+        return ApiResult.success(workService.get(user.id(), workId));
     }
 
     @Override
@@ -63,6 +63,6 @@ public class WorkController implements WorkControllerDocs {
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @RequestBody UpdateWorkRequest request) {
-        return ApiResult.success(works.update(user.id(), workId, request));
+        return ApiResult.success(workService.update(user.id(), workId, request));
     }
 }
