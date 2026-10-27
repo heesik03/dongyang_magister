@@ -1,5 +1,6 @@
 package com.magister.backend.domain.user.controller;
 
+import com.magister.backend.domain.user.converter.UserConverter;
 import com.magister.backend.domain.user.docs.UserControllerDocs;
 import com.magister.backend.domain.user.dto.CsrfResponse;
 import com.magister.backend.domain.user.dto.EmailCheckRequest;
@@ -20,7 +21,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 
@@ -28,26 +33,27 @@ import java.net.URI;
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
 public class UserController implements UserControllerDocs {
-    private final UserService users;
-    private final SessionAuthenticationService sessions;
+    private final UserService userService;
+    private final SessionAuthenticationService sessionAuthenticationService;
 
     @Override
     @PostMapping("/email/check")
     public ApiResult<EmailCheckResponse> checkEmail(@RequestBody EmailCheckRequest request) {
-        return ApiResult.success(new EmailCheckResponse(users.isEmailAvailable(request.email())));
+        return ApiResult.success(
+                UserConverter.toEmailCheckResponse(userService.isEmailAvailable(request.email())));
     }
 
     @Override
     @PostMapping
     public ResponseEntity<ApiResult<UserResponse>> signup(@RequestBody SignupRequest request) {
         return ResponseEntity.created(URI.create("/api/user/me"))
-                .body(ApiResult.success(users.signup(request)));
+                .body(ApiResult.success(userService.signup(request)));
     }
 
     @Override
     @GetMapping("/csrf")
     public ApiResult<CsrfResponse> csrf(CsrfToken token) {
-        return ApiResult.success(new CsrfResponse(token.getHeaderName(), token.getToken()));
+        return ApiResult.success(UserConverter.toCsrfResponse(token));
     }
 
     @Override
@@ -56,12 +62,12 @@ public class UserController implements UserControllerDocs {
             @RequestBody LoginRequest input,
             HttpServletRequest request,
             HttpServletResponse response) {
-        return ApiResult.success(sessions.login(input, request, response));
+        return ApiResult.success(sessionAuthenticationService.login(input, request, response));
     }
 
     @Override
     @GetMapping("/me")
     public ApiResult<UserResponse> me(@AuthenticationPrincipal LoginUser user) {
-        return ApiResult.success(new UserResponse(user.id(), user.email(), user.name()));
+        return ApiResult.success(UserConverter.toResponse(user));
     }
 }

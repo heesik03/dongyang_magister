@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from 'react'
-import type { Analysis, Decision, Review, Work } from '../works/workTypes'
-import { Dialog } from '../../shared/Dialog'
+import { useState } from 'react'
+import type { Analysis, Decision, Work } from '../works/workTypes'
+import { DecisionEditor } from './DecisionEditor'
 import { Icon } from '../../shared/Icon'
+import type { ReviewReport, SourceLocation } from './reviewClient'
+import type { InputSnapshot } from '../analysis/analysisClient'
 
 export function ReviewPanel({
   work,
@@ -11,7 +13,12 @@ export function ReviewPanel({
   error,
   retry,
   onJump,
-  onDecision,
+  report,
+  reportLoading,
+  reportError,
+  retryReport,
+  input,
+  onDecisionSaved,
 }: {
   work: Work
   analysis?: Analysis
@@ -19,27 +26,31 @@ export function ReviewPanel({
   analyzing: boolean
   error: string
   retry: () => void
-  onJump: (quote: string) => void
-  onDecision: (id: string, decision: Decision, note: string) => void
+  onJump: (location: SourceLocation) => void
+  report?: ReviewReport
+  reportLoading?: boolean
+  reportError?: string
+  retryReport?: () => void
+  input?: InputSnapshot
+  onDecisionSaved?: () => void
 }) {
   const [selectedId, setSelectedId] = useState('')
   const [filter, setFilter] = useState('전체')
-  const [intent, setIntent] = useState<Review | null>(null)
+  const [editing, setEditing] = useState<{ id: string; status: Decision } | null>(null)
   const filtered =
-    analysis?.reviews.filter(
-      (review) =>
-        filter === '전체' ||
-        (filter === '미검토' ? review.decision === '미검토' : review.decision !== '미검토'),
-    ) || []
+    analysis?.reviews
+      .map((review) => {
+        const saved = report?.decisions?.[review.id]
+        return saved ? { ...review, decision: saved.status, note: saved.reason } : review
+      })
+      .filter(
+        (review) =>
+          filter === '전체' ||
+          (filter === '미검토' ? review.decision === '미검토' : review.decision !== '미검토'),
+      ) || []
   const selected = filtered.find((review) => review.id === selectedId) || filtered[0]
-  // 의도된 전개는 오류로 확정하지 않는다. 작가가 남긴 사유를 해당 후보에 함께 보관한다.
-  function saveIntent(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const note = String(new FormData(event.currentTarget).get('note')).trim()
-    if (!intent || !note) return
-    onDecision(intent.id, '의도된 설정', note)
-    setIntent(null)
-  }
+  const linked = report?.reviews.find((review) => review.id === selected?.id)
+  const editingReview = report?.reviews.find((review) => review.id === editing?.id)
   return (
     <aside className="review-panel" aria-label="검토 결과">
       <div className="section-line">
@@ -50,6 +61,19 @@ export function ReviewPanel({
         <span className="badge info">AI 검토</span>
       </div>
       <p className="small muted">근거를 읽고, 이야기의 의도를 알려 주세요.</p>
+      {report && !report.legacy && <button onClick={onDecisionSaved}>판단 상태 새로 확인</button>}
+      {reportLoading && <p role="status">검토 근거를 불러오고 있습니다.</p>}
+      {reportError && (
+        <div role="alert">
+          <p>{reportError}</p>
+          <button onClick={retryReport}>근거 다시 조회</button>
+        </div>
+      )}
+      {analysis && (!report || report.legacy) && !reportLoading && !reportError && (
+        <p className="notice">
+          이전 형식의 결과로 정확한 위치를 확인할 수 없습니다. 다시 분석하면 위치가 연결됩니다.
+        </p>
+      )}
       <div role="status" aria-live="polite">
         {analyzing && (
           <div className="notice analyzing">
@@ -80,8 +104,9 @@ export function ReviewPanel({
           <div className="analysis-scope">
             <strong>검토 범위</strong>
             <p>
-              {work.chapters.find((chapter) => chapter.id === analysis.chapterId)?.title} · 원고
-              버전 {analysis.revision}
+              {input?.chapter.title ??
+                work.chapters.find((chapter) => chapter.id === analysis.chapterId)?.title}{' '}
+              · 원고 버전 {analysis.revision}
               <br />
               확정 설정 {analysis.settingIds.length}개 · 이전 원고 {analysis.previousIds.length}개
             </p>
@@ -90,21 +115,26 @@ export function ReviewPanel({
               {analysis.settingIds
                 .map(
                   (id) =>
-                    work.settings.find((setting) => setting.id === id)?.title || '삭제된 설정',
+                    (input?.settings ?? work.settings).find((setting) => setting.id === id)
+                      ?.title || '삭제된 설정',
                 )
                 .join(', ') || '없음'}
             </p>
             <p>
               이전 원고:{' '}
               {analysis.previousIds
-                .map((id) => work.chapters.find((chapter) => chapter.id === id)?.title)
+                .map(
+                  (id) =>
+                    (input?.previous ?? work.chapters).find((chapter) => chapter.id === id)?.title,
+                )
                 .join(', ') || '선택하지 않음'}
             </p>
             <span>선택한 이전 원고와 확정 설정을 함께 참고한 결과입니다.</span>
           </div>
           {stale && (
             <p className="notice stale" role="status">
-              원고 또는 참고 설정이 바뀌었습니다. 이전 결과입니다. 다시 분석해 주세요.
+              원고·이전 회차 또는 참고 설정이 바뀌었습니다. 이전 결과입니다. 근거를 선택하면 분석
+              당시 자료를 확인할 수 있습니다.
             </p>
           )}
           <div className="filter-tabs review-filters">
@@ -142,7 +172,8 @@ export function ReviewPanel({
                     key={review.id}
                     onClick={() => {
                       setSelectedId(review.id)
-                      onJump(review.quote)
+                      const candidate = report?.reviews.find((item) => item.id === review.id)
+                      if (candidate) onJump({ ...candidate, sourceId: candidate.targetSourceId })
                     }}
                   >
                     <div className="row">
@@ -167,37 +198,95 @@ export function ReviewPanel({
                   <h3>원문과 설정 사이의 연결</h3>
                   <span className="detail-label">
                     검토 원문 ·{' '}
-                    {work.chapters.find((chapter) => chapter.id === analysis.chapterId)?.title}
+                    {input?.chapter.title ??
+                      work.chapters.find((chapter) => chapter.id === analysis.chapterId)?.title}
                   </span>
                   <blockquote>{selected.quote}</blockquote>
-                  <button className="text-button" onClick={() => onJump(selected.quote)}>
+                  <button
+                    className="text-button"
+                    disabled={!linked}
+                    onClick={() => {
+                      if (linked) onJump({ ...linked, sourceId: linked.targetSourceId })
+                    }}
+                  >
                     <Icon name="arrow" />
                     원문으로 이동
                   </button>
-                  <span className="detail-label">
-                    확정 설정 ·{' '}
-                    {work.settings.find((setting) => setting.id === selected.settingId)?.title}
-                  </span>
-                  <blockquote className="evidence">{selected.evidence}</blockquote>
+                  {linked ? (
+                    linked.evidences.map((evidence) => (
+                      <section
+                        key={`${evidence.sourceId}:${evidence.startOffset}:${evidence.endOffset}:${evidence.explanation}`}
+                      >
+                        <span className="detail-label">
+                          {evidence.sourceType === 'SETTING' ? '확정 설정' : '이전 회차'} ·{' '}
+                          {evidence.title} · 버전 {evidence.revision}
+                        </span>
+                        <blockquote className="evidence" style={{ overflowWrap: 'anywhere' }}>
+                          {evidence.quote}
+                        </blockquote>
+                        <p>{evidence.explanation}</p>
+                        <button className="text-button" onClick={() => onJump(evidence)}>
+                          근거 원문으로 이동 · {evidence.title}
+                        </button>
+                      </section>
+                    ))
+                  ) : (
+                    <>
+                      <span className="detail-label">
+                        확정 설정 ·{' '}
+                        {work.settings.find((setting) => setting.id === selected.settingId)?.title}
+                      </span>
+                      <blockquote className="evidence">{selected.evidence}</blockquote>
+                    </>
+                  )}
                   <span className="detail-label">확인 질문과 판단 이유</span>
                   <p>{selected.reason}</p>
                   <span className="detail-label">수정 방향</span>
                   <p>{selected.suggestion}</p>
                   {selected.note && (
                     <div className="notice small">
-                      <strong>작가의 의도 · 이 회차의 해당 장면에 적용</strong>
+                      <strong>작가 판단 · 지정한 범위와 조건에서 참고</strong>
                       <p>{selected.note}</p>
                     </div>
                   )}
+                  {report?.decisions?.[selected.id] && (
+                    <div className="small notice">
+                      <strong>판단 버전 {report.decisions[selected.id].version}</strong>
+                      {report.decisions[selected.id].stale && <p>근거 변경 · 재확인 필요</p>}
+                      {report.decisions[selected.id].scopes.map((scope) => (
+                        <p key={scope.id}>
+                          {scope.scopeType === 'SCENE'
+                            ? '이 장면'
+                            : `${scope.fromChapterTitle ?? '시작 회차'} ~ ${scope.toChapterTitle ?? '이후 회차'}`}{' '}
+                          · {scope.conditionText}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                   <div className="decision-actions">
-                    <button disabled={stale} onClick={() => onDecision(selected.id, '수용', '')}>
+                    <button
+                      disabled={!linked}
+                      onClick={() => setEditing({ id: selected.id, status: '수용' })}
+                    >
                       수용
                     </button>
-                    <button disabled={stale} onClick={() => onDecision(selected.id, '보류', '')}>
+                    <button
+                      disabled={!linked}
+                      onClick={() => setEditing({ id: selected.id, status: '보류' })}
+                    >
                       보류
                     </button>
-                    <button disabled={stale} onClick={() => setIntent(selected)}>
+                    <button
+                      disabled={!linked}
+                      onClick={() => setEditing({ id: selected.id, status: '의도된 설정' })}
+                    >
                       의도된 설정
+                    </button>
+                    <button
+                      disabled={!linked}
+                      onClick={() => setEditing({ id: selected.id, status: '미검토' })}
+                    >
+                      판단 철회
                     </button>
                   </div>
                   <p className="small muted">
@@ -209,33 +298,15 @@ export function ReviewPanel({
           )}
         </>
       )}
-      {intent && (
-        <Dialog title="의도된 설정으로 기록" onClose={() => setIntent(null)}>
-          <form className="stack" onSubmit={saveIntent}>
-            <blockquote>{intent.quote}</blockquote>
-            <p className="small muted">
-              현재 회차의 이 장면에 적용합니다. 확정 설정을 덮어쓰거나 다른 장면에 자동 적용하지
-              않습니다.
-            </p>
-            <label>
-              의도와 적용 이유
-              <textarea
-                name="note"
-                rows={4}
-                required
-                defaultValue={intent.note}
-                placeholder="예: 2화에서 봉인이 풀려 능력을 얻는 반전. 다음 회차에 계기를 설명할 예정."
-                autoFocus
-              />
-            </label>
-            <div className="dialog-actions">
-              <button type="button" onClick={() => setIntent(null)}>
-                취소
-              </button>
-              <button className="primary">판단 저장</button>
-            </div>
-          </form>
-        </Dialog>
+      {editing && editingReview && (
+        <DecisionEditor
+          key={editing.id}
+          work={work}
+          review={editingReview}
+          initialStatus={editing.status}
+          onSaved={() => onDecisionSaved?.()}
+          onClose={() => setEditing(null)}
+        />
       )}
     </aside>
   )

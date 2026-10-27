@@ -13,6 +13,9 @@ interface WorkListOptions {
 const workPath = (id: string) => '/work/' + encodeURIComponent(id)
 
 export const workClient = {
+  async delete(id: string, version: number): Promise<void> {
+    await httpClient.delete(workPath(id), { params: { version } })
+  },
   async list({ keyword = '', genre = '', page = 0, signal }: WorkListOptions = {}): Promise<
     Page<Work>
   > {

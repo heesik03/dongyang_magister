@@ -1,10 +1,16 @@
 package com.magister.backend.domain.user;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.entity.User;
+import com.magister.backend.domain.user.repository.UserConstraintTranslator;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.service.UserService;
 import com.magister.backend.global.error.exception.CustomException;
@@ -16,13 +22,32 @@ import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
 
 class UserServiceTests {
     @Test
+    void onlyKnownEmailUniqueConstraintIsTranslated() {
+        assertThat(
+                        UserConstraintTranslator.isDuplicateEmail(
+                                new DataIntegrityViolationException(
+                                        "Duplicate entry for key 'users.uk_users_email'")))
+                .isTrue();
+        assertThat(
+                        UserConstraintTranslator.isDuplicateEmail(
+                                new DataIntegrityViolationException(
+                                        "Unique index violation PUBLIC.UK_USERS_EMAIL_INDEX_4")))
+                .isTrue();
+        assertThat(
+                        UserConstraintTranslator.isDuplicateEmail(
+                                new DataIntegrityViolationException(
+                                        "Duplicate email for unique alternate_email")))
+                .isFalse();
+    }
+
+    @Test
     void hashesPasswordAndNormalizesEmail() {
-        var repository = mock(UserRepository.class);
-        var encoder = Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8();
+        UserRepository repository = mock(UserRepository.class);
+        Pbkdf2PasswordEncoder encoder = Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8();
         when(repository.saveAndFlush(any(User.class))).thenAnswer(call -> call.getArgument(0));
         new UserService(repository, encoder)
                 .signup(new SignupRequest("Writer@Example.com", "작가", "Password1!"));
-        var captor = ArgumentCaptor.forClass(User.class);
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(repository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("writer@example.com");
         assertThat(encoder.matches("Password1!", captor.getValue().getPasswordHash())).isTrue();
@@ -31,9 +56,9 @@ class UserServiceTests {
 
     @Test
     void rejectsDuplicateEmail() {
-        var repository = mock(UserRepository.class);
+        UserRepository repository = mock(UserRepository.class);
         when(repository.existsByEmail("writer@example.com")).thenReturn(true);
-        var service =
+        UserService service =
                 new UserService(repository, Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8());
         assertThatThrownBy(
                         () ->
@@ -46,11 +71,11 @@ class UserServiceTests {
 
     @Test
     void rethrowsNonEmailIntegrityViolationInsteadOfTreatingAsDuplicateEmail() {
-        var repository = mock(UserRepository.class);
+        UserRepository repository = mock(UserRepository.class);
         when(repository.existsByEmail("writer@example.com")).thenReturn(false);
         when(repository.saveAndFlush(any(User.class)))
                 .thenThrow(new DataIntegrityViolationException("Data too long for column 'name'"));
-        var service =
+        UserService service =
                 new UserService(repository, Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8());
 
         assertThatThrownBy(

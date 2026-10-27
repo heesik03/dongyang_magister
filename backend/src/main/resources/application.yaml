@@ -27,8 +27,28 @@ gemini:
   model: ${GEMINI_MODEL:}
   timeout: ${GEMINI_TIMEOUT:30s}
 
+analysis:
+  # 비워 두면 프로세스별 임시 키. 여러 서버에서는 같은 32자 이상 비밀 값을 주입한다.
+  preview-signing-key: ${ANALYSIS_PREVIEW_SIGNING_KEY:}
+  execution:
+    threads: 2
+    queue-capacity: 8
+    max-active-jobs: 10
+    lease-duration: 2m
+    # 0은 자동 삭제 비활성. 활성화하면 완료 작업과 해당 멱등 키의 보존 기간이 된다.
+    retention: ${ANALYSIS_JOB_RETENTION:0s}
+
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
+auth:
+  rate-limit:
+    window: 1m
+    login-attempts: 20
+    signup-attempts: 20
+    email-checks: 60
+    concurrent-hashes: 4
+    max-tracked-clients: 10000
 
 springdoc:
   api-docs:
@@ -52,3 +72,9 @@ server:
         http-only: true
         same-site: lax
         secure: ${SESSION_COOKIE_SECURE:false}
+
+logging:
+  level:
+    # JDBC 오류 전문에는 중복 이메일 등 입력값이 포함될 수 있다. 애플리케이션은 코드·SQLState만 기록한다.
+    org.hibernate.orm.jdbc.error: OFF
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF

@@ -53,7 +53,9 @@ export const workspaceClient = {
       await httpClient.put('/work/' + encodeURIComponent(workId) + '/workspace', {
         version,
         mutationId,
-        content,
+        separateChapters: true,
+        separateReviews: true,
+        content: { ...content, chapters: [], analyses: [] },
       }),
     )
   },

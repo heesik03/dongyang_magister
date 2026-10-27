@@ -1,5 +1,32 @@
 import type { Analysis, Setting } from '../works/workTypes'
+import type { Work } from '../works/workTypes'
+import type { InputSnapshot } from './analysisClient'
 import { isRecord } from '../../shared/responseReader'
+
+export function inputChanged(input: InputSnapshot, work: Work): boolean {
+  return (
+    [input.chapter, ...input.previous].some((source) => {
+      const current = work.chapters.find((chapter) => chapter.id === source.id)
+      return (
+        !current ||
+        current.content !== source.content ||
+        current.title !== source.title ||
+        current.revision !== source.revision
+      )
+    }) ||
+    input.settings.some((source) => {
+      const current = work.settings.find((setting) => setting.id === source.id)
+      return (
+        !current ||
+        current.version !== source.version ||
+        current.status !== '확정' ||
+        current.content !== source.content ||
+        current.title !== source.title ||
+        current.kind !== source.kind
+      )
+    })
+  )
+}
 function signature(
   settings: {
     id: string
@@ -12,8 +39,15 @@ function signature(
 ) {
   return JSON.stringify(
     [...settings]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((s) => [s.id, s.title, s.content, s.kind, s.status, s.version ?? 0]),
+      .sort((first, second) => first.id.localeCompare(second.id))
+      .map((setting) => [
+        setting.id,
+        setting.title,
+        setting.content,
+        setting.kind,
+        setting.status,
+        setting.version ?? 0,
+      ]),
   )
 }
 export function settingsChanged(analysis: Analysis, settings: Setting[]): boolean {

@@ -1,0 +1,439 @@
+{
+  "syntheticOnly": true,
+  "intermediateFailures": [
+    {
+      "stage": "enum-typo-before-schema",
+      "report": {
+        "maximumCalls": 10,
+        "model": "gemini-3.5-flash-lite",
+        "evaluatedAt": "2026-10-27T07:17:38.968694400Z",
+        "maxOutputTokens": 8192,
+        "generationProfile": "analysis-json-medium-on-gemini3",
+        "plannedScenarios": 10,
+        "observations": [
+          {
+            "name": "normal",
+            "milliseconds": 3769,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "setting-conflict",
+            "milliseconds": 3351,
+            "contractValid": false,
+            "expectationMatched": false,
+            "errorCode": "INVALID_RESPONSE",
+            "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":14,\"evidences\":[{\"sourceType\":\"SETSETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"주인공은 마법을 사용할 수 없다는 설정과 충돌합니다.\"}],\"reason\":\"설정에서 마법을 사용할 수 없다고 하였으나 본문에서 마법을 사용했습니다.\",\"suggestion\":\"설정에 맞게 내용을 수정하거나 설정을 반영하세요.\"}]}"
+          },
+          {
+            "name": "motivation-gap",
+            "milliseconds": 3591,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\n  \"reviews\": [\n    {\n      \"type\": \"설명 보완\",\n      \"quote\": \"주인공은 아무 이유 없이 친구를 일부러 죽였다.\",\n      \"startOffset\": 0,\n      \"endOffset\": 26,\n      \"evidences\": [\n        {\n          \"sourceType\": \"SETTING\",\n          \"sourceKey\": \"2\",\n          \"quote\": \"주인공은 친구의 생명을 가장 소중히 여긴다.\",\n          \"startOffset\": 0,\n          \"endOffset\": 24,\n          \"explanation\": \"친구의 생명을 가장 소중히 여긴다는 인물의 핵심 목표와 친구를 죽인 행동이 정면으로 배치되므로, 이러한 선택을 하게 된 이유나 계기의 설명이 필요합니다.\"\n        }\n      ],\n      \"reason\": \"인물의 설정된 목표와 정면으로 반대되는 행동이지만, 해당 행동에 대한 이유나 계기가 제시되지 않았습니다.\",\n      \"suggestion\": \"주인공이 이러한 행동을 하게 된 배경이나 원인을 설명하는 서사가 적절히 추가되었는지 확인해 주세요.\"\n    }\n  ]\n}"
+          },
+          {
+            "name": "explicit-twist",
+            "milliseconds": 3172,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "insufficient-evidence",
+            "milliseconds": 2150,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "intent-inside-scope",
+            "milliseconds": 3271,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "intent-unrelated-conflict",
+            "milliseconds": 3594,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\n  \"reviews\": [\n    {\n      \"type\": \"설정 충돌 후보\",\n      \"quote\": \"동료는 물속에서 숨을 쉬었다.\",\n      \"startOffset\": 15,\n      \"endOffset\": 31,\n      \"evidences\": [\n        {\n          \"sourceType\": \"SETTING\",\n          \"sourceKey\": \"3\",\n          \"quote\": \"동료는 물속에서 숨을 쉴 수 없다.\",\n          \"startOffset\": 0,\n          \"endOffset\": 19,\n          \"explanation\": \"동료는 물속에서 숨을 쉴 수 없는 설정이 있습니다.\"\n        }\n      ],\n      \"reason\": \"동료는 물속에서 숨을 쉴 수 없다는 확정 설정과 원문의 행동이 충돌합니다.\",\n      \"suggestion\": \"동료의 능력 설정 또는 해당 행동 설정을 확인하고 수정하세요.\"\n    }\n  ]\n}"
+          },
+          {
+            "name": "intent-outside-scope",
+            "milliseconds": 1237,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":14,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"주인공은 마법을 사용할 수 없다는 설정과 주인공이 마법을 사용했다는 본문 내용이 직접적으로 충돌합니다.\"}],\"reason\":\"설정상 마법을 사용할 수 없는 주인공이 마법을 사용한 것으로 묘사되어 있습니다.\",\"suggestion\":\"설정에 맞게 행동을 수정하거나, 마법을 사용할 수 있게 된 계기나 예외 상황에 대한 설명을 추가하세요.\"}]}"
+          },
+          {
+            "name": "condition-ended-paraphrase",
+            "milliseconds": 2351,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "condition-still-active",
+            "milliseconds": 3985,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"센서가 작동했다.\",\"startOffset\":15,\"endOffset\":24,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"4\",\"quote\":\"복도 조명이 꺼져 있는 동안 센서는 작동하지 않는다.\",\"startOffset\":0,\"endOffset\":29,\"explanation\":\"복도 조명이 꺼져 있는 동안에는 센서가 작동하지 않는다는 설정\"}],\"reason\":\"복도 조명이 꺼져 있는 상태에서는 센서가 작동하지 않아야 한다는 설정과 충돌합니다.\",\"suggestion\":\"조명이 꺼진 상태에서의 센서 작동 여부에 대한 설정을 확인하고 수정하세요.\"}]}"
+          }
+        ]
+      }
+    },
+    {
+      "stage": "initial-schema-rejected",
+      "report": {
+        "generationProfile": "analysis-json-medium-on-gemini3",
+        "maxOutputTokens": 8192,
+        "evaluatedAt": "2026-10-27T07:20:08.986737400Z",
+        "model": "gemini-3.5-flash-lite",
+        "maximumCalls": 10,
+        "plannedScenarios": 10,
+        "observations": [
+          {
+            "name": "normal",
+            "milliseconds": 1631,
+            "contractValid": false,
+            "expectationMatched": false,
+            "errorCode": "REQUEST_REJECTED",
+            "raw": null
+          }
+        ]
+      }
+    },
+    {
+      "stage": "provider-unavailable",
+      "report": {
+        "generationProfile": "analysis-schema-medium-on-gemini3",
+        "plannedScenarios": 10,
+        "maximumCalls": 10,
+        "model": "gemini-3.5-flash-lite",
+        "evaluatedAt": "2026-10-27T07:24:55.766437700Z",
+        "maxOutputTokens": 8192,
+        "observations": [
+          {
+            "name": "normal",
+            "milliseconds": 5066,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "setting-conflict",
+            "milliseconds": 4165,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":14,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"설정상 주인공은 마법을 사용할 수 없습니다.\"}],\"reason\":\"설정에서 주인공은 마법을 사용할 수 없다고 명시되어 있으나 본문에서는 마법을 사용했다고 나옵니다.\",\"suggestion\":\"설정과 일치하도록 본문을 수정하거나 마법 사용에 대한 개연성을 보완하세요.\"}]}"
+          },
+          {
+            "name": "motivation-gap",
+            "milliseconds": 4321,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\n  \"reviews\": [\n    {\n      \"type\": \"설명 보완\",\n      \"quote\": \"주인공은 아무 이유 없이 친구를 일부러 죽였다.\",\n      \"startOffset\": 0,\n      \"endOffset\": 26,\n      \"evidences\": [\n        {\n          \"sourceType\": \"SETTING\",\n          \"sourceKey\": \"2\",\n          \"quote\": \"주인공은 친구의 생명을 가장 소중히 여긴다.\",\n          \"startOffset\": 0,\n          \"endOffset\": 24,\n          \"explanation\": \"친구의 생명을 가장 소중히 여긴다는 설정에 반하는 행동이지만 그 이유나 계기가 명시되지 않았습니다.\"\n        }\n      ],\n      \"reason\": \"인물의 핵심 가치관과 정면으로 배치되는 행동임에도 설명이 부족합니다.\",\n      \"suggestion\": \"해당 행동에 이르게 된 이유나 구체적인 계기를 보완하는 것을 검토해 주세요.\"\n    }\n  ]\n}"
+          },
+          {
+            "name": "explicit-twist",
+            "milliseconds": 20369,
+            "contractValid": false,
+            "expectationMatched": false,
+            "errorCode": "UNAVAILABLE",
+            "raw": null
+          }
+        ]
+      }
+    },
+    {
+      "stage": "unrelated-conflict-missed-at-medium",
+      "report": {
+        "maxOutputTokens": 8192,
+        "generationProfile": "analysis-schema-medium-on-gemini3",
+        "plannedScenarios": 10,
+        "maximumCalls": 10,
+        "model": "gemini-3.5-flash-lite",
+        "evaluatedAt": "2026-10-27T07:29:30.120149Z",
+        "observations": [
+          {
+            "name": "normal",
+            "milliseconds": 5291,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "setting-conflict",
+            "milliseconds": 1662,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":14,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"확정 설정에 따르면 주인공은 마법을 사용할 수 없다고 되어 있으나, 현재 본문에서는 마법을 사용했다고 기술되어 있어 설정과 충돌합니다.\"}],\"reason\":\"확정 설정(주인공 능력)에서 주인공은 마법을 사용할 수 없다고 규정하고 있으나, 본문에서는 마법을 사용했다고 나와 설정 간의 충돌이 발생합니다.\",\"suggestion\":\"주인공의 능력 설정을 변경하거나, 본문의 행동을 마법이 아닌 다른 방식으로 수정하는 것을 검토하세요.\"}]}"
+          },
+          {
+            "name": "motivation-gap",
+            "milliseconds": 4361,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[{\"type\":\"설명 보완\",\"quote\":\"주인공은 아무 이유 없이 친구를 일부러 죽였다.\",\"startOffset\":0,\"endOffset\":26,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"2\",\"quote\":\"주인공은 친구의 생명을 가장 소중히 여긴다.\",\"startOffset\":0,\"endOffset\":24,\"explanation\":\"주인공의 설정된 핵심 가치관과 행동 사이에 괴리가 있으나 그 이유가 누락되었습니다.\"}],\"reason\":\"친구의 생명을 가장 소중히 여긴다는 인물 설정에 반하는 행동을 함에도 이에 대한 적절한 설명이나 계기가 부족합니다.\",\"suggestion\":\"인물의 행동에 대한 동기나 숨겨진 배경 설정을 보완해 주십시오.\"}]}"
+          },
+          {
+            "name": "explicit-twist",
+            "milliseconds": 2159,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\n  \"reviews\": []\n}"
+          },
+          {
+            "name": "insufficient-evidence",
+            "milliseconds": 1220,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\n  \"reviews\": []\n}"
+          },
+          {
+            "name": "intent-inside-scope",
+            "milliseconds": 1031,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "intent-unrelated-conflict",
+            "milliseconds": 1236,
+            "contractValid": true,
+            "expectationMatched": false,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "intent-outside-scope",
+            "milliseconds": 1645,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":14,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"확정 설정에 따르면 주인공은 마법을 사용할 수 없다고 되어 있으나, 현재 원고에서는 마법을 사용했다고 기술되어 있어 충돌합니다.\"}],\"reason\":\"확정 설정(주인공 능력)에 명시된 내용과 현재 원고의 내용이 정면으로 배치됩니다.\",\"suggestion\":\"설정에 맞게 내용을 수정하거나, 마법을 사용할 수 있게 된 계기를 추가하세요.\"}]}"
+          },
+          {
+            "name": "condition-ended-paraphrase",
+            "milliseconds": 2710,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[]}"
+          },
+          {
+            "name": "condition-still-active",
+            "milliseconds": 3674,
+            "contractValid": true,
+            "expectationMatched": true,
+            "errorCode": null,
+            "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"센서가 작동했다.\",\"startOffset\":15,\"endOffset\":24,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"4\",\"quote\":\"복도 조명이 꺼져 있는 동안 센서는 작동하지 않는다.\",\"startOffset\":0,\"endOffset\":29,\"explanation\":\"복도 조명이 꺼져 있는 동안 센서는 작동하지 않는다는 설정입니다.\"}],\"reason\":\"복도 조명이 꺼져 있는 상태에서는 센서가 작동하지 않아야 하므로 설정과 충돌합니다.\",\"suggestion\":\"조명 상태를 변경하거나 센서 작동에 대한 예외 설정을 보완하세요.\"}]}"
+          }
+        ]
+      }
+    }
+  ],
+  "fixedRuns": [
+    {
+      "plannedScenarios": 10,
+      "generationProfile": "analysis-schema-high-on-gemini3",
+      "maxOutputTokens": 8192,
+      "evaluatedAt": "2026-10-27T07:40:28.460504300Z",
+      "model": "gemini-3.5-flash-lite",
+      "maximumCalls": 10,
+      "observations": [
+        {
+          "name": "normal",
+          "milliseconds": 3671,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "setting-conflict",
+          "milliseconds": 4937,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":14,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"설정에 따르면 주인공은 마법을 사용할 수 없습니다.\"}],\"reason\":\"설정에서는 주인공이 마법을 사용할 수 없다고 하였으나 본문에서는 마법을 사용했다고 기술되어 설정과 충돌합니다.\",\"suggestion\":\"설정을 변경하거나 마법을 사용하게 된 배경에 대한 설명을 보완하세요.\"}]}"
+        },
+        {
+          "name": "motivation-gap",
+          "milliseconds": 4392,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설명 보완\",\"quote\":\"주인공은 아무 이유 없이 친구를 일부러 죽였다.\",\"startOffset\":0,\"endOffset\":26,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"2\",\"quote\":\"주인공은 친구의 생명을 가장 소중히 여긴다.\",\"startOffset\":0,\"endOffset\":24,\"explanation\":\"주인공이 친구의 생명을 가장 소중히 여긴다는 설정과 정면으로 배치됩니다.\"}],\"reason\":\"주인공의 핵심 가치관과 정면으로 반하는 행동임에도 불구하고 그에 대한 설명이나 계기가 부족합니다.\",\"suggestion\":\"해당 행동을 하게 된 구체적인 이유나 심리적 배경에 대한 설명을 보완할 것을 제안합니다.\"}]}"
+        },
+        {
+          "name": "explicit-twist",
+          "milliseconds": 3704,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "insufficient-evidence",
+          "milliseconds": 2272,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "intent-inside-scope",
+          "milliseconds": 6289,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "intent-unrelated-conflict",
+          "milliseconds": 7147,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"동료는 물속에서 숨을 쉬었다.\",\"startOffset\":15,\"endOffset\":31,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"3\",\"quote\":\"동료는 물속에서 숨을 쉴 수 없다.\",\"startOffset\":0,\"endOffset\":19,\"explanation\":\"설정에 따르면 동료는 물속에서 숨을 쉴 수 없지만, 본문에서는 물속에서 숨을 쉬었다고 서술되어 있습니다.\"}],\"reason\":\"동료는 물속에서 숨을 쉴 수 없다는 설정과 달리 본문에서 물속에서 숨을 쉬었다고 서술되어 설정 충돌이 발생합니다.\",\"suggestion\":\"동료가 물속에서 숨을 쉴 수 있게 된 설정상의 예외나 변경 사항을 추가하거나 해당 서술을 수정하세요.\"}]}"
+        },
+        {
+          "name": "intent-outside-scope",
+          "milliseconds": 4600,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":14,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"설정상 주인공은 마법을 사용할 수 없습니다.\"}],\"reason\":\"설정에 명시된 능력과 본문의 행동이 상충합니다.\",\"suggestion\":\"설정을 수정하거나 마법 사용에 대한 설정을 일치시켜 주세요.\"}]}"
+        },
+        {
+          "name": "condition-ended-paraphrase",
+          "milliseconds": 3640,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "condition-still-active",
+          "milliseconds": 5491,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"센서가 작동했다.\",\"startOffset\":15,\"endOffset\":24,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"4\",\"quote\":\"복도 조명이 꺼져 있는 동안 센서는 작동하지 않는다.\",\"startOffset\":0,\"endOffset\":29,\"explanation\":\"복도 조명이 꺼져 있는 동안에는 센서가 작동하지 않는다는 설정과 상충됩니다.\"}],\"reason\":\"복도 조명이 꺼져 있는 상태에서 센서가 작동했다고 기술되어 있어 설정과 충돌합니다.\",\"suggestion\":\"조명 상태를 변경하거나 센서 작동 여부를 수정하세요.\"}]}"
+        }
+      ]
+    },
+    {
+      "generationProfile": "analysis-schema-high-on-gemini3",
+      "maxOutputTokens": 8192,
+      "evaluatedAt": "2026-10-27T07:42:04.473487400Z",
+      "model": "gemini-3.5-flash-lite",
+      "maximumCalls": 10,
+      "plannedScenarios": 10,
+      "observations": [
+        {
+          "name": "normal",
+          "milliseconds": 3607,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "setting-conflict",
+          "milliseconds": 4462,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":14,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"설정상 주인공은 마법을 사용할 수 없으나 본문에서 마법을 사용함\"}],\"reason\":\"설정에서 주인공은 마법을 사용할 수 없다고 하였으나 본문에서는 마법을 사용했다고 기술되어 설정과 충돌합니다.\",\"suggestion\":\"본문의 내용을 수정하여 설정과 일치시키거나 마법을 사용할 수 있게 된 이유를 추가하세요.\"}]}"
+        },
+        {
+          "name": "motivation-gap",
+          "milliseconds": 5645,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설명 보완\",\"quote\":\"주인공은 아무 이유 없이 친구를 일부러 죽였다.\",\"startOffset\":0,\"endOffset\":26,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"2\",\"quote\":\"주인공은 친구의 생명을 가장 소중히 여긴다.\",\"startOffset\":0,\"endOffset\":24,\"explanation\":\"주인공은 친구의 생명을 가장 소중히 여긴다는 설정과 친구를 죽인 행동 간의 인과관계 설명이 누락되어 있습니다.\"}],\"reason\":\"친구의 생명을 가장 소중히 여긴다는 인물의 목표와 정면으로 배치되는 행동임에도 불구하고 아무 이유 없이 일어난 일로 처리되어 있어 인물의 행동에 대한 동기나 계기의 설명이 부족합니다.\",\"suggestion\":\"인물의 목표와 상반되는 행동을 하게 된 내면적 이유나 상황적 계기를 서술하여 개연성을 보완해 주세요.\"}]}"
+        },
+        {
+          "name": "explicit-twist",
+          "milliseconds": 2884,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "insufficient-evidence",
+          "milliseconds": 2883,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "intent-inside-scope",
+          "milliseconds": 4872,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "intent-unrelated-conflict",
+          "milliseconds": 6363,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"동료는 물속에서 숨을 쉬었다.\",\"startOffset\":15,\"endOffset\":31,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"3\",\"quote\":\"동료는 물속에서 숨을 쉴 수 없다.\",\"startOffset\":0,\"endOffset\":19,\"explanation\":\"동료는 물속에서 숨을 쉴 수 없다는 확정 설정과 충돌합니다.\"}],\"reason\":\"확정된 설정에 따르면 동료는 물속에서 숨을 쉴 수 없으나, 본문에서는 동료가 물속에서 숨을 쉬었다고 서술되어 설정과 충돌하며 해당 동료 능력은 판단 근거에서도 명시적으로 제외되어 있습니다.\",\"suggestion\":\"동료의 능력에 관한 설정을 반영하여 본문 내용을 수정하거나 관련 설정을 정비해 주세요.\"}]}"
+        },
+        {
+          "name": "intent-outside-scope",
+          "milliseconds": 4661,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"주인공은 마법을 사용했다.\",\"startOffset\":0,\"endOffset\":14,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"1\",\"quote\":\"주인공은 마법을 사용할 수 없다.\",\"startOffset\":0,\"endOffset\":18,\"explanation\":\"주인공은 마법을 사용할 수 없다는 설정과 충돌합니다.\"}],\"reason\":\"설정상 마법을 사용할 수 없는 주인공이 마법을 사용했다고 기술되어 있습니다.\",\"suggestion\":\"설정 또는 원고 내용을 확인하여 수정하십시오.\"}]}"
+        },
+        {
+          "name": "condition-ended-paraphrase",
+          "milliseconds": 3180,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[]}"
+        },
+        {
+          "name": "condition-still-active",
+          "milliseconds": 5139,
+          "contractValid": true,
+          "expectationMatched": true,
+          "errorCode": null,
+          "raw": "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"센서가 작동했다.\",\"startOffset\":15,\"endOffset\":24,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\"4\",\"quote\":\"복도 조명이 꺼져 있는 동안 센서는 작동하지 않는다.\",\"startOffset\":0,\"endOffset\":29,\"explanation\":\"복도 조명이 꺼져 있는 동안에는 센서가 작동하지 않는다는 설정과 충돌합니다.\"}],\"reason\":\"복도 조명이 꺼져 있는 동안에는 센서가 작동하지 않아야 하나, 본문에서는 조명이 꺼진 상태에서 센서가 작동했다고 서술되어 있습니다.\",\"suggestion\":\"복도 조명의 상태를 수정하거나 센서가 예외적으로 작동한 사정을 보완하세요.\"}]}"
+        }
+      ]
+    }
+  ]
+}

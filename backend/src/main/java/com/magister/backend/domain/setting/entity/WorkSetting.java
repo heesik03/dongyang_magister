@@ -2,7 +2,19 @@ package com.magister.backend.domain.setting.entity;
 
 import com.magister.backend.domain.work.entity.Work;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -66,8 +78,9 @@ public class WorkSetting {
         // 같은 영속 엔티티의 프록시/실체를 재전달해도 관계를 중복 연결하지 않는다.
         if (this.work != null) {
             if (this.work == work
-                    || (this.work.getId() != null && this.work.getId().equals(work.getId())))
+                    || (this.work.getId() != null && this.work.getId().equals(work.getId()))) {
                 return;
+            }
             throw new IllegalStateException("설정이 속한 작품은 변경할 수 없습니다.");
         }
         this.work = work;

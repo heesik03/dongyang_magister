@@ -1,11 +1,15 @@
 package com.magister.backend.domain.workspace.dto;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
-// 원고·검토 근거·작가 판단·사건을 작품별 편집 버전으로 함께 저장한다.
+// 호환 응답은 회차 테이블의 원고를 합친다. workspace의 영속 JSON에는 검토·판단·사건만 저장한다.
 public record WorkspaceData(
         @NotNull @Size(max = 100) List<@NotNull @Valid ChapterData> chapters,
         @NotNull @Size(max = 100) List<@NotNull @Valid AnalysisData> analyses,
@@ -15,7 +19,7 @@ public record WorkspaceData(
     }
 
     public record ChapterData(
-            @NotBlank @Size(max = 64) String id,
+            @NotBlank @Size(max = 64) @Pattern(regexp = "[A-Za-z0-9_-]+") String id,
             @NotBlank @Size(max = 100) String title,
             @NotNull @Size(max = 200000) String content,
             @Min(1) long revision) {}
@@ -24,7 +28,7 @@ public record WorkspaceData(
             @NotBlank @Size(max = 128) String id,
             @NotNull @Pattern(regexp = "설정 충돌 후보|설명 보완") String type,
             @NotBlank @Size(max = 10000) String quote,
-            @NotBlank @Size(max = 64) String settingId,
+            @NotBlank @Size(max = 73) String settingId,
             @NotNull @Size(max = 10000) String evidence,
             @NotBlank @Size(max = 4000) String reason,
             @NotBlank @Size(max = 4000) String suggestion,

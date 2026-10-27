@@ -1,9 +1,16 @@
 package com.magister.backend.domain.work;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
@@ -17,7 +24,8 @@ import com.magister.backend.domain.work.repository.WorkRepository;
 
 import jakarta.persistence.EntityManager;
 
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -69,6 +77,35 @@ class WorkApiTests {
 
     private String body() {
         return "{\"title\":\"새 작품\",\"genre\":\"판타지\",\"era\":\"중세\",\"description\":\"소개\"}";
+    }
+
+    @Test
+    void deletionRequiresOwnershipCsrfAndNonnegativeVersion() throws Exception {
+        Work work =
+                transaction.execute(
+                        transactionStatus ->
+                                works.saveAndFlush(
+                                        new Work(
+                                                users.findById(
+                                                                ((LoginUser) owner.getPrincipal())
+                                                                        .id())
+                                                        .orElseThrow(),
+                                                "삭제",
+                                                "판타지",
+                                                "",
+                                                "")));
+        String path = "/api/work/" + work.getId();
+        mvc.perform(delete(path).with(csrf()).param("version", "0"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete(path).with(authentication(owner)).param("version", "0"))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete(path).with(authentication(other)).with(csrf()).param("version", "0"))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete(path).with(authentication(owner)).with(csrf()).param("version", "-1"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(delete(path).with(authentication(owner)).with(csrf()))
+                .andExpect(status().isBadRequest());
+        assertEquals(true, works.existsById(work.getId()));
     }
 
     @Test

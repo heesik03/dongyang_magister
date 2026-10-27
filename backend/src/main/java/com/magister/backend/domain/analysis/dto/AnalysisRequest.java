@@ -1,6 +1,12 @@
 package com.magister.backend.domain.analysis.dto;
 
-import jakarta.validation.constraints.*;
+import com.fasterxml.jackson.annotation.JsonCreator;
+
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -11,4 +17,67 @@ public record AnalysisRequest(
         @NotEmpty @Size(max = 1000) List<@NotBlank String> settingIds,
         @NotNull @Size(max = 100) List<@NotBlank String> previousIds,
         boolean consistency,
-        boolean motivation) {}
+        boolean motivation,
+        @Min(1) Long chapterRevision,
+        @Size(max = 100) String previewToken,
+        @Size(max = 50) String consentPolicyVersion) {
+    @JsonCreator
+    public AnalysisRequest {}
+
+    public AnalysisRequest(
+            String requestId,
+            String chapterId,
+            long workspaceVersion,
+            List<String> settingIds,
+            List<String> previousIds,
+            boolean consistency,
+            boolean motivation) {
+        this(
+                requestId,
+                chapterId,
+                workspaceVersion,
+                settingIds,
+                previousIds,
+                consistency,
+                motivation,
+                null,
+                null,
+                null);
+    }
+
+    public AnalysisRequest(
+            String requestId,
+            String chapterId,
+            long workspaceVersion,
+            List<String> settingIds,
+            List<String> previousIds,
+            boolean consistency,
+            boolean motivation,
+            Long chapterRevision) {
+        this(
+                requestId,
+                chapterId,
+                workspaceVersion,
+                settingIds,
+                previousIds,
+                consistency,
+                motivation,
+                chapterRevision,
+                null,
+                null);
+    }
+
+    public AnalysisRequest confirmed(String token, String policyVersion) {
+        return new AnalysisRequest(
+                requestId,
+                chapterId,
+                workspaceVersion,
+                settingIds,
+                previousIds,
+                consistency,
+                motivation,
+                chapterRevision,
+                token,
+                policyVersion);
+    }
+}

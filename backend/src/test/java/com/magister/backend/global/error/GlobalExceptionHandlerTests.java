@@ -7,6 +7,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
@@ -16,9 +21,11 @@ import jakarta.validation.Valid;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -27,10 +34,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
+import java.sql.SQLException;
 
 class GlobalExceptionHandlerTests {
     private final Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
@@ -84,6 +88,19 @@ class GlobalExceptionHandlerTests {
         assertSafeFailureLog(expectedCode, 400, "WARN");
     }
 
+    @Test
+    void databaseFailureLogsOnlySqlStateAndVendorCode() throws Exception {
+        mvc.perform(get("/test/database"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"));
+        assertSafeFailureLog("INTERNAL_SERVER_ERROR", 500, "ERROR");
+        assertThat(appender.list)
+                .anySatisfy(
+                        event ->
+                                assertThat(event.getFormattedMessage())
+                                        .contains("sqlState=23000", "vendorCode=1062"));
+    }
+
     private void assertSafeFailureLog(String code, int status, String level) {
         assertThat(appender.list)
                 .filteredOn(event -> event.getFormattedMessage().startsWith("API failure:"))
@@ -105,6 +122,12 @@ class GlobalExceptionHandlerTests {
 
     @RestController
     static class TestController {
+        @GetMapping("/test/database")
+        public void database() {
+            throw new DataIntegrityViolationException(
+                    "private detail", new SQLException("sensitive-value", "23000", 1062));
+        }
+
         @GetMapping("/test/limited")
         public void limited() {
             throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);

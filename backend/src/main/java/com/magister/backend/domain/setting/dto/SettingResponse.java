@@ -1,6 +1,7 @@
 package com.magister.backend.domain.setting.dto;
 
-import com.magister.backend.domain.setting.entity.*;
+import com.magister.backend.domain.setting.entity.SettingKind;
+import com.magister.backend.domain.setting.entity.SettingStatus;
 
 import java.time.Instant;
 
@@ -13,17 +14,4 @@ public record SettingResponse(
         String content,
         Instant createdAt,
         Instant updatedAt,
-        Long version) {
-    public static SettingResponse from(WorkSetting setting) {
-        return new SettingResponse(
-                setting.getId(),
-                setting.getWork().getId(),
-                setting.getTitle(),
-                setting.getKind(),
-                setting.getStatus(),
-                setting.getContent(),
-                setting.getCreatedAt(),
-                setting.getUpdatedAt(),
-                setting.getVersion());
-    }
-}
+        Long version) {}

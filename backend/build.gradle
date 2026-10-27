@@ -42,4 +42,41 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    exclude '**/MySqlRefactoringTests.class'
+    exclude '**/GeminiQualityEvaluationTests.class'
+}
+
+tasks.register('geminiTest', Test) {
+    description = 'Evaluate bounded synthetic manuscripts with the configured real Gemini model'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    useJUnitPlatform()
+    filter { includeTestsMatching 'com.magister.backend.verification.GeminiQualityEvaluationTests' }
+    doFirst {
+        if (providers.environmentVariable('MAGISTER_RUN_GEMINI_TESTS').getOrElse('') != 'true') {
+            throw new GradleException('Set MAGISTER_RUN_GEMINI_TESTS=true to send only the synthetic evaluation fixtures to Gemini (maximum 10 calls)')
+        }
+    }
+}
+
+tasks.register('mysqlTest', Test) {
+    description = 'Run refactoring contracts against an explicitly named isolated MySQL schema'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    // 외부 DB의 현재 상태는 Gradle 입력 스냅샷으로 판단할 수 없다.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    useJUnitPlatform()
+    filter { includeTestsMatching 'com.magister.backend.verification.MySqlRefactoringTests' }
+    doFirst {
+        String schema = providers.environmentVariable('MAGISTER_MYSQL_TEST_SCHEMA').getOrElse('')
+        if (!(schema ==~ /magister_refactor_[a-f0-9]{12}/)) {
+            throw new GradleException('Set MAGISTER_MYSQL_TEST_SCHEMA to an isolated magister_refactor_<12 hex> schema')
+        }
+        environment 'MAGISTER_MYSQL_TEST_SCHEMA', schema
+    }
 }

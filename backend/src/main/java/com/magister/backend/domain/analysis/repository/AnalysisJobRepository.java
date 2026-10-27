@@ -1,27 +1,112 @@
 package com.magister.backend.domain.analysis.repository;
 
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
+import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 
 import jakarta.persistence.LockModeType;
 
-import org.springframework.data.jpa.repository.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
-import java.util.*;
+import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
 public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String> {
+    /** 입력 자료가 필요한 명시적 스냅샷 조회만 엔티티를 읽는다. */
+    @Query(
+            "select j from AnalysisJob j where j.id=:jobId and j.work.id=:workId and"
+                    + " j.work.owner.id=:ownerId")
+    Optional<AnalysisJob> findOwned(String jobId, Long workId, Long ownerId);
+
+    /** 이력은 본문·결과를 제외하고 생성 시각·ID 내림차순 페이지로 제한한다. */
+    @Query(
+            """
+            select j.id as id, j.chapterKey as chapterKey, j.chapterTitle as chapterTitle,
+              j.status as status, j.createdAt as createdAt, j.updatedAt as updatedAt, j.policyVersion as policyVersion
+            from AnalysisJob j where j.work.id=:workId and j.work.owner.id=:ownerId
+              and (:chapterId is null or j.chapterKey=:chapterId) and (:status is null or j.status=:status)
+            """)
+    Page<AnalysisJobSummaryView> findHistory(
+            Long workId,
+            Long ownerId,
+            String chapterId,
+            AnalysisJobStatus status,
+            Pageable pageable);
+
+    /** 같은 작품의 멱등 키를 조회한다. 요청 본문 일치는 서비스가 검사한다. */
     Optional<AnalysisJob> findByWork_IdAndRequestId(Long workId, String requestId);
 
-    long countByStatusIn(Collection<String> statuses);
+    /** 접수 잠금 안에서 한도 판단에 사용한다. 단독 count는 예약이 아니다. */
+    long countByStatusIn(Collection<AnalysisJobStatus> statuses);
 
-    long countByWork_Owner_IdAndStatusIn(Long owner, Collection<String> statuses);
+    /** 서로 다른 작품의 동일 사용자 작업도 함께 집계한다. */
+    long countByWork_Owner_IdAndStatusIn(Long ownerId, Collection<AnalysisJobStatus> statuses);
 
+    /** 상태 변경 전용 잠금이다. 폴링에는 사용하지 않는다. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select j from AnalysisJob j where j.id=:id")
     Optional<AnalysisJob> lockById(String id);
 
+    /** 입력 원고·요청 본문을 제외하고 소유권도 동일 질의에서 확인한다. */
+    @Query(
+            """
+            select j.id as id, j.status as status, j.error as error, j.result as result
+            from AnalysisJob j
+            where j.id = :jobId and j.work.id = :workId and j.work.owner.id = :ownerId
+            """)
+    Optional<AnalysisJobView> findOwnedView(String jobId, Long workId, Long ownerId);
+
+    /** 실제 실행기에 남아 있는 자기 서버 작업만 갱신하며 만료된 lease를 되살리지 않는다. */
     @Modifying
     @Query(
-            "update AnalysisJob j set j.status='FAILED',j.error='서버가 재시작되었습니다. 다시 요청해 주세요.' where"
-                    + " j.status in ('QUEUED','RUNNING')")
-    int failInterrupted();
+            """
+            update AnalysisJob j set j.leaseUntil = :until, j.version = j.version + 1
+            where j.workerId = :workerId and j.id in :ids and j.status in :active
+              and j.leaseUntil > :now
+            """)
+    int renewLeases(
+            String workerId,
+            Collection<String> ids,
+            Collection<AnalysisJobStatus> active,
+            Instant now,
+            Instant until);
+
+    /** 서버 시작 여부와 무관하게 lease가 만료된 미완료 작업만 복구한다. */
+    @Modifying
+    @Query(
+            """
+            update AnalysisJob j set j.status = :failed, j.error = :message,
+              j.updatedAt = :now, j.version = j.version + 1
+            where j.status in :active and (j.leaseUntil is null or j.leaseUntil <= :now)
+            """)
+    int failExpired(
+            Collection<AnalysisJobStatus> active,
+            AnalysisJobStatus failed,
+            String message,
+            Instant now);
+
+    /** 삭제된 원격 작업도 취소 대상으로 식별하기 위해 남아 있는 미완료 ID만 반환한다. */
+    @Query("select j.id from AnalysisJob j where j.id in :ids and j.status in :active")
+    List<String> findPresentActiveIds(Collection<String> ids, Collection<AnalysisJobStatus> active);
+
+    /** 보존 기간 정리 시 원고 본문을 읽지 않고 제한된 수의 ID만 가져온다. */
+    @Query(
+            "select j.id from AnalysisJob j where j.status in :terminal and j.updatedAt < :before"
+                + " and not exists(select d.id from ReviewDecision d where d.review.job=j) order by"
+                + " j.updatedAt, j.id")
+    List<String> findExpiredResultIds(
+            Collection<AnalysisJobStatus> terminal, Instant before, Pageable limit);
+
+    /** 이력 스캔 이후 새 판단이 저장되었더라도 삭제 직전에 다시 제외한다. */
+    @Modifying
+    @Query(
+            "delete from AnalysisJob j where j.id in :ids and not exists(select d.id from"
+                    + " ReviewDecision d where d.review.job=j)")
+    int deleteExpiredWithoutDecisions(List<String> ids);
 }
