@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react'
 import type { Analysis, Decision, Review, Work } from '../works/workTypes'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
+import type { ReviewReport, SourceLocation } from './reviewClient'
+import type { InputSnapshot } from '../analysis/analysisClient'
 
 export function ReviewPanel({
   work,
@@ -12,6 +14,11 @@ export function ReviewPanel({
   retry,
   onJump,
   onDecision,
+  report,
+  reportLoading,
+  reportError,
+  retryReport,
+  input,
 }: {
   work: Work
   analysis?: Analysis
@@ -19,8 +26,13 @@ export function ReviewPanel({
   analyzing: boolean
   error: string
   retry: () => void
-  onJump: (quote: string) => void
+  onJump: (location: SourceLocation) => void
   onDecision: (id: string, decision: Decision, note: string) => void
+  report?: ReviewReport
+  reportLoading?: boolean
+  reportError?: string
+  retryReport?: () => void
+  input?: InputSnapshot
 }) {
   const [selectedId, setSelectedId] = useState('')
   const [filter, setFilter] = useState('전체')
@@ -32,6 +44,7 @@ export function ReviewPanel({
         (filter === '미검토' ? review.decision === '미검토' : review.decision !== '미검토'),
     ) || []
   const selected = filtered.find((review) => review.id === selectedId) || filtered[0]
+  const linked = report?.reviews.find((review) => review.id === selected?.id)
   // 의도된 전개는 오류로 확정하지 않는다. 작가가 남긴 사유를 해당 후보에 함께 보관한다.
   function saveIntent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -50,6 +63,18 @@ export function ReviewPanel({
         <span className="badge info">AI 검토</span>
       </div>
       <p className="small muted">근거를 읽고, 이야기의 의도를 알려 주세요.</p>
+      {reportLoading && <p role="status">검토 근거를 불러오고 있습니다.</p>}
+      {reportError && (
+        <div role="alert">
+          <p>{reportError}</p>
+          <button onClick={retryReport}>근거 다시 조회</button>
+        </div>
+      )}
+      {analysis && (!report || report.legacy) && !reportLoading && !reportError && (
+        <p className="notice">
+          이전 형식의 결과로 정확한 위치를 확인할 수 없습니다. 다시 분석하면 위치가 연결됩니다.
+        </p>
+      )}
       <div role="status" aria-live="polite">
         {analyzing && (
           <div className="notice analyzing">
@@ -80,8 +105,9 @@ export function ReviewPanel({
           <div className="analysis-scope">
             <strong>검토 범위</strong>
             <p>
-              {work.chapters.find((chapter) => chapter.id === analysis.chapterId)?.title} · 원고
-              버전 {analysis.revision}
+              {input?.chapter.title ??
+                work.chapters.find((chapter) => chapter.id === analysis.chapterId)?.title}{' '}
+              · 원고 버전 {analysis.revision}
               <br />
               확정 설정 {analysis.settingIds.length}개 · 이전 원고 {analysis.previousIds.length}개
             </p>
@@ -90,21 +116,26 @@ export function ReviewPanel({
               {analysis.settingIds
                 .map(
                   (id) =>
-                    work.settings.find((setting) => setting.id === id)?.title || '삭제된 설정',
+                    (input?.settings ?? work.settings).find((setting) => setting.id === id)
+                      ?.title || '삭제된 설정',
                 )
                 .join(', ') || '없음'}
             </p>
             <p>
               이전 원고:{' '}
               {analysis.previousIds
-                .map((id) => work.chapters.find((chapter) => chapter.id === id)?.title)
+                .map(
+                  (id) =>
+                    (input?.previous ?? work.chapters).find((chapter) => chapter.id === id)?.title,
+                )
                 .join(', ') || '선택하지 않음'}
             </p>
             <span>선택한 이전 원고와 확정 설정을 함께 참고한 결과입니다.</span>
           </div>
           {stale && (
             <p className="notice stale" role="status">
-              원고 또는 참고 설정이 바뀌었습니다. 이전 결과입니다. 다시 분석해 주세요.
+              원고·이전 회차 또는 참고 설정이 바뀌었습니다. 이전 결과입니다. 근거를 선택하면 분석
+              당시 자료를 확인할 수 있습니다.
             </p>
           )}
           <div className="filter-tabs review-filters">
@@ -142,7 +173,8 @@ export function ReviewPanel({
                     key={review.id}
                     onClick={() => {
                       setSelectedId(review.id)
-                      onJump(review.quote)
+                      const candidate = report?.reviews.find((item) => item.id === review.id)
+                      if (candidate) onJump({ ...candidate, sourceId: candidate.targetSourceId })
                     }}
                   >
                     <div className="row">
@@ -167,18 +199,47 @@ export function ReviewPanel({
                   <h3>원문과 설정 사이의 연결</h3>
                   <span className="detail-label">
                     검토 원문 ·{' '}
-                    {work.chapters.find((chapter) => chapter.id === analysis.chapterId)?.title}
+                    {input?.chapter.title ??
+                      work.chapters.find((chapter) => chapter.id === analysis.chapterId)?.title}
                   </span>
                   <blockquote>{selected.quote}</blockquote>
-                  <button className="text-button" onClick={() => onJump(selected.quote)}>
+                  <button
+                    className="text-button"
+                    disabled={!linked}
+                    onClick={() => {
+                      if (linked) onJump({ ...linked, sourceId: linked.targetSourceId })
+                    }}
+                  >
                     <Icon name="arrow" />
                     원문으로 이동
                   </button>
-                  <span className="detail-label">
-                    확정 설정 ·{' '}
-                    {work.settings.find((setting) => setting.id === selected.settingId)?.title}
-                  </span>
-                  <blockquote className="evidence">{selected.evidence}</blockquote>
+                  {linked ? (
+                    linked.evidences.map((evidence) => (
+                      <section
+                        key={`${evidence.sourceId}:${evidence.startOffset}:${evidence.endOffset}:${evidence.explanation}`}
+                      >
+                        <span className="detail-label">
+                          {evidence.sourceType === 'SETTING' ? '확정 설정' : '이전 회차'} ·{' '}
+                          {evidence.title} · 버전 {evidence.revision}
+                        </span>
+                        <blockquote className="evidence" style={{ overflowWrap: 'anywhere' }}>
+                          {evidence.quote}
+                        </blockquote>
+                        <p>{evidence.explanation}</p>
+                        <button className="text-button" onClick={() => onJump(evidence)}>
+                          근거 원문으로 이동 · {evidence.title}
+                        </button>
+                      </section>
+                    ))
+                  ) : (
+                    <>
+                      <span className="detail-label">
+                        확정 설정 ·{' '}
+                        {work.settings.find((setting) => setting.id === selected.settingId)?.title}
+                      </span>
+                      <blockquote className="evidence">{selected.evidence}</blockquote>
+                    </>
+                  )}
                   <span className="detail-label">확인 질문과 판단 이유</span>
                   <p>{selected.reason}</p>
                   <span className="detail-label">수정 방향</span>
@@ -190,13 +251,19 @@ export function ReviewPanel({
                     </div>
                   )}
                   <div className="decision-actions">
-                    <button disabled={stale} onClick={() => onDecision(selected.id, '수용', '')}>
+                    <button
+                      disabled={stale || !linked}
+                      onClick={() => onDecision(selected.id, '수용', '')}
+                    >
                       수용
                     </button>
-                    <button disabled={stale} onClick={() => onDecision(selected.id, '보류', '')}>
+                    <button
+                      disabled={stale || !linked}
+                      onClick={() => onDecision(selected.id, '보류', '')}
+                    >
                       보류
                     </button>
-                    <button disabled={stale} onClick={() => setIntent(selected)}>
+                    <button disabled={stale || !linked} onClick={() => setIntent(selected)}>
                       의도된 설정
                     </button>
                   </div>

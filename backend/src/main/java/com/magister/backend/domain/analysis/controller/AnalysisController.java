@@ -6,10 +6,13 @@ import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
 import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
+import com.magister.backend.domain.analysis.dto.AnalysisSourceResponse;
+import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
 import com.magister.backend.domain.analysis.service.AnalysisSnapshotService;
+import com.magister.backend.domain.analysis.service.ReviewResultService;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.pagination.OffsetPageRequest;
 import com.magister.backend.global.pagination.OffsetPageResponse;
@@ -36,6 +39,29 @@ public class AnalysisController implements AnalysisControllerDocs {
     private final AnalysisJobService jobs;
     private final AnalysisPreviewService previewService;
     private final AnalysisSnapshotService snapshotService;
+    private final ReviewResultService reviewResultService;
+
+    @Override
+    @GetMapping("/{id}/review")
+    public ApiResult<ReviewReportResponse> reviews(
+            @AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId,
+            @PathVariable String id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResult.success(
+                reviewResultService.list(user.id(), workId, id, OffsetPageRequest.of(page, size)));
+    }
+
+    @Override
+    @GetMapping("/{id}/source/{sourceId}")
+    public ApiResult<AnalysisSourceResponse> source(
+            @AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId,
+            @PathVariable String id,
+            @PathVariable Long sourceId) {
+        return ApiResult.success(snapshotService.getSource(user.id(), workId, id, sourceId));
+    }
 
     @Override
     @PostMapping("/preview")

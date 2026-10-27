@@ -42,7 +42,10 @@ public class WorkspaceReferenceValidator {
             for (ReviewData review : analysis.reviews()) {
                 if (!reviewIds.add(review.id())
                         || !analysis.source().contains(review.quote())
-                        || !settingIds.contains(review.settingId())) {
+                        || !(settingIds.contains(review.settingId())
+                                || (review.settingId().startsWith("previous:")
+                                        && analysis.previousIds()
+                                                .contains(review.settingId().substring(9))))) {
                     invalid();
                 }
                 if (review.decision().equals("의도된 설정") && review.note().isBlank()) {

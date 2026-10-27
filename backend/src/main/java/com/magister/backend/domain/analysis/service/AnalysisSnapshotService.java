@@ -4,6 +4,7 @@ import com.magister.backend.domain.analysis.converter.AnalysisConverter;
 import com.magister.backend.domain.analysis.dto.AnalysisInput;
 import com.magister.backend.domain.analysis.dto.AnalysisInput.SettingReference;
 import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
+import com.magister.backend.domain.analysis.dto.AnalysisSourceResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
 import com.magister.backend.domain.analysis.error.AnalysisErrorCode;
@@ -48,6 +49,19 @@ public class AnalysisSnapshotService {
     private final WorkspaceSnapshotService workspaceSnapshotService;
     private final AnalysisConverter analysisConverter;
     private final ObjectMapper objectMapper;
+
+    /** 본인 작업에 포함된 불변 원문 하나만 반환한다. 다른 작업의 출처 ID도 거절한다. */
+    @Transactional(readOnly = true)
+    public AnalysisSourceResponse getSource(
+            Long ownerId, Long workId, String jobId, Long sourceId) {
+        jobRepository
+                .findOwned(jobId, workId, ownerId)
+                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+        return analysisConverter.toSource(
+                sourceRepository
+                        .findByIdAndJob_Id(sourceId, jobId)
+                        .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND)));
+    }
 
     /** 부모 작품 잠금 아래에서 작업·직렬화 입력과 같은 자료를 개별 근거로 한 번만 기록한다. */
     @Transactional(propagation = Propagation.MANDATORY)

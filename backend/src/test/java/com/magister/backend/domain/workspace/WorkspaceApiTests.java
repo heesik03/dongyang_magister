@@ -270,9 +270,11 @@ class WorkspaceApiTests {
                                                     .isActualTransactionActive())
                                     .isFalse();
                             return "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"그는 마법을"
-                                    + " 시전했다.\",\"settingId\":\""
+                                       + " 시전했다.\",\"startOffset\":0,\"endOffset\":12,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\""
                                     + settingId
-                                    + "\",\"reason\":\"능력 변화 설명 확인\",\"suggestion\":\"계기를"
+                                    + "\",\"quote\":\"마법을 사용할 수"
+                                    + " 없다.\",\"startOffset\":0,\"endOffset\":13,\"explanation\":\"능력"
+                                    + " 근거\"}],\"reason\":\"능력 변화 설명 확인\",\"suggestion\":\"계기를"
                                     + " 보완하세요.\"}]}";
                         });
         AnalysisRequest request =

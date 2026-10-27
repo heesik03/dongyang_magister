@@ -1,14 +1,18 @@
 package com.magister.backend.verification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 
 import com.magister.backend.domain.analysis.AnalysisPreviewSupport;
+import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
+import com.magister.backend.domain.analysis.service.AnalysisJobStateService;
 import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
+import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.chapter.dto.ChapterResponse;
 import com.magister.backend.domain.chapter.dto.UpdateChapterRequest;
 import com.magister.backend.domain.chapter.entity.Chapter;
@@ -37,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -78,6 +83,8 @@ import java.util.concurrent.TimeUnit;
         matches = "magister_refactor_[a-f0-9]{12}")
 class MySqlRefactoringTests {
     @Autowired AnalysisPreviewService previewService;
+    @Autowired AnalysisJobStateService stateService;
+    @Autowired AnalysisResultProcessor resultProcessor;
     @Autowired ChapterRepository chapterRepository;
     @Autowired ChapterService chapterService;
     @Autowired UserRepository users;
@@ -91,6 +98,76 @@ class MySqlRefactoringTests {
     @Autowired JdbcTemplate jdbc;
     @MockitoBean AnalysisDispatcher dispatcher;
     @MockitoSpyBean PasswordEncoder passwordEncoder;
+
+    @Test
+    void reviewEvidencePersistsAtomicallyAndRejectsOtherJobSourcesOnMySql() {
+        Fixture fixture = fixture(null);
+        AnalysisRequest request = fixture.request();
+        AnalysisPreviewResponse preview =
+                previewService.preview(fixture.ownerId(), fixture.workId(), request);
+        String jobId =
+                jobs.create(
+                                fixture.ownerId(),
+                                fixture.workId(),
+                                request.confirmed(preview.previewToken(), preview.policyVersion()))
+                        .id();
+        stateService.claim(jobId).orElseThrow();
+        String provider =
+                """
+                {"reviews":[{"type":"설정 충돌 후보","quote":"text","startOffset":0,"endOffset":4,
+                "evidences":[{"sourceType":"SETTING","sourceKey":"%s","quote":"evidence","startOffset":0,"endOffset":8,"explanation":"setting"}],
+                "reason":"check","suggestion":"explain"}]}
+                """
+                        .formatted(fixture.settingId());
+        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, preview.input()));
+        assertThat(jobs.get(fixture.ownerId(), fixture.workId(), jobId).status())
+                .isEqualTo("SUCCEEDED");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM review_evidences WHERE job_id=?",
+                                Long.class,
+                                jobId))
+                .isEqualTo(1);
+        Long targetSource =
+                jdbc.queryForObject(
+                        "SELECT target_source_id FROM review_candidates WHERE job_id=?",
+                        Long.class,
+                        jobId);
+        String nextId =
+                jobs.create(
+                                fixture.ownerId(),
+                                fixture.workId(),
+                                AnalysisPreviewSupport.confirm(
+                                        previewService,
+                                        fixture.ownerId(),
+                                        fixture.workId(),
+                                        fixture.request()))
+                        .id();
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "INSERT INTO"
+                                            + " review_candidates(id,job_id,target_source_id,type,quote,start_offset,end_offset,reason,suggestion)"
+                                            + " VALUES(?,?,?,?,?,?,?,?,?)",
+                                        UUID.randomUUID().toString(),
+                                        nextId,
+                                        targetSource,
+                                        "설정 충돌 후보",
+                                        "text",
+                                        0,
+                                        4,
+                                        "check",
+                                        "explain"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        jobs.cancel(fixture.ownerId(), fixture.workId(), nextId);
+        jdbc.update("DELETE FROM analysis_jobs WHERE id=?", jobId);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM review_evidences WHERE job_id=?",
+                                Long.class,
+                                jobId))
+                .isZero();
+    }
 
     @Test
     void chapterWritesAreIndependentAndStaleWritesDoNotOverwrite() {

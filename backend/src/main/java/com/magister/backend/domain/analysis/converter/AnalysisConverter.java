@@ -5,6 +5,7 @@ import com.magister.backend.domain.analysis.dto.AnalysisInput.SettingReference;
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
 import com.magister.backend.domain.analysis.dto.AnalysisOutput.Candidate;
+import com.magister.backend.domain.analysis.dto.AnalysisOutput.Evidence;
 import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
@@ -27,7 +28,6 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -66,21 +66,21 @@ public class AnalysisConverter {
         return new AnalysisSnapshotResponse(
                 job.getId(),
                 input,
-                sources.stream()
-                        .map(
-                                source ->
-                                        new AnalysisSourceResponse(
-                                                source.getId(),
-                                                source.getType(),
-                                                source.getSourceKey(),
-                                                source.getRevision(),
-                                                source.getTitle(),
-                                                source.getContent(),
-                                                source.getMetadata(),
-                                                source.getContentHash()))
-                        .toList(),
+                sources.stream().map(this::toSource).toList(),
                 job.getSourceFormatVersion() == 0,
                 stale);
+    }
+
+    public AnalysisSourceResponse toSource(AnalysisSource source) {
+        return new AnalysisSourceResponse(
+                source.getId(),
+                source.getType(),
+                source.getSourceKey(),
+                source.getRevision(),
+                source.getTitle(),
+                source.getContent(),
+                source.getMetadata(),
+                source.getContentHash());
     }
 
     public AnalysisJobSummary toSummary(AnalysisJobSummaryView job) {
@@ -140,18 +140,20 @@ public class AnalysisConverter {
                 setting.getVersion());
     }
 
-    public ReviewData toReview(
-            Candidate candidate, SettingReference setting, Optional<ReviewData> previous) {
+    public ReviewData toReview(Candidate candidate) {
+        Evidence evidence = candidate.evidences().getFirst();
         return new ReviewData(
                 UUID.randomUUID().toString(),
                 candidate.type(),
                 candidate.quote(),
-                setting.id(),
-                setting.content(),
+                evidence.sourceType().equals("SETTING")
+                        ? evidence.sourceKey()
+                        : "previous:" + evidence.sourceKey(),
+                evidence.quote(),
                 candidate.reason(),
                 candidate.suggestion(),
-                previous.map(ReviewData::decision).orElse("미검토"),
-                previous.map(ReviewData::note).orElse(""));
+                "미검토",
+                "");
     }
 
     public AnalysisData toResult(AnalysisInput input, List<ReviewData> reviews) {

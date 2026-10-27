@@ -5,6 +5,8 @@ import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
 import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
+import com.magister.backend.domain.analysis.dto.AnalysisSourceResponse;
+import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.pagination.OffsetPageResponse;
@@ -30,6 +32,29 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Analysis", description = "저장된 회차 원고와 확정 설정을 비교하는 비동기 AI 검토")
 @SecurityRequirement(name = "session")
 public interface AnalysisControllerDocs {
+    @Operation(
+            summary = "근거가 연결된 검토 후보",
+            description =
+                    "본인 작업만 조회. 후보·다중 근거·UTF-16 위치와 legacy/stale 반환. page=0,size=20(최대100)."
+                        + " 200/400/401/404/409. 과거 결과의 없는 위치는 추정하지 않습니다.")
+    ApiResult<ReviewReportResponse> reviews(
+            LoginUser user,
+            @Positive Long workId,
+            @NotBlank @Size(max = 36) String id,
+            @Min(0) int page,
+            @Min(1) @Max(100) int size);
+
+    @Operation(
+            summary = "분석 당시 근거 원문",
+            description =
+                    "본인 작업에 속한 출처의 고정 원문·제목·버전 반환. 인용 위치는 UTF-16 [startOffset,endOffset)."
+                        + " 200/400/401/404.")
+    ApiResult<AnalysisSourceResponse> source(
+            LoginUser user,
+            @Positive Long workId,
+            @NotBlank @Size(max = 36) String id,
+            @Positive Long sourceId);
+
     @Operation(
             summary = "AI 전송 자료 미리보기",
             description =

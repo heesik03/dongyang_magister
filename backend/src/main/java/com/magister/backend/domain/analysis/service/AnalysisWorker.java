@@ -1,9 +1,9 @@
 package com.magister.backend.domain.analysis.service;
 
+import com.magister.backend.domain.analysis.dto.ValidatedAnalysis;
 import com.magister.backend.domain.analysis.service.AnalysisJobStateService.Claim;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.gemini.service.GeminiService;
-import com.magister.backend.domain.workspace.dto.WorkspaceData.AnalysisData;
 import com.magister.backend.global.error.exception.CustomException;
 
 import lombok.RequiredArgsConstructor;
@@ -23,8 +23,7 @@ public class AnalysisWorker {
     private final AnalysisResultProcessor resultProcessor;
 
     /**
-     * 선점 -> 공급자 호출 -> 근거 검증 -> 결과 저장 순으로 실행한다.
-     * 메서드 전체에 트랜잭션을 열지 않아 네트워크 대기 중 DB 연결·행 잠금을 점유하지 않는다.
+     * 선점 -> 공급자 호출 -> 근거 검증 -> 결과 저장 순으로 실행한다. 메서드 전체에 트랜잭션을 열지 않아 네트워크 대기 중 DB 연결·행 잠금을 점유하지 않는다.
      * 첫 선점 단계부터 예외 처리하며, 실패 기록도 불가능하면 lease 만료 복구가 뒤처리한다.
      */
     public void execute(String jobId) {
@@ -46,7 +45,7 @@ public class AnalysisWorker {
 
             // 공급자 JSON이 정상이어도 원문·설정·요청 옵션과 맞지 않으면 결과로 채택하지 않는다.
             stage = "validation";
-            AnalysisData result = resultProcessor.validate(raw, claim.input());
+            ValidatedAnalysis result = resultProcessor.validateDetailed(raw, claim.input());
 
             stage = "completion";
             jobStateService.succeed(jobId, result);

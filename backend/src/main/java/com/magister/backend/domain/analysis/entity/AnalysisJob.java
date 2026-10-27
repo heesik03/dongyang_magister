@@ -88,6 +88,13 @@ public class AnalysisJob {
     @Column(name = "source_format_version", nullable = false, updatable = false)
     private int sourceFormatVersion;
 
+    @Column(name = "result_format_version", nullable = false)
+    private int resultFormatVersion;
+
+    public void recordEvidenceResult() {
+        resultFormatVersion = 1;
+    }
+
     public void recordConfirmation(Chapter chapter, String policyVersion, String model) {
         targetChapter = chapter;
         chapterKey = chapter.getChapterKey();

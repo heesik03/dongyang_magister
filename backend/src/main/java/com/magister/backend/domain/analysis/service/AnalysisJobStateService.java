@@ -1,10 +1,10 @@
 package com.magister.backend.domain.analysis.service;
 
 import com.magister.backend.domain.analysis.dto.AnalysisInput;
+import com.magister.backend.domain.analysis.dto.ValidatedAnalysis;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
-import com.magister.backend.domain.workspace.dto.WorkspaceData.AnalysisData;
 import com.magister.backend.global.config.AnalysisExecutionProperties;
 
 import lombok.RequiredArgsConstructor;
@@ -28,6 +28,7 @@ public class AnalysisJobStateService {
     private final AnalysisJobRepository analysisJobRepository;
     private final ObjectMapper objectMapper;
     private final AnalysisExecutionProperties executionProperties;
+    private final ReviewResultService reviewResultService;
     private static final List<AnalysisJobStatus> ACTIVE =
             List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING);
     private static final List<AnalysisJobStatus> TERMINAL =
@@ -40,9 +41,8 @@ public class AnalysisJobStateService {
     public record Claim(Long ownerId, AnalysisInput input) {}
 
     /**
-     * 자기 서버의 QUEUED 작업만 RUNNING으로 선점하고 불변 입력을 반환한다.
-     * 중복 전달·종료된 작업·다른 서버의 작업은 빈 결과로 실행을 생략한다.
-     * 입력 역직렬화가 실패하면 선점도 롤백하며, 호출 워커가 별도 실패 트랜잭션을 수행한다.
+     * 자기 서버의 QUEUED 작업만 RUNNING으로 선점하고 불변 입력을 반환한다. 중복 전달·종료된 작업·다른 서버의 작업은 빈 결과로 실행을 생략한다. 입력
+     * 역직렬화가 실패하면 선점도 롤백하며, 호출 워커가 별도 실패 트랜잭션을 수행한다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<Claim> claim(String jobId) {
@@ -65,21 +65,22 @@ public class AnalysisJobStateService {
     }
 
     /**
-     * 검증된 결과를 저장한다. 외부 호출은 이미 끝난 상태이며 이 메서드 안에서는 수행하지 않는다.
-     * 취소·복구 실패가 먼저 확정되었다면 엔티티가 결과를 버려 종료 상태를 덮어쓰지 않는다.
+     * 검증된 결과를 저장한다. 외부 호출은 이미 끝난 상태이며 이 메서드 안에서는 수행하지 않는다. 취소·복구 실패가 먼저 확정되었다면 엔티티가 결과를 버려 종료 상태를
+     * 덮어쓰지 않는다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void succeed(String jobId, AnalysisData result) {
-        analysisJobRepository
-                .lockById(jobId)
-                .orElseThrow()
-                .succeed(objectMapper.writeValueAsString(result));
+    public void succeed(String jobId, ValidatedAnalysis result) {
+        AnalysisJob job = analysisJobRepository.lockById(jobId).orElseThrow();
+        if (job.getStatus() != AnalysisJobStatus.RUNNING) {
+            return;
+        }
+        reviewResultService.save(job, result);
+        job.succeed(objectMapper.writeValueAsString(result.result()));
     }
 
     /**
-     * 실행 거절·입력 해석·공급자·검증 실패를 기록한다. 이미 종료된 상태는 보존한다.
-     * afterCommit에서는 원 트랜잭션이 다시 커밋되지 않으므로 REQUIRES_NEW가 필수다.
-     * 호출자는 원고나 공급자 응답 전문이 아닌 사용자에게 공개 가능한 오류만 전달한다.
+     * 실행 거절·입력 해석·공급자·검증 실패를 기록한다. 이미 종료된 상태는 보존한다. afterCommit에서는 원 트랜잭션이 다시 커밋되지 않으므로
+     * REQUIRES_NEW가 필수다. 호출자는 원고나 공급자 응답 전문이 아닌 사용자에게 공개 가능한 오류만 전달한다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(String jobId, String message) {
@@ -87,9 +88,8 @@ public class AnalysisJobStateService {
     }
 
     /**
-     * 실제 로컬 실행기에 남은 작업의 lease를 갱신한 뒤 만료된 미완료 작업을 실패 처리한다.
-     * 다른 서버의 유효한 lease는 유지하며, DB에는 있지만 제출되지 못한 작업은 갱신하지 않는다.
-     * 반환한 종료 작업 ID는 호출 실행기가 큐 제거·인터럽트에 사용한다.
+     * 실제 로컬 실행기에 남은 작업의 lease를 갱신한 뒤 만료된 미완료 작업을 실패 처리한다. 다른 서버의 유효한 lease는 유지하며, DB에는 있지만 제출되지 못한
+     * 작업은 갱신하지 않는다. 반환한 종료 작업 ID는 호출 실행기가 큐 제거·인터럽트에 사용한다.
      */
     @Transactional
     public List<String> maintain(List<String> localJobIds) {

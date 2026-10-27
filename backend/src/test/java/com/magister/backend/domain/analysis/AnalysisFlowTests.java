@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
+import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
@@ -42,7 +43,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -71,6 +74,7 @@ class AnalysisFlowTests {
     @Autowired AnalysisPreviewService previewService;
     @Autowired AnalysisJobService jobService;
     @Autowired AnalysisWorker worker;
+    @Autowired JdbcTemplate jdbcTemplate;
     @Autowired TransactionTemplate transactionTemplate;
     @MockitoBean AnalysisDispatcher dispatcher;
     @MockitoBean GeminiClient geminiClient;
@@ -128,6 +132,169 @@ class AnalysisFlowTests {
 
     private AnalysisRequest confirmed() {
         return AnalysisPreviewSupport.confirm(previewService, ownerId, workId, selection());
+    }
+
+    private String linkedProviderResult() {
+        return """
+        {"reviews":[{"type":"설정 충돌 후보","quote":"검토 원고","startOffset":0,"endOffset":5,
+        "evidences":[{"sourceType":"SETTING","sourceKey":"%s","quote":"마법 불가","startOffset":0,"endOffset":5,"explanation":"능력 설정"},
+        {"sourceType":"PREVIOUS","sourceKey":"previous","quote":"근거 원고","startOffset":3,"endOffset":8,"explanation":"이전 행동"}],
+        "reason":"계기 확인","suggestion":"설명 보완"}]}
+        """
+                .formatted(settingId);
+    }
+
+    @Test
+    void legacyResultRemainsReadableWithoutInventingLocations() throws Exception {
+        String jobId = jobService.create(ownerId, workId, confirmed()).id();
+        transactionTemplate.executeWithoutResult(
+                transaction -> {
+                    AnalysisJob job = jobRepository.findById(jobId).orElseThrow();
+                    job.start();
+                    job.succeed(
+                            """
+                            {"chapterId":"target","revision":1,"source":"검토 원고","settingIds":["%s"],
+                             "previousIds":["previous"],"reviews":[],"createdAt":"2026-10-26T00:00:00Z"}
+                            """
+                                    .formatted(settingId));
+                });
+        mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.legacy").value(true))
+                .andExpect(jsonPath("$.data.candidates.totalElements").value(0));
+    }
+
+    @Test
+    void linkedReviewsSourcesAccessAndStaleStateAreRestored() throws Exception {
+        String jobId = jobService.create(ownerId, workId, confirmed()).id();
+        when(geminiClient.generateText(anyString(), eq(4096))).thenReturn(linkedProviderResult());
+        worker.execute(jobId);
+        mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.legacy").value(false))
+                .andExpect(jsonPath("$.data.stale").value(false))
+                .andExpect(jsonPath("$.data.candidates.totalElements").value(1))
+                .andExpect(jsonPath("$.data.candidates.items[0].startOffset").value(0))
+                .andExpect(jsonPath("$.data.candidates.items[0].evidences.length()").value(2))
+                .andExpect(
+                        jsonPath("$.data.candidates.items[0].evidences[1].sourceType")
+                                .value("PREVIOUS"));
+        Long sourceId = sourceRepository.findByJob_IdOrderByIdAsc(jobId).getFirst().getId();
+        mockMvc.perform(
+                        get(path() + "/" + jobId + "/source/" + sourceId)
+                                .with(authentication(owner)))
+                .andExpect(jsonPath("$.data.sourceId").value("target"))
+                .andExpect(jsonPath("$.data.content").value("검토 원고"));
+        chapterService.update(
+                ownerId,
+                workId,
+                "previous",
+                new UpdateChapterRequest("1화", "바뀐 이전 원고", 0, "edit-prev"));
+        mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.stale").value(true));
+        mockMvc.perform(
+                        get(path() + "/" + jobId + "/source/" + sourceId)
+                                .with(authentication(owner)))
+                .andExpect(jsonPath("$.data.content").value("검토 원고"));
+        mockMvc.perform(
+                        get(path() + "/" + jobId + "/review")
+                                .with(authentication(owner))
+                                .param("size", "101"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get(path() + "/" + jobId + "/review")).andExpect(status().isUnauthorized());
+        UsernamePasswordAuthenticationToken other =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
+        mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(other)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(
+                        get(path() + "/" + jobId + "/source/" + sourceId)
+                                .with(authentication(other)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void anotherJobSourceIsRejectedByApiAndCompositeForeignKey() throws Exception {
+        String firstId = jobService.create(ownerId, workId, confirmed()).id();
+        when(geminiClient.generateText(anyString(), eq(4096))).thenReturn(linkedProviderResult());
+        worker.execute(firstId);
+        String secondId = jobService.create(ownerId, workId, confirmed()).id();
+        Long firstSource = sourceRepository.findByJob_IdOrderByIdAsc(firstId).getFirst().getId();
+        mockMvc.perform(
+                        get(path() + "/" + secondId + "/source/" + firstSource)
+                                .with(authentication(owner)))
+                .andExpect(status().isNotFound());
+        assertThatThrownBy(
+                        () ->
+                                jdbcTemplate.update(
+                                        "INSERT INTO"
+                                            + " review_candidates(id,job_id,target_source_id,type,quote,start_offset,end_offset,reason,suggestion)"
+                                            + " VALUES(?,?,?,?,?,?,?,?,?)",
+                                        UUID.randomUUID().toString(),
+                                        secondId,
+                                        firstSource,
+                                        "설정 충돌 후보",
+                                        "검토 원고",
+                                        0,
+                                        5,
+                                        "이유",
+                                        "방향"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        worker.execute(secondId);
+        String candidateId =
+                jdbcTemplate.queryForObject(
+                        "SELECT id FROM review_candidates WHERE job_id=?", String.class, firstId);
+        Long secondSource = sourceRepository.findByJob_IdOrderByIdAsc(secondId).getLast().getId();
+        assertThatThrownBy(
+                        () ->
+                                jdbcTemplate.update(
+                                        "INSERT INTO"
+                                            + " review_evidences(job_id,review_id,source_id,quote,start_offset,end_offset,explanation)"
+                                            + " VALUES(?,?,?,?,?,?,?)",
+                                        firstId,
+                                        candidateId,
+                                        secondSource,
+                                        "마법 불가",
+                                        0,
+                                        5,
+                                        "이유"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        jdbcTemplate.update("DELETE FROM analysis_jobs WHERE id=?", firstId);
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM review_candidates WHERE job_id=?",
+                                Long.class,
+                                firstId))
+                .isZero();
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM review_evidences WHERE job_id=?",
+                                Long.class,
+                                firstId))
+                .isZero();
+    }
+
+    @Test
+    void invalidAndCancelledJobsLeaveNoPartialReviews() {
+        String invalidId = jobService.create(ownerId, workId, confirmed()).id();
+        when(geminiClient.generateText(anyString(), eq(4096)))
+                .thenReturn(linkedProviderResult().replace("\"endOffset\":5", "\"endOffset\":4"));
+        worker.execute(invalidId);
+        assertThat(jobService.get(ownerId, workId, invalidId).status()).isEqualTo("FAILED");
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM review_candidates WHERE job_id=?",
+                                Long.class,
+                                invalidId))
+                .isZero();
+        String cancelledId = jobService.create(ownerId, workId, confirmed()).id();
+        jobService.cancel(ownerId, workId, cancelledId);
+        worker.execute(cancelledId);
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM review_evidences WHERE job_id=?",
+                                Long.class,
+                                cancelledId))
+                .isZero();
     }
 
     @Test
@@ -268,9 +435,12 @@ class AnalysisFlowTests {
         String jobId = jobService.create(ownerId, workId, confirmed()).id();
         when(geminiClient.generateText(anyString(), eq(4096)))
                 .thenReturn(
-                        "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"검토 원고\",\"settingId\":\""
+                        "{\"reviews\":[{\"type\":\"설정 충돌 후보\",\"quote\":\"검토"
+                            + " 원고\",\"startOffset\":0,\"endOffset\":5,\"evidences\":[{\"sourceType\":\"SETTING\",\"sourceKey\":\""
                                 + settingId
-                                + "\",\"reason\":\"확인\",\"suggestion\":\"보완\"}]}");
+                                + "\",\"quote\":\"마법"
+                                + " 불가\",\"startOffset\":0,\"endOffset\":5,\"explanation\":\"관련"
+                                + " 근거\"}],\"reason\":\"확인\",\"suggestion\":\"보완\"}]}");
         worker.execute(jobId);
         mockMvc.perform(
                         get(path())

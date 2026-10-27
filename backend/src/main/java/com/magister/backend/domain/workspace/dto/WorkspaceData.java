@@ -28,7 +28,7 @@ public record WorkspaceData(
             @NotBlank @Size(max = 128) String id,
             @NotNull @Pattern(regexp = "설정 충돌 후보|설명 보완") String type,
             @NotBlank @Size(max = 10000) String quote,
-            @NotBlank @Size(max = 64) String settingId,
+            @NotBlank @Size(max = 73) String settingId,
             @NotNull @Size(max = 10000) String evidence,
             @NotBlank @Size(max = 4000) String reason,
             @NotBlank @Size(max = 4000) String suggestion,

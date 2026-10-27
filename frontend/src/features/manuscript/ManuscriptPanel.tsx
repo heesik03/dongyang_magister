@@ -3,6 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { Chapter, Decision, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
 import { ReviewPanel } from '../review/ReviewPanel'
+import { useReviewReport } from '../review/useReviewReport'
+import { reviewClient, type ReviewSource, type SourceLocation } from '../review/reviewClient'
+import { ReviewSourceDialog } from '../review/ReviewSourceDialog'
 import { analysisClient, type Preview, type Snapshot } from '../analysis/analysisClient'
 import { settingsChanged, inputChanged } from '../analysis/analysisState'
 import { useAnalysisJobs } from '../analysis/useAnalysisJobs'
@@ -23,10 +26,24 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     work.chapters.find((item) => item.id === params.get('chapter')) ||
     work.chapters[work.chapters.length - 1]
   const jobs = useAnalysisJobs(work.id, chapter?.id, work.source === 'server')
+  const reportState = useReviewReport(work.id, jobs.job?.id, jobs.job?.status === 'SUCCEEDED')
+  const [openedSource, setOpenedSource] = useState<{
+    source: ReviewSource
+    location: SourceLocation
+  } | null>(null)
+  const [jumpError, setJumpError] = useState<{ id: string; message: string } | null>(null)
+  const [jumpLoading, setJumpLoading] = useState<string | null>(null)
+  const jumpRequest = useRef<AbortController | null>(null)
   const savedAnalysis = work.analyses.find((item) => item.chapterId === chapter?.id)
   const analysis = jobs.job?.result
     ? savedAnalysis?.createdAt === jobs.job.result.createdAt
-      ? savedAnalysis
+      ? {
+          ...jobs.job.result,
+          reviews: jobs.job.result.reviews.map((review) => {
+            const saved = savedAnalysis.reviews.find((item) => item.id === review.id)
+            return saved ? { ...review, decision: saved.decision, note: saved.note } : review
+          }),
+        }
       : jobs.job.result
     : savedAnalysis
   const [creating, setCreating] = useState(false)
@@ -57,6 +74,11 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const snapshot = storedSnapshot?.jobId === selectedJobId ? storedSnapshot : null
   const snapshotError =
     sourceFailure && sourceFailure.id === selectedJobId ? sourceFailure.message : ''
+  const latestWork = useRef(work)
+  useEffect(() => {
+    latestWork.current = work
+  }, [work])
+  useEffect(() => () => jumpRequest.current?.abort(), [selectedJobId])
   useEffect(() => {
     if (!selectedJobId) return
     const controller = new AbortController()
@@ -80,16 +102,28 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   useEffect(
     () => () => {
       analysisRequest.current?.abort()
+      jumpRequest.current?.abort()
     },
     [],
   )
   useEffect(() => {
     const quote = params.get('quote')
     const element = editor.current
-    const start = quote ? (chapter?.content.indexOf(quote) ?? -1) : -1
-    if (quote && element && start >= 0) {
+    const start = Number(params.get('start'))
+    const end = Number(params.get('end'))
+    if (
+      quote &&
+      element &&
+      params.has('start') &&
+      params.has('end') &&
+      Number.isSafeInteger(start) &&
+      Number.isSafeInteger(end) &&
+      start >= 0 &&
+      end > start &&
+      chapter?.content.slice(start, end) === quote
+    ) {
       element.focus()
-      element.setSelectionRange(start, start + quote.length)
+      element.setSelectionRange(start, end)
       element.scrollIntoView({ block: 'center' })
     }
   }, [params, chapter?.id, chapter?.content])
@@ -98,7 +132,8 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     !!analysis &&
     (analysis.source !== chapter?.content ||
       settingsChanged(analysis, work.settings) ||
-      (!!snapshot && (snapshot.stale || inputChanged(snapshot.input, work))))
+      (!!snapshot && (snapshot.stale || inputChanged(snapshot.input, work))) ||
+      !!reportState.report?.stale)
   function createChapter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const title = String(new FormData(event.currentTarget).get('title')).trim()
@@ -273,18 +308,56 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       ],
     })
   }
-  function jump(quote: string) {
-    setHighlight(quote)
-    setView('원고')
-    const element = editor.current
-    const start = chapter?.content.indexOf(quote) ?? -1
-    if (element && start >= 0) {
-      // 다음 프레임에 모바일 원고 탭이 표시된 뒤 포커스와 선택 영역을 적용한다.
-      requestAnimationFrame(() => {
-        element.focus()
-        element.setSelectionRange(start, start + quote.length)
-        element.scrollIntoView({ block: 'center', behavior: 'auto' })
-      })
+  async function jump(location: SourceLocation) {
+    if (!selectedJobId) return
+    jumpRequest.current?.abort()
+    const controller = new AbortController()
+    jumpRequest.current = controller
+    setJumpLoading(selectedJobId)
+    setJumpError(null)
+    try {
+      const source = await reviewClient.source(
+        work.id,
+        selectedJobId,
+        location.sourceId,
+        controller.signal,
+      )
+      if (controller.signal.aborted) return
+      if (source.content.slice(location.startOffset, location.endOffset) !== location.quote)
+        throw new Error('원문과 인용 위치가 일치하지 않습니다. 근거를 다시 조회해 주세요.')
+      const current = latestWork.current.chapters.find((item) => item.id === source.sourceKey)
+      if (
+        source.type !== 'SETTING' &&
+        current?.content === source.content &&
+        current.revision === source.revision
+      ) {
+        setHighlight(location.quote)
+        setView('원고')
+        if (current.id !== chapter?.id) {
+          setParams({
+            chapter: current.id,
+            quote: location.quote,
+            start: String(location.startOffset),
+            end: String(location.endOffset),
+          })
+        } else {
+          requestAnimationFrame(() => {
+            editor.current?.focus()
+            editor.current?.setSelectionRange(location.startOffset, location.endOffset)
+            editor.current?.scrollIntoView({ block: 'center', behavior: 'auto' })
+          })
+        }
+      } else {
+        setOpenedSource({ source, location })
+      }
+    } catch (failure) {
+      if (!controller.signal.aborted)
+        setJumpError({
+          id: selectedJobId,
+          message: failure instanceof Error ? failure.message : '근거 원문 조회 실패',
+        })
+    } finally {
+      if (!controller.signal.aborted) setJumpLoading(null)
     }
   }
   function toggle(ids: string[], id: string) {
@@ -292,6 +365,14 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   }
   return (
     <div className="manuscript-workspace">
+      {jumpLoading && jumpLoading === selectedJobId && (
+        <p role="status">근거 원문을 불러오고 있습니다.</p>
+      )}
+      {jumpError && jumpError.id === selectedJobId && (
+        <p className="error" role="alert">
+          {jumpError.message}
+        </p>
+      )}
       {analyzing && <button onClick={() => void cancelAnalysis()}>AI 검토 취소</button>}
       <div className="manuscript-toolbar">
         <div className="chapter-select">
@@ -514,6 +595,11 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           key={chapter?.id || 'empty'}
           work={work}
           analysis={analysis}
+          report={reportState.report}
+          input={snapshot?.input}
+          reportLoading={reportState.loading}
+          reportError={reportState.error}
+          retryReport={reportState.retry}
           stale={stale}
           analyzing={analyzing}
           error={
@@ -525,10 +611,13 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                 : '')
           }
           retry={() => void retryAnalysis()}
-          onJump={jump}
+          onJump={(location) => void jump(location)}
           onDecision={decide}
         />
       </div>
+      {openedSource && (
+        <ReviewSourceDialog {...openedSource} onClose={() => setOpenedSource(null)} />
+      )}
       {creating && (
         <Dialog title="새 회차 추가" onClose={() => setCreating(false)}>
           <form className="stack" onSubmit={createChapter}>

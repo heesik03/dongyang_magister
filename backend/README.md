@@ -104,6 +104,16 @@ Hibernate JDBC 오류 전문은 중복 이메일 등 입력값을 포함할 수 
 
 화면은 서버 보관 설정과 현재 삭제 기능의 범위, [Google Gemini 공식 정책](https://ai.google.dev/gemini-api/terms)을 전송 전에 안내합니다. 계정의 유료·무료 구분과 공급자 설정을 추측해 보관 기간이나 학습 제외를 보장하지 않습니다. 이 단계에서는 서비스 자료 삭제 화면을 제공하지 않습니다.
 
+### 근거가 연결된 검토 결과 (이슈 #10, 3단계)
+
+- `GET /api/work/{workId}/analysis/{jobId}/review?page=0&size=20`: 후보 페이지(`candidates`), `legacy`, `stale` 반환. 최대 100개, ID 오름차순. 후보에는 문제 문장·대상 스냅샷 ID·위치·검토 이유·수정 방향과 최대 10개의 설정/이전 원고 근거가 포함됩니다.
+- `GET /api/work/{workId}/analysis/{jobId}/source/{sourceId}`: 분석 당시 고정한 원문 반환. 숫자 `id`는 스냅샷 ID, 문자열 `sourceId`는 원래 회차/설정의 키입니다. 다른 작업의 출처와 다른 사용자의 작품은 404, 미인증 401, 잘못된 페이지·ID는 400입니다. 구형 입력 복원 불가는 409입니다.
+- 위치는 Java와 JavaScript가 공통으로 사용하는 UTF-16 코드 단위의 `[startOffset,endOffset)`입니다. 인용문·범위·출처·요청한 검토 종류를 모두 검사하며 서로게이트 쌍을 자른 위치도 거절합니다. 하나라도 잘못되면 부분 결과나 빈 성공으로 바꾸지 않고 작업을 실패 처리합니다.
+- 예시 공급자 결과: `{"reviews":[{"type":"설정 충돌 후보","quote":"마법 사용","startOffset":0,"endOffset":5,"evidences":[{"sourceType":"SETTING","sourceKey":"1","quote":"마법 불가","startOffset":0,"endOffset":5,"explanation":"능력 제약"}],"reason":"변화의 계기 확인","suggestion":"계기 설명 보완"}]}`. `PREVIOUS` 근거는 선택한 이전 회차 키를 사용합니다. 근거 없는 단정은 피하고 빈 후보를 작품 전체의 통과 판정으로 해석하지 않습니다.
+- Flyway V11은 `review_candidates`, `review_evidences`, `analysis_jobs.result_format_version`을 추가합니다. 작업 완료와 후보·근거 저장은 같은 트랜잭션입니다. 복합 FK로 다른 분석의 스냅샷 연결을 차단하고 작업 삭제 시 함께 삭제합니다. 기존 JSON 결과는 보존하되 없는 위치를 만들어 이관하지 않습니다(`legacy=true`).
+- 화면은 반복 문장도 검증된 위치를 선택합니다. 현재 원고와 버전이 같으면 해당 회차로 이동하고, 변경된 원고·설정은 읽기 전용 스냅샷을 엽니다. 대상 원고·이전 회차·설정 변경은 이전 결과로 표시합니다.
+- 판단 저장은 4단계까지 기존 workspace 호환 경로를 사용합니다. 이전 회차만 근거인 경우 호환 필드 `settingId`에 `previous:<회차 키>`를 사용하며 확정 설정으로 표시하지 않습니다. 위치·범위 없는 과거 판단을 새로운 후보에 자동 복사하지 않습니다. 판단 이력·다음 회차 반영과 실제 Gemini 품질 평가는 후속 단계입니다.
+
 ### 회차별 원고 저장
 
 `/api/work/{workId}/chapter`에서 POST(201)·GET 목록(200), `/{chapterId}`에서 GET·PUT(200)을 제공합니다. 로그인한 소유자만 접근하고 쓰기 요청에는 CSRF가 필요합니다. 목록은 회차 번호 오름차순이며 `page=0&size=20`, size 상한은 100입니다. 작품당 최대 100회차, 제목 100자, 본문 200,000자를 허용합니다.
