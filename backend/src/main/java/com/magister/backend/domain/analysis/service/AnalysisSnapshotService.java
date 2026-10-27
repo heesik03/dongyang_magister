@@ -10,15 +10,14 @@ import com.magister.backend.domain.analysis.entity.AnalysisSource;
 import com.magister.backend.domain.analysis.error.AnalysisErrorCode;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
+import com.magister.backend.domain.chapter.converter.ChapterConverter;
 import com.magister.backend.domain.chapter.entity.Chapter;
 import com.magister.backend.domain.chapter.repository.ChapterRepository;
 import com.magister.backend.domain.decision.service.DecisionReferenceService;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.work.error.WorkErrorCode;
-import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
-import com.magister.backend.domain.workspace.service.WorkspaceSnapshotService;
 import com.magister.backend.global.error.exception.CustomException;
 
 import lombok.RequiredArgsConstructor;
@@ -46,8 +45,8 @@ public class AnalysisSnapshotService {
     private final AnalysisSourceRepository sourceRepository;
     private final AnalysisJobRepository jobRepository;
     private final ChapterRepository chapterRepository;
+    private final ChapterConverter chapterConverter;
     private final WorkSettingRepository settingRepository;
-    private final WorkspaceSnapshotService workspaceSnapshotService;
     private final AnalysisConverter analysisConverter;
     private final ObjectMapper objectMapper;
     private final DecisionReferenceService decisionReferenceService;
@@ -56,12 +55,9 @@ public class AnalysisSnapshotService {
     @Transactional(readOnly = true)
     public AnalysisSourceResponse getSource(
             Long ownerId, Long workId, String jobId, Long sourceId) {
-        jobRepository
-                .findOwned(jobId, workId, ownerId)
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
         return analysisConverter.toSource(
                 sourceRepository
-                        .findByIdAndJob_Id(sourceId, jobId)
+                        .findOwnedSource(sourceId, jobId, workId, ownerId)
                         .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND)));
     }
 
@@ -113,40 +109,66 @@ public class AnalysisSnapshotService {
                 jobRepository
                         .findOwned(jobId, workId, ownerId)
                         .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
-        AnalysisInput input;
-        try {
-            input =
-                    Objects.requireNonNull(
-                            objectMapper.readValue(job.getInput(), AnalysisInput.class));
-            for (SettingReference setting : input.settings()) {
-                Long.valueOf(setting.id());
-            }
-        } catch (RuntimeException invalid) {
-            throw new CustomException(AnalysisErrorCode.SNAPSHOT_UNAVAILABLE);
-        }
-        WorkspaceData current = workspaceSnapshotService.getForOwnedWork(job.getWork()).content();
-        boolean stale =
-                !current.chapters().contains(input.chapter())
-                        || !current.chapters().containsAll(input.previous());
-        List<SettingReference> settings =
-                settingRepository
-                        .findAllByWork_IdAndIdIn(
-                                workId,
-                                input.settings().stream()
-                                        .map(item -> Long.valueOf(item.id()))
-                                        .toList())
-                        .stream()
-                        .map(AnalysisConverter::toReference)
-                        .toList();
-        stale =
-                stale
-                        || settings.size() != input.settings().size()
-                        || !settings.containsAll(input.settings());
+        AnalysisInput input = parseInput(job.getInput());
         return analysisConverter.toSnapshot(
                 job,
                 input,
                 sourceRepository.findByJob_IdOrderByIdAsc(jobId),
-                stale || decisionReferenceService.changed(workId, input.decisionReferences()));
+                isStale(workId, input));
+    }
+
+    /** 전체 작업공간 JSON이나 출처 원문 목록을 다시 읽지 않고 참조된 회차·설정·판단의 변경 여부만 판별한다. */
+    @Transactional(readOnly = true)
+    public boolean isStale(Long workId, String rawInput) {
+        return isStale(workId, parseInput(rawInput));
+    }
+
+    private boolean isStale(Long workId, AnalysisInput input) {
+        List<String> chapterKeys = new ArrayList<>();
+        chapterKeys.add(input.chapter().id());
+        for (ChapterData previous : input.previous()) {
+            chapterKeys.add(previous.id());
+        }
+        List<ChapterData> currentChapters =
+                chapterRepository
+                        .findByWork_IdAndChapterKeyIn(
+                                workId, chapterKeys.stream().distinct().toList())
+                        .stream()
+                        .map(chapterConverter::toWorkspaceChapter)
+                        .toList();
+        boolean stale =
+                !currentChapters.contains(input.chapter())
+                        || !currentChapters.containsAll(input.previous());
+        List<SettingReference> settings =
+                input.settings().isEmpty()
+                        ? List.of()
+                        : settingRepository
+                                .findAllByWork_IdAndIdIn(
+                                        workId,
+                                        input.settings().stream()
+                                                .map(item -> Long.valueOf(item.id()))
+                                                .toList())
+                                .stream()
+                                .map(AnalysisConverter::toReference)
+                                .toList();
+        stale =
+                stale
+                        || settings.size() != input.settings().size()
+                        || !settings.containsAll(input.settings());
+        return stale || decisionReferenceService.changed(workId, input.decisionReferences());
+    }
+
+    private AnalysisInput parseInput(String rawInput) {
+        try {
+            AnalysisInput input =
+                    Objects.requireNonNull(objectMapper.readValue(rawInput, AnalysisInput.class));
+            for (SettingReference setting : input.settings()) {
+                Long.valueOf(setting.id());
+            }
+            return input;
+        } catch (RuntimeException invalid) {
+            throw new CustomException(AnalysisErrorCode.SNAPSHOT_UNAVAILABLE);
+        }
     }
 
     private AnalysisSource fromChapter(

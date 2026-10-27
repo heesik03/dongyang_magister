@@ -50,6 +50,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -79,6 +80,7 @@ class DecisionFlowTests {
     @Autowired UserRepository userRepository;
     @Autowired WorkRepository workRepository;
     @Autowired JdbcTemplate jdbcTemplate;
+    @Autowired TransactionTemplate transactionTemplate;
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper mapper;
     @MockitoBean AnalysisDispatcher dispatcher;
@@ -556,7 +558,10 @@ class DecisionFlowTests {
                                 Instant.now().plusSeconds(60),
                                 PageRequest.of(0, 100)))
                 .doesNotContain(jobId);
-        assertThat(jobRepository.deleteExpiredWithoutDecisions(List.of(jobId))).isZero();
+        Integer deleted =
+                transactionTemplate.execute(
+                        status -> jobRepository.deleteExpiredWithoutDecisions(List.of(jobId)));
+        assertThat(deleted).isZero();
         assertThat(jobService.get(ownerId, workId, jobId).status()).isEqualTo("SUCCEEDED");
     }
 

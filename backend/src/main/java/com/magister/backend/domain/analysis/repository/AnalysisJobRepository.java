@@ -11,7 +11,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -106,7 +105,6 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
 
     /** 이력 스캔 이후 새 판단이 저장되었더라도 삭제 직전에 다시 제외한다. */
     @Modifying
-    @Transactional
     @Query(
             "delete from AnalysisJob j where j.id in :ids and not exists(select d.id from"
                     + " ReviewDecision d where d.review.job=j)")

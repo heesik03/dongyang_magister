@@ -38,9 +38,9 @@ public class AnalysisPreviewService {
     private final ObjectMapper objectMapper;
 
     /** 저장된 자료만 확인하며 AI 호출·작업 생성·동의 기록은 하지 않는다. */
-    @Transactional
+    @Transactional(readOnly = true)
     public AnalysisPreviewResponse preview(Long ownerId, Long workId, AnalysisRequest request) {
-        Work work = workAccessService.lockOwned(ownerId, workId);
+        Work work = workAccessService.requireOwned(ownerId, workId);
         AnalysisInput input =
                 analysisInputFactory.create(
                         workId, request, workspaceSnapshotService.getForOwnedWork(work));

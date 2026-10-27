@@ -108,7 +108,7 @@ public class ReviewResultService {
                 candidates,
                 evidences,
                 job.getResultFormatVersion() == 0,
-                snapshotService.get(ownerId, workId, jobId).stale(),
+                snapshotService.isStale(workId, job.getInput()),
                 decisionService.summaries(workId, candidates.getContent(), evidences));
     }
 }
