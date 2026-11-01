@@ -93,7 +93,7 @@ export function WorkspaceStatus({ work }: { work: Work }) {
         </button>
       }
       {comparison && (
-        <Dialog title="충돌 원고 비교" onClose={() => setComparison(null)}>
+        <Dialog size="wide" title="충돌 원고 비교" onClose={() => setComparison(null)}>
           <div className="stack">
             <p>
               두 원고를 확인하고 선택한 회차만 다시 저장합니다. 비교 이후 다른 수정이 발생하면 다시

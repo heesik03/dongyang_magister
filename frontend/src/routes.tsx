@@ -1,4 +1,5 @@
-import { Navigate, type RouteObject } from 'react-router-dom'
+import { ErrorPage } from './features/errors/ErrorPage'
+import { type RouteObject } from 'react-router-dom'
 import { AuthPage } from './features/auth/AuthPage'
 import { GuestRoute, ProtectedRoute } from './features/auth/ProtectedRoute'
 import { LibraryPage } from './features/works/LibraryPage'
@@ -18,5 +19,7 @@ export const protectedRoutes: RouteObject[] = [
 export const routes: RouteObject[] = [
   { element: <GuestRoute />, children: guestRoutes },
   { element: <ProtectedRoute />, children: [{ element: <Shell />, children: protectedRoutes }] },
-  { path: '*', element: <Navigate to="/" replace /> },
+  { path: '/error/server', element: <ErrorPage kind="server" /> },
+  { path: '/error/connection', element: <ErrorPage kind="connection" /> },
+  { path: '*', element: <ErrorPage /> },
 ]

@@ -7,6 +7,7 @@ import type { InputSnapshot } from '../analysis/analysisClient'
 
 export function ReviewPanel({
   work,
+  onOpenLedger,
   analysis,
   stale,
   analyzing,
@@ -20,6 +21,7 @@ export function ReviewPanel({
   input,
   onDecisionSaved,
 }: {
+  onOpenLedger?: () => void
   work: Work
   analysis?: Analysis
   stale: boolean
@@ -91,7 +93,7 @@ export function ReviewPanel({
       )}
       {!analysis && !analyzing && !error && (
         <div className="empty">
-          <Icon name="spark" />
+          <Icon name="book-empty" />
           <h3>이야기를 함께 살펴볼까요?</h3>
           <p>
             확정 설정과 참고 범위를 고른 뒤<br />
@@ -307,6 +309,11 @@ export function ReviewPanel({
           onSaved={() => onDecisionSaved?.()}
           onClose={() => setEditing(null)}
         />
+      )}
+      {onOpenLedger && (
+        <button className="text-button ledger-action" onClick={onOpenLedger}>
+          작품 판단 기록
+        </button>
       )}
     </aside>
   )

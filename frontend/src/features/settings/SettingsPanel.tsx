@@ -1,3 +1,6 @@
+import { MarkdownEditor } from '../../shared/markdown/MarkdownEditor'
+import { MarkdownPreview } from '../../shared/markdown/MarkdownPreview'
+import { Link } from 'react-router-dom'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { Setting, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
@@ -65,12 +68,25 @@ export function SettingsPanel({ work }: { work: Work }) {
       setSaving(false)
     }
   }
+  const relatedChapters = selected
+    ? work.chapters.filter((chapter) =>
+        work.analyses.some(
+          (analysis) =>
+            analysis.chapterId === chapter.id && analysis.settingIds.includes(selected.id),
+        ),
+      )
+    : []
+  const relatedReviews = selected
+    ? work.analyses
+        .flatMap((analysis) => analysis.reviews)
+        .filter((review) => review.settingId === selected.id)
+    : []
   const draft = editing && editing !== 'new' ? editing : null
   return (
     <section className="settings-panel">
       <div className="section-line">
         <div>
-          <h2>이야기의 기준, 설정집</h2>
+          <h1>설정집</h1>
           <p className="small muted">
             확정된 설정을 검토의 기준으로 사용합니다. 아이디어와 후보는 구분해 보관하세요.
           </p>
@@ -80,17 +96,23 @@ export function SettingsPanel({ work }: { work: Work }) {
           설정 등록
         </button>
       </div>
-      <div className="filter-tabs setting-filters">
-        {['전체', '인물', '세계관', '주요 사건', '의도한 각색'].map((item) => (
-          <button
-            key={item}
-            aria-pressed={kind === item}
-            className={kind === item ? 'selected' : ''}
-            onClick={() => setKind(item)}
-          >
-            {item}
-          </button>
-        ))}
+      <div className="setting-filter-row">
+        <div className="filter-tabs setting-filters">
+          {['전체', '인물', '세계관', '주요 사건', '의도한 각색'].map((item) => (
+            <button
+              key={item}
+              aria-pressed={kind === item}
+              className={kind === item ? 'selected' : ''}
+              onClick={() => setKind(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+        <span className="small muted">
+          확정 {work.settings.filter((item) => item.status === '확정').length} · 아이디어{' '}
+          {work.settings.filter((item) => item.status === '아이디어').length}
+        </span>
       </div>
       {work.source === 'server' && settingView.loading && (
         <p role="status">설정을 불러오고 있습니다.</p>
@@ -146,12 +168,45 @@ export function SettingsPanel({ work }: { work: Work }) {
             </div>
             <span className="small muted">{selected.kind}</span>
             <h2>{selected.title}</h2>
-            <p className="pre-wrap">{selected.content}</p>
+            <MarkdownPreview content={selected.content} />
             <div className="notice small">
               {selected.status === '확정'
                 ? '작가님이 확정한 설정입니다. 검토 후보가 이 내용을 자동으로 변경하지 않습니다.'
                 : '아직 확정하지 않은 설정입니다. 검토의 확정 근거로 사용되지 않습니다.'}
             </div>
+            <section className="setting-connections">
+              <h3>연결된 이야기</h3>
+              <div className="connection-cards">
+                <div className="notice">
+                  <span className="small muted">검토에 사용한 회차</span>
+                  {relatedChapters.length ? (
+                    relatedChapters.map((chapter) => (
+                      <Link
+                        key={chapter.id}
+                        to={
+                          '/works/' +
+                          work.id +
+                          '/manuscript?chapter=' +
+                          encodeURIComponent(chapter.id)
+                        }
+                      >
+                        {chapter.title}
+                      </Link>
+                    ))
+                  ) : (
+                    <p>아직 연결된 회차가 없습니다.</p>
+                  )}
+                </div>
+                <div className="notice">
+                  <span className="small muted">관련 검토 후보</span>
+                  <p>
+                    {relatedReviews.length
+                      ? relatedReviews.length + '개 후보'
+                      : '아직 검토 기록이 없습니다.'}
+                  </p>
+                </div>
+              </div>
+            </section>
           </article>
         ) : (
           <div className="setting-detail muted">인물과 세계관을 기록하고 원고와 연결해 보세요.</div>
@@ -194,17 +249,20 @@ export function SettingsPanel({ work }: { work: Work }) {
                   </select>
                 </label>
               </div>
-              <label>
-                설정 내용
-                <textarea
+              <div>
+                <span className="field-label">
+                  설정 내용 <span className="required-mark">*</span>
+                </span>
+                <MarkdownEditor
+                  key={draft?.id || 'new'}
                   name="content"
-                  required
-                  rows={6}
+                  label="설정 내용"
                   maxLength={10000}
                   defaultValue={draft?.content}
+                  disabled={saving}
                   placeholder="인물의 능력, 성격, 세계의 규칙을 기록하세요."
                 />
-              </label>
+              </div>
               {error && (
                 <p role="alert" className="error">
                   {error}

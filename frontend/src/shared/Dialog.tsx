@@ -3,12 +3,14 @@ import { Icon } from './Icon'
 
 export function Dialog({
   title,
+  size = 'default',
   onClose,
   children,
   closeMessage = '입력한 내용을 저장하지 않고 닫을까요?',
   onOpen,
   confirmCloseLabel = '입력 버리고 닫기',
 }: {
+  size?: 'default' | 'wide' | 'compact'
   title: string
   onClose: () => void
   children: ReactNode
@@ -44,6 +46,7 @@ export function Dialog({
   }, [onOpen])
   return (
     <dialog
+      className={'dialog--' + size}
       ref={ref}
       aria-labelledby={titleId}
       onInputCapture={(event) => {

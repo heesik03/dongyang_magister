@@ -37,7 +37,9 @@ export function isWorks(value: unknown): value is Work[] {
         work.events,
         (event) =>
           record(event) &&
-          strings(event, ['id', 'title', 'time', 'characters', 'chapterId', 'quote']),
+          strings(event, ['id', 'title', 'time', 'characters', 'chapterId', 'quote']) &&
+          (event.description === undefined ||
+            (typeof event.description === 'string' && event.description.length <= 2000)),
       ) &&
       arrayOf(
         work.analyses,

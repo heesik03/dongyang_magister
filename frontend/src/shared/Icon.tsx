@@ -1,4 +1,14 @@
+import bookEmpty from '../assets/figma/44019.svg'
+import bookBrand from '../assets/figma/f5cbb.svg'
+import book from '../assets/figma/2032e.svg'
+import grid from '../assets/figma/2f502.svg'
+import search from '../assets/figma/60064.svg'
+import file from '../assets/figma/df104.svg'
+import clock from '../assets/figma/0a190.svg'
+import check from '../assets/figma/896f4.svg'
+import chevron from '../assets/figma/117e3.svg'
 export type IconName =
+  | 'book-empty'
   | 'book'
   | 'grid'
   | 'plus'
@@ -12,7 +22,10 @@ export type IconName =
   | 'menu'
   | 'close'
   | 'settings'
+  | 'chevron'
 const paths: Record<IconName, string> = {
+  'book-empty': '',
+  chevron: 'm9 6 6 6-6 6',
   book: 'M3 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H3V4Zm18 0h-6a3 3 0 0 0-3 3v14a4 4 0 0 1 4-3h5V4Z',
   grid: 'M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z',
   plus: 'M12 5v14M5 12h14',
@@ -27,7 +40,15 @@ const paths: Record<IconName, string> = {
   close: 'm6 6 12 12M6 18 18 6',
   settings: 'M4 7h16M4 17h16M8 4v6M16 14v6',
 }
-export function Icon({ name }: { name: IconName }) {
+const assets = { book, grid, search, file, clock, check, chevron, 'book-empty': bookEmpty }
+export function Icon({ name, brand = false }: { name: IconName; brand?: boolean }) {
+  const asset =
+    name === 'book' && brand
+      ? bookBrand
+      : name in assets
+        ? assets[name as keyof typeof assets]
+        : undefined
+  if (asset) return <img className="design-icon" src={asset} alt="" aria-hidden="true" />
   return (
     <svg
       width="20"
