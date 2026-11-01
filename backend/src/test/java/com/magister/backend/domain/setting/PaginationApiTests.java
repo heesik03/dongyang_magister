@@ -180,7 +180,9 @@ public class PaginationApiTests {
                                     .with(authentication(owner))
                                     .param("size", Integer.toString(size)))
                     .andExpect(status().isOk());
-            assertThat(SqlCapture.QUERIES.get()).hasSize(2);
+            // 페이지·전체 개수·본문 없는 요약 조회는 페이지 크기와 무관하게 세 번이다.
+            assertThat(SqlCapture.QUERIES.get()).hasSize(3);
+            assertThat(SqlCapture.QUERIES.get()).allSatisfy(sql -> assertThat(sql).doesNotContain(".content"));
         }
     }
 
