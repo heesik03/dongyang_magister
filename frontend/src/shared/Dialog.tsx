@@ -3,12 +3,16 @@ import { Icon } from './Icon'
 
 export function Dialog({
   title,
+  size = 'default',
+  initialFocus = 'first-input',
   onClose,
   children,
   closeMessage = '입력한 내용을 저장하지 않고 닫을까요?',
   onOpen,
   confirmCloseLabel = '입력 버리고 닫기',
 }: {
+  size?: 'default' | 'wide' | 'compact'
+  initialFocus?: 'first-input' | 'heading'
   title: string
   onClose: () => void
   children: ReactNode
@@ -30,6 +34,7 @@ export function Dialog({
     const dialog = ref.current
     dialog?.showModal()
     const firstInput =
+      (initialFocus === 'heading' ? dialog?.querySelector('h2') : null) ??
       dialog?.querySelector('[autofocus]') ??
       dialog?.querySelector(
         'input:not(:disabled), textarea:not(:disabled), select:not(:disabled)',
@@ -41,9 +46,10 @@ export function Dialog({
       dialog?.close()
       if (previous instanceof HTMLElement) previous.focus()
     }
-  }, [onOpen])
+  }, [onOpen, initialFocus])
   return (
     <dialog
+      className={'dialog--' + size}
       ref={ref}
       aria-labelledby={titleId}
       onInputCapture={(event) => {
@@ -55,7 +61,9 @@ export function Dialog({
       }}
     >
       <div className="dialog-heading">
-        <h2 id={titleId}>{title}</h2>
+        <h2 id={titleId} tabIndex={initialFocus === 'heading' ? -1 : undefined}>
+          {title}
+        </h2>
         <button className="icon-button" aria-label="닫기" onClick={requestClose}>
           <Icon name="close" />
         </button>

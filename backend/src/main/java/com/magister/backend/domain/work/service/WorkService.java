@@ -8,6 +8,7 @@ import com.magister.backend.domain.work.dto.WorkResponse;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.repository.WorkRepository;
+import com.magister.backend.domain.work.repository.WorkSummary;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.pagination.OffsetPageRequest;
 import com.magister.backend.global.pagination.OffsetPageResponse;
@@ -15,9 +16,15 @@ import com.magister.backend.global.pagination.OffsetPageResponse;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,16 +54,21 @@ public class WorkService {
         Pageable paging =
                 OffsetPageRequest.of(page, size)
                         .toPageable(Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id")));
+        Page<Work> works = workRepository.search(ownerId, keyword.strip(), genre.strip(), paging);
+        List<Long> workIds = works.getContent().stream().map(Work::getId).toList();
+        Map<Long, WorkSummary> summaries = workIds.isEmpty()
+                ? Map.of()
+                : workRepository.summarizeOwned(ownerId, workIds).stream()
+                        .collect(Collectors.toMap(WorkSummary::getWorkId, Function.identity()));
         return OffsetPageResponse.from(
-                workRepository
-                        .search(ownerId, keyword.strip(), genre.strip(), paging)
-                        .map(WorkConverter::toResponse));
+                works.map(work -> WorkConverter.toResponse(work, summaries.get(work.getId()))));
     }
 
     /** 소유하지 않은 작품은 존재 여부를 구분하지 않고 WORK_NOT_FOUND로 응답한다. */
     @Transactional(readOnly = true)
     public WorkResponse get(Long ownerId, Long workId) {
-        return WorkConverter.toResponse(workAccessService.requireOwned(ownerId, workId));
+        Work work = workAccessService.requireOwned(ownerId, workId);
+        return WorkConverter.toResponse(work, summary(ownerId, workId));
     }
 
     /** 부모 행 잠금과 클라이언트 버전 검사를 함께 적용해 오래된 편집의 덮어쓰기를 차단한다. */
@@ -71,6 +83,9 @@ public class WorkService {
         // @Version의 실제 DB 충돌 검사를 마친 후 최신 버전을 응답한다.
         workRepository.flush();
 
-        return WorkConverter.toResponse(work);
+        return WorkConverter.toResponse(work, summary(ownerId, workId));
+    }
+    private WorkSummary summary(Long ownerId, Long workId) {
+        return workRepository.summarizeOwned(ownerId, List.of(workId)).getFirst();
     }
 }

@@ -93,6 +93,7 @@ class ReviewValidationTests {
                         new AnalysisPromptConverter.Passage(5, 10, "마법 사용"),
                         new AnalysisPromptConverter.Passage(11, 16, "마법 사용"));
         String prompt = processor.buildPrompt(input);
+        assertThat(prompt).contains("이번 작업: 설정 충돌 후보와 설명 보완을 각각 검토한다.");
         assertThat(prompt).contains("\"startOffset\":11,\"endOffset\":16,\"quote\":\"마법 사용\"");
         assertThat(prompt).contains("\"settings\"", "\"previous\"", "motivation");
         assertThat(input.chapter().content()).isEqualTo("😀장면\n마법 사용\n마법 사용");
@@ -169,6 +170,16 @@ class ReviewValidationTests {
 
     @Test
     void disabledReviewTypeAndOldProviderSchemaAreRejected() {
+        AnalysisInput consistencyOnly =
+                new AnalysisInput(
+                        input.chapter(),
+                        input.settings(),
+                        input.previous(),
+                        List.of(),
+                        true,
+                        false);
+        assertThat(processor.buildPrompt(consistencyOnly))
+                .contains("이번 작업: 설정 충돌 후보만 검토한다.", "\"type\":\"설정 충돌 후보\"");
         AnalysisInput motivationOnly =
                 new AnalysisInput(
                         input.chapter(),
@@ -177,7 +188,8 @@ class ReviewValidationTests {
                         List.of(),
                         false,
                         true);
-        assertThat(processor.buildPrompt(motivationOnly)).contains("\"type\":\"설명 보완\"");
+        assertThat(processor.buildPrompt(motivationOnly))
+                .contains("이번 작업: 설명 보완만 검토한다.", "\"type\":\"설명 보완\"");
         assertThatThrownBy(
                         () ->
                                 processor.validate(

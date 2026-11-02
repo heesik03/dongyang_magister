@@ -28,8 +28,10 @@ interface WorksState {
   totalPages: number
   totalElements: number
   loading: boolean
+  listErrorStatus: number | null
   listError: string
   detailLoading: boolean
+  detailErrorStatus: number | null
   detailError: string
   storageError: string
   settingView: SettingView
@@ -78,8 +80,10 @@ const initial = {
   totalPages: 0,
   totalElements: 0,
   loading: false,
+  listErrorStatus: null,
   listError: '',
   detailLoading: false,
+  detailErrorStatus: null,
   detailError: '',
   storageError: '',
   settingView: emptyView,
@@ -172,7 +176,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     listRequest?.abort()
     const controller = new AbortController()
     listRequest = controller
-    set({ loading: true, listError: '' })
+    set({ loading: true, listError: '', listErrorStatus: null })
     try {
       const result = await workClient.list({
         keyword,
@@ -209,7 +213,11 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       })
     } catch (error) {
       if (revision === accountRevision && !controller.signal.aborted)
-        set({ loading: false, listError: message(error) })
+        set({
+          loading: false,
+          listError: message(error),
+          listErrorStatus: error instanceof ApiError ? error.status : 500,
+        })
     }
   },
   async loadShortcuts() {
@@ -248,7 +256,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
   async loadWork(id) {
     if (deletedWorkIds.has(id)) return
     detailRequest?.abort()
-    set({ detailLoading: false, detailError: '' })
+    set({ detailLoading: false, detailError: '', detailErrorStatus: null })
     if (
       get().works.some((work) => work.id === id && work.source !== 'server') ||
       get().dirtyIds.includes(id)
@@ -299,7 +307,11 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       })
     } catch (error) {
       if (revision === accountRevision && !deletedWorkIds.has(id) && !controller.signal.aborted)
-        set({ detailLoading: false, detailError: message(error) })
+        set({
+          detailLoading: false,
+          detailError: message(error),
+          detailErrorStatus: error instanceof ApiError ? error.status : 500,
+        })
     }
   },
   async loadSettings(id, kind = '전체', cursor) {

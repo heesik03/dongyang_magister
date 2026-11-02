@@ -1,3 +1,4 @@
+import { ErrorPage } from '../errors/ErrorPage'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { getReturnPath, useAuthStore } from './useAuthStore'
 
@@ -8,13 +9,7 @@ export function ProtectedRoute() {
   const retry = useAuthStore((state) => state.retry)
   const location = useLocation()
   if (loading) return <p role="status">로그인 상태를 확인하고 있습니다.</p>
-  if (error && !user)
-    return (
-      <div role="alert">
-        {error}
-        <button onClick={retry}>다시 시도</button>
-      </div>
-    )
+  if (error && !user) return <ErrorPage kind="connection" message={error} onRetry={retry} />
   return user ? (
     <Outlet />
   ) : (
@@ -28,12 +23,6 @@ export function GuestRoute() {
   const error = useAuthStore((state) => state.error)
   const retry = useAuthStore((state) => state.retry)
   if (loading) return <p role="status">로그인 상태를 확인하고 있습니다.</p>
-  if (error)
-    return (
-      <div role="alert">
-        {error}
-        <button onClick={retry}>다시 시도</button>
-      </div>
-    )
+  if (error) return <ErrorPage kind="connection" message={error} onRetry={retry} />
   return user ? <Navigate to={getReturnPath(location.state)} replace /> : <Outlet />
 }

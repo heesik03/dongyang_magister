@@ -1,7 +1,9 @@
+import { ErrorPage } from '../errors/ErrorPage'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../auth/useAuthStore'
 import { useWorksStore } from './useWorksStore'
+import { genreClassName } from './workGenres'
 import { GENRES } from './workGenres'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
@@ -11,6 +13,7 @@ export function LibraryPage() {
   const works = useWorksStore((state) => state.works)
   const listedIds = useWorksStore((state) => state.listedIds)
   const loading = useWorksStore((state) => state.loading)
+  const listErrorStatus = useWorksStore((state) => state.listErrorStatus)
   const listError = useWorksStore((state) => state.listError)
   const listPage = useWorksStore((state) => state.listPage)
   const totalElements = useWorksStore((state) => state.totalElements)
@@ -57,11 +60,18 @@ export function LibraryPage() {
       setSaving(false)
     }
   }
+  if (listError && !filtered.length && !loading)
+    return (
+      <ErrorPage
+        embedded
+        kind={listErrorStatus === 0 ? 'connection' : 'server'}
+        onRetry={() => void loadWorks(query, genre)}
+      />
+    )
   return (
     <main className="page library-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">MY STORIES</span>
           <h1>작품 보관함</h1>
           <p className="muted">{user?.name} 작가님, 오늘은 어떤 이야기를 이어 볼까요?</p>
         </div>
@@ -69,16 +79,6 @@ export function LibraryPage() {
           <Icon name="plus" />새 작품 만들기
         </button>
       </div>
-      <section className="welcome-note">
-        <div className="welcome-icon">
-          <Icon name="book" />
-        </div>
-        <div>
-          <h2>이야기의 세계를 차근차근 쌓아 보세요.</h2>
-          <p>설정을 기록하고, 원고를 살펴보고, 다음 장면을 준비하는 공간입니다.</p>
-        </div>
-        <span className="badge green">작가의 판단이 먼저</span>
-      </section>
       <div className="library-toolbar">
         <div className="filter-tabs">
           {[
@@ -117,8 +117,8 @@ export function LibraryPage() {
       <div className="section-line">
         <h2>
           나의 작품{' '}
-          <span className="muted small">
-            {totalElements}개 중 {listedIds.length}개 불러옴
+          <span className="count-badge" aria-label={totalElements + '개 작품'}>
+            {totalElements}
           </span>
         </h2>
         <span className="small muted">최근 수정 순</span>
@@ -149,41 +149,41 @@ export function LibraryPage() {
         <div className="work-grid">
           {[...filtered]
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-            .map((work, index) => (
-              <Link className="work-card" key={work.id} to={`/works/${work.id}/manuscript`}>
-                <div className={`book-cover cover-${index % 3}`}>
-                  <span className="cover-label">MAGISTER / MANUSCRIPT</span>
-                  <span className="cover-title">{work.title}</span>
-                  <div className="cover-line" />
-                  <Icon name="book" />
-                </div>
+            .map((work) => (
+              <Link className="work-card" key={work.id} to={'/works/' + work.id + '/manuscript'}>
                 <div className="work-card-body">
                   <div className="row">
-                    <span className="badge">{work.genre}</span>
-                    {work.source !== 'server' && (
-                      <span className="badge warning">브라우저 작품</span>
-                    )}
-                    <span className="small muted">{work.era || '시대 미정'}</span>
+                    <span className={'badge genre-badge ' + genreClassName(work.genre)}>
+                      {work.genre}
+                    </span>
+                    <span className="small muted">
+                      {new Date(work.updatedAt).toLocaleDateString('ko-KR')} 수정
+                    </span>
                   </div>
                   <h3>{work.title}</h3>
-                  <p className="small muted">
-                    {work.description || '새로운 이야기가 시작되는 곳.'}
-                  </p>
-                  <div className="work-meta">
-                    <span>
-                      <Icon name="file" />
-                      {work.chapters.length}개 회차
-                    </span>
-                    <span>
-                      <Icon name="book" />
-                      {work.source === 'server' ? '설정집' : `${work.settings.length}개 설정`}
-                    </span>
-                  </div>
-                  <div className="work-card-footer">
-                    <span>{new Date(work.updatedAt).toLocaleDateString('ko-KR')} 수정</span>
-                    <Icon name="arrow" />
-                  </div>
+                  <p className="muted">{work.description || '새로운 이야기가 시작되는 곳.'}</p>
                 </div>
+                <div className="work-card-chapter">
+                  <span className="small muted">
+                    {work.summary?.chapterCount ?? work.chapters.length}개 회차 · 설정{' '}
+                    {work.summary?.settingCount ?? work.settings.length}개
+                  </span>
+                  <span>
+                    {work.summary?.latestChapterTitle ||
+                      work.chapters.at(-1)?.title ||
+                      '첫 회차를 기다리고 있어요'}
+                  </span>
+                </div>
+                <span
+                  className={
+                    'button ' +
+                    ((work.summary?.chapterCount ?? work.chapters.length) ? 'primary' : '')
+                  }
+                >
+                  {(work.summary?.chapterCount ?? work.chapters.length)
+                    ? '이어서 쓰기'
+                    : '작품 열기'}
+                </span>
               </Link>
             ))}
         </div>
@@ -193,23 +193,6 @@ export function LibraryPage() {
           작품 더 불러오기
         </button>
       )}
-      <section className="getting-started">
-        <span className="eyebrow">A LITTLE GUIDE</span>
-        <h2>한 페이지씩, 더 단단한 이야기로.</h2>
-        <div className="guide-grid">
-          {[
-            ['01', '세계를 기록하세요', '인물과 세계관을 설정집에 모아 두세요.'],
-            ['02', '원고를 살펴보세요', '회차를 입력하고 참고 범위를 선택하세요.'],
-            ['03', '작가의 답을 남기세요', '근거를 확인하고 의도한 전개를 기록하세요.'],
-          ].map(([number, title, description]) => (
-            <div key={number}>
-              <span>{number}</span>
-              <h3>{title}</h3>
-              <p>{description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
       {creating && (
         <Dialog
           title="새 작품 만들기"

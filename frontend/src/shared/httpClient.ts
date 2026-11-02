@@ -54,7 +54,17 @@ async function send(
   requestRevision = csrfRevision,
 ): Promise<unknown> {
   const { expireSessionOnUnauthorized = true, ...config } = options
-  const response = await transport.request<unknown>({ ...config, method, url: path, data, headers })
+  const response = await transport
+    .request<unknown>({ ...config, method, url: path, data, headers })
+    .catch((failure: unknown) => {
+      if (axios.isAxiosError?.(failure) && !failure.response && failure.code !== 'ERR_CANCELED') {
+        throw new ApiError(
+          '서버에 연결하지 못했습니다. 연결 상태를 확인하고 다시 시도해 주세요.',
+          0,
+        )
+      }
+      throw failure
+    })
   if ((response.status === 401 || response.status === 403) && requestRevision === csrfRevision) {
     clearCsrfToken()
   }

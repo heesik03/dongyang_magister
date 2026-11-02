@@ -1,3 +1,4 @@
+import { ErrorPage } from '../errors/ErrorPage'
 import { useEffect, useState, type FormEvent } from 'react'
 import { DeleteWorkDialog } from './DeleteWorkDialog'
 import { WorkspaceStatus } from '../workspace/WorkspaceStatus'
@@ -17,10 +18,12 @@ export function WorkPage() {
   const works = useWorksStore((state) => state.works)
   const loadWork = useWorksStore((state) => state.loadWork)
   const detailLoading = useWorksStore((state) => state.detailLoading)
+  const detailErrorStatus = useWorksStore((state) => state.detailErrorStatus)
   const detailError = useWorksStore((state) => state.detailError)
   const saveWorkInfo = useWorksStore((state) => state.saveWorkInfo)
   const deleted = useWorksStore((state) => !!workId && state.deletedIds.includes(workId))
   const [deleting, setDeleting] = useState(false)
+  const [managing, setManaging] = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -53,17 +56,19 @@ export function WorkPage() {
     return <p role="status">작품을 불러오고 있습니다.</p>
   if (detailError)
     return (
-      <main className="page empty">
-        <p role="alert">{detailError}</p>
-        <button
-          onClick={() => {
-            if (workId) void loadWork(workId)
-          }}
-        >
-          다시 불러오기
-        </button>
-        <Link to="/">작품 보관함으로</Link>
-      </main>
+      <ErrorPage
+        embedded
+        kind={
+          detailErrorStatus === 404
+            ? 'not-found'
+            : detailErrorStatus === 0
+              ? 'connection'
+              : 'server'
+        }
+        onRetry={() => {
+          if (workId) void loadWork(workId)
+        }}
+      />
     )
   if (!work)
     return (
@@ -89,20 +94,53 @@ export function WorkPage() {
               {work.genre} · {work.era || '시대 미정'}
             </p>
           </div>
-          <div className="row">
-            <span className="badge green">
-              {work.source === 'server' ? '개인 작품' : '브라우저 작품'}
-            </span>
-            {work.source === 'server' && (
-              <button onClick={() => setDeleting(true)}>작품 삭제</button>
-            )}
-            <button onClick={() => setEditing(true)}>작품 정보 수정</button>
-            <button onClick={() => void loadWork(work.id)} disabled={detailLoading}>
-              새로 불러오기
-            </button>
-          </div>
+          <button
+            className="work-management-trigger"
+            onClick={() => setManaging(true)}
+            aria-label="작품 관리"
+          >
+            <Icon name="gear" />
+            <span>작품 관리</span>
+          </button>
         </div>
       </div>
+      {managing && (
+        <Dialog size="compact" title="작품 관리" onClose={() => setManaging(false)}>
+          <div className="management-actions">
+            <button
+              className="management-action management-action--edit"
+              onClick={() => {
+                setManaging(false)
+                setEditing(true)
+              }}
+            >
+              <Icon name="edit" />
+              <span>작품 정보 수정</span>
+            </button>
+            <button
+              className="management-action management-action--neutral"
+              onClick={() => void loadWork(work.id)}
+              disabled={detailLoading}
+            >
+              <Icon name="refresh" />
+              <span>새로 불러오기</span>
+            </button>
+            {work.source === 'server' && (
+              <button
+                className="management-action management-action--danger"
+                onClick={() => {
+                  setManaging(false)
+                  setDeleting(true)
+                }}
+              >
+                <Icon name="trash" />
+                <span>작품 삭제</span>
+              </button>
+            )}
+          </div>
+          {work.source === 'server' && <WorkspaceStatus work={work} />}
+        </Dialog>
+      )}
       {deleting && <DeleteWorkDialog work={work} onClose={() => setDeleting(false)} />}
       {editing && (
         <Dialog
@@ -117,18 +155,20 @@ export function WorkPage() {
                 작품 제목
                 <input name="title" required maxLength={100} defaultValue={work.title} autoFocus />
               </label>
-              <label>
-                장르
-                <select name="genre" defaultValue={work.genre}>
-                  {[...new Set([...GENRES, work.genre])].map((genre) => (
-                    <option key={genre}>{genre}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                시대·배경
-                <input name="era" maxLength={100} defaultValue={work.era} />
-              </label>
+              <div className="form-grid">
+                <label>
+                  장르
+                  <select name="genre" defaultValue={work.genre}>
+                    {[...new Set([...GENRES, work.genre])].map((genre) => (
+                      <option key={genre}>{genre}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  시대·배경
+                  <input name="era" maxLength={100} defaultValue={work.era} />
+                </label>
+              </div>
               <label>
                 짧은 소개
                 <textarea name="description" maxLength={500} defaultValue={work.description} />
@@ -160,7 +200,6 @@ export function WorkPage() {
           </NavLink>
         ))}
       </nav>
-      {work.source === 'server' && <WorkspaceStatus work={work} />}
       <div className="work-content">
         {tab === 'settings' ? (
           <SettingsPanel key={work.id} work={work} />
@@ -168,7 +207,14 @@ export function WorkPage() {
           <TimelinePanel key={work.id} work={work} />
         ) : (
           <ManuscriptPanel
-            key={work.id + ':' + (searchParams.get('chapter') || work.chapters.at(-1)?.id || '')}
+            key={
+              work.id +
+              ':' +
+              (searchParams.get('newChapter') ||
+                searchParams.get('chapter') ||
+                work.chapters.at(-1)?.id ||
+                '')
+            }
             work={work}
           />
         )}

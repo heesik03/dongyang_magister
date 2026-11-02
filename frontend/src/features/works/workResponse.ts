@@ -16,6 +16,17 @@ export function parseWork(raw: unknown): Work {
     updatedAt,
     version: readInteger(value, 'version'),
     source: 'server',
+    summary:
+      value.chapterCount === undefined
+        ? undefined
+        : {
+            chapterCount: readInteger(value, 'chapterCount'),
+            settingCount: readInteger(value, 'settingCount'),
+            latestChapterId:
+              value.latestChapterId === null ? null : readString(value, 'latestChapterId'),
+            latestChapterTitle:
+              value.latestChapterTitle === null ? null : readString(value, 'latestChapterTitle'),
+          },
     settings: [],
     chapters: [],
     analyses: [],

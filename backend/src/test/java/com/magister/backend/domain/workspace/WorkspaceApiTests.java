@@ -73,6 +73,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -276,7 +277,8 @@ class WorkspaceApiTests {
                 .andExpect(status().isConflict());
         mvc.perform(get(path()).with(authentication(owner)))
                 .andExpect(jsonPath("$.data.content.chapters[0].content").value("원고 A"))
-                .andExpect(jsonPath("$.data.content.events[0].title").value("첫 사건"));
+                .andExpect(jsonPath("$.data.content.events[0].title").value("첫 사건"))
+                .andExpect(jsonPath("$.data.content.events[0].description").value(""));
     }
 
     @Test
@@ -437,4 +439,21 @@ class WorkspaceApiTests {
                                         input))
                 .isInstanceOf(CustomException.class);
     }
+    @Test
+    void savesEventDescriptionAndRejectsOversizedDescription() throws Exception {
+        Map<String, Object> draft = new HashMap<>(content("원고"));
+        draft.put("events", List.of(Map.of("id", "event-1", "title", "첫 사건", "time", "1일",
+                "characters", "주인공", "chapterId", "chapter-1", "quote", "원고", "description", "문이 열리고 이야기가 시작된다.")));
+        mvc.perform(put(path()).with(authentication(owner)).with(csrf()).contentType("application/json")
+                        .content(json.writeValueAsString(Map.of("version", 0, "mutationId", "event-description", "content", draft))))
+                .andExpect(status().isOk());
+        mvc.perform(get(path()).with(authentication(owner)))
+                .andExpect(jsonPath("$.data.content.events[0].description").value("문이 열리고 이야기가 시작된다."));
+        draft.put("events", List.of(Map.of("id", "event-1", "title", "첫 사건", "time", "1일",
+                "characters", "주인공", "chapterId", "chapter-1", "quote", "원고", "description", "가".repeat(2001))));
+        mvc.perform(put(path()).with(authentication(owner)).with(csrf()).contentType("application/json")
+                        .content(json.writeValueAsString(Map.of("version", 1, "mutationId", "event-too-long", "content", draft))))
+                .andExpect(status().isBadRequest());
+    }
+
 }

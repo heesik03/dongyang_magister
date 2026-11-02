@@ -1,10 +1,11 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useMatch, useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
 import { useAuthStore } from '../features/auth/useAuthStore'
-import { Icon } from './Icon'
 import { WorksProvider } from '../features/works/WorksProvider'
 import { useWorksStore } from '../features/works/useWorksStore'
-import { useState } from 'react'
+import { Icon } from './Icon'
 import { Dialog } from './Dialog'
+import { SiteFooter } from './SiteFooter'
 
 export function Shell() {
   const user = useAuthStore((state) => state.user)
@@ -14,7 +15,6 @@ export function Shell() {
     </WorksProvider>
   )
 }
-
 function ShellContent() {
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
@@ -22,10 +22,18 @@ function ShellContent() {
   const cachedWorks = useWorksStore((state) => state.works)
   const shortcutIds = useWorksStore((state) => state.shortcutIds)
   const shortcutError = useWorksStore((state) => state.shortcutError)
+  const storageError = useWorksStore((state) => state.storageError)
+  const retrySave = useWorksStore((state) => state.retrySave)
+  const match = useMatch('/works/:workId/:tab')
+  const [params] = useSearchParams()
+  const current = cachedWorks.find((work) => work.id === match?.params.workId)
+  const selectedChapter = params.get('chapter') || current?.chapters.at(-1)?.id
   const works = cachedWorks.filter(
     (work) => work.source !== 'server' || shortcutIds.includes(work.id),
   )
   const [logoutError, setLogoutError] = useState('')
+  const [collapsed, setCollapsed] = useState(false)
+  const [drawer, setDrawer] = useState(false)
   async function leave() {
     const state = useWorksStore.getState()
     await Promise.all(state.dirtyIds.map((id) => state.flushWorkspace(id)))
@@ -37,17 +45,107 @@ function ShellContent() {
     }
     await logout()
   }
-  const storageError = useWorksStore((state) => state.storageError)
-  const retrySave = useWorksStore((state) => state.retrySave)
-  const [collapsed, setCollapsed] = useState(false)
-  const [drawer, setDrawer] = useState(false)
+  function navigation() {
+    return (
+      <>
+        <NavLink to="/" end className="nav-item" onClick={() => setDrawer(false)}>
+          <Icon name="grid" />
+          작품 보관함
+        </NavLink>
+        {current ? (
+          <>
+            <div className="sidebar-current">
+              <span className="small muted">작업 중인 작품</span>
+              <strong>{current.title}</strong>
+              <span className="small muted">
+                {current.genre} · {current.era || '시대 미정'}
+              </span>
+            </div>
+            {(['manuscript', 'settings', 'timeline'] as const).map((tab) => (
+              <NavLink
+                className="nav-item"
+                key={tab}
+                to={'/works/' + current.id + '/' + tab}
+                onClick={() => setDrawer(false)}
+              >
+                <Icon
+                  name={tab === 'manuscript' ? 'file' : tab === 'settings' ? 'book' : 'clock'}
+                />
+                {tab === 'manuscript'
+                  ? '원고 · 검토'
+                  : tab === 'settings'
+                    ? '설정집'
+                    : '사건 타임라인'}
+              </NavLink>
+            ))}
+            <div className="sidebar-chapters">
+              <span className="small muted">회차 / {current.chapters.length}</span>
+              <nav aria-label="회차 탐색">
+                {current.chapters.map((chapter) => (
+                  <NavLink
+                    key={chapter.id}
+                    className={
+                      'nav-item ' + (selectedChapter === chapter.id ? 'chapter-active' : '')
+                    }
+                    to={
+                      '/works/' +
+                      current.id +
+                      '/manuscript?chapter=' +
+                      encodeURIComponent(chapter.id)
+                    }
+                    onClick={() => setDrawer(false)}
+                  >
+                    {chapter.title}
+                  </NavLink>
+                ))}
+              </nav>
+              <NavLink
+                className="nav-item add-chapter"
+                onClick={() => setDrawer(false)}
+                to={'/works/' + current.id + '/manuscript?newChapter=' + crypto.randomUUID()}
+              >
+                <Icon name="plus" />
+                회차 추가
+              </NavLink>
+            </div>
+          </>
+        ) : (
+          <div className="sidebar-works">
+            <span className="small muted">최근 작업</span>
+            {works.map((work) => (
+              <NavLink
+                key={work.id}
+                className="nav-item"
+                to={'/works/' + work.id + '/manuscript'}
+                onClick={() => setDrawer(false)}
+              >
+                <span>{work.title}</span>
+              </NavLink>
+            ))}
+          </div>
+        )}
+      </>
+    )
+  }
   return (
     <div className="app-layout">
-      <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
-        <NavLink to="/" className="brand" aria-label="Magister 작품 보관함">
-          <Icon name="book" />
-          Magister
-        </NavLink>
+      <aside className={'sidebar ' + (collapsed ? 'sidebar-collapsed' : '')}>
+        <div className="sidebar-header">
+          <NavLink to="/" className="brand" aria-label="Magister 작품 보관함">
+            <Icon name="book" brand />
+            Magister
+          </NavLink>
+          <button
+            className="icon-button sidebar-toggle"
+            aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            aria-expanded={!collapsed}
+            aria-controls="sidebar-navigation"
+            onClick={() => setCollapsed(!collapsed)}
+          >
+            <Icon name={collapsed ? 'panel-left-open' : 'panel-left-close'} />
+          </button>
+        </div>
         <button
           className="icon-button mobile-menu"
           aria-label="작품 탐색 메뉴 열기"
@@ -55,34 +153,22 @@ function ShellContent() {
         >
           <Icon name="menu" />
         </button>
-        <div className="workspace-label">나의 작업 공간</div>
-        <NavLink to="/" end className="nav-item" aria-label="작품 보관함">
-          <Icon name="grid" />
-          작품 보관함
-        </NavLink>
-        <div className="workspace-label">작품 바로가기</div>
-        <div className="sidebar-works">
-          {works.map((work) => (
-            <NavLink key={work.id} className="nav-item" to={`/works/${work.id}/manuscript`}>
-              <Icon name="book" />
-              <span>{work.title}</span>
-            </NavLink>
-          ))}
+        <div className="sidebar-navigation" id="sidebar-navigation">
+          {navigation()}
         </div>
         <div className="sidebar-bottom">
-          <div className="sidebar-note">
-            <Icon name="spark" />
-            <p>
+          {!current && (
+            <p className="sidebar-note">
               좋은 이야기는
               <br />
               작은 일관성에서 시작됩니다.
             </p>
-          </div>
+          )}
           <div className="profile">
             <span className="avatar">{user?.name.slice(0, 1)}</span>
             <div>
               <strong>{user?.name} 작가님</strong>
-              <span className="small muted">개인 작업 공간</span>
+              <span className="small muted">개인 창작 공간</span>
             </div>
             <button className="icon-button" aria-label="로그아웃" onClick={() => void leave()}>
               <Icon name="logout" />
@@ -93,18 +179,11 @@ function ShellContent() {
       <div className="main-area">
         <header className="topbar">
           <div className="topbar-left">
-            <button
-              className="icon-button desktop-menu"
-              aria-label={collapsed ? '탐색 패널 펼치기' : '탐색 패널 접기'}
-              onClick={() => setCollapsed(!collapsed)}
-            >
-              <Icon name="menu" />
-            </button>
-            <span>
-              나의 작업 공간 <span className="breadcrumb">/</span> Magister
-            </span>
+            <NavLink to="/">작품 보관함</NavLink>
+            <Icon name="chevron" />
+            <strong>{current?.title || '나의 작업 공간'}</strong>
           </div>
-          <span className="demo-tag">개인 창작 작업 공간</span>
+          <span className="demo-tag">개인 작업 공간</span>
         </header>
         {(error || logoutError) && (
           <div role="alert" className="storage-error">
@@ -112,8 +191,8 @@ function ShellContent() {
           </div>
         )}
         {shortcutError && (
-          <div role="alert">
-            작품 바로가기 조회 실패{' '}
+          <div role="alert" className="storage-error">
+            최근 작업 조회 실패{' '}
             <button onClick={() => void useWorksStore.getState().loadShortcuts()}>다시 시도</button>
           </div>
         )}
@@ -124,30 +203,11 @@ function ShellContent() {
           </div>
         )}
         <Outlet />
-        <footer className="app-footer">
-          작품·설정·원고·판단·타임라인은 서버에 저장됩니다. AI 검토 실행 시 선택한 원고와 설정을
-          Gemini로 전송합니다.
-        </footer>
+        <SiteFooter />
       </div>
       {drawer && (
         <Dialog title="작품 탐색" onClose={() => setDrawer(false)}>
-          <nav className="drawer-nav" aria-label="작품 탐색">
-            <NavLink className="nav-item" to="/" onClick={() => setDrawer(false)}>
-              <Icon name="grid" />
-              작품 보관함
-            </NavLink>
-            {works.map((work) => (
-              <NavLink
-                key={work.id}
-                className="nav-item"
-                to={`/works/${work.id}/manuscript`}
-                onClick={() => setDrawer(false)}
-              >
-                <Icon name="book" />
-                {work.title}
-              </NavLink>
-            ))}
-          </nav>
+          <nav className="drawer-nav">{navigation()}</nav>
         </Dialog>
       )}
     </div>

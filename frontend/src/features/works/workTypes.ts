@@ -41,6 +41,7 @@ export interface Analysis {
   settingsSnapshot?: string
 }
 export interface StoryEvent {
+  description?: string
   id: string
   title: string
   time: string
@@ -50,6 +51,12 @@ export interface StoryEvent {
 }
 // 회차 원고는 각 version으로, 검토 판단·사건은 workspaceVersion으로 저장 충돌을 검사한다.
 export interface Work {
+  summary?: {
+    chapterCount: number
+    settingCount: number
+    latestChapterId: string | null
+    latestChapterTitle: string | null
+  }
   workspaceVersion?: number
   source?: 'server' | 'local'
   version?: number

@@ -137,12 +137,45 @@ afterEach(() => {
   base.reset()
 })
 
+test('저장 버튼은 현재 작품의 변경 사항을 기존 저장 경로로 즉시 전달한다', async () => {
+  useWorksStore.setState({ dirtyIds: ['1'] })
+  show()
+  const save = screen.getByRole('button', { name: '저장', exact: true })
+  expect(screen.getByRole('region', { name: '회차 원고' }).contains(save)).toBe(true)
+  expect((save as HTMLButtonElement).disabled).toBe(false)
+  fireEvent.click(save)
+  expect(useWorksStore.getState().flushWorkspace).toHaveBeenCalledExactlyOnceWith('1')
+  act(() => useWorksStore.setState({ dirtyIds: [] }))
+  expect((save as HTMLButtonElement).disabled).toBe(true)
+  expect(screen.queryByRole('button', { name: '집중 모드', exact: true })).toBeNull()
+  await waitFor(() => expect(analysisClient.list).toHaveBeenCalled())
+})
+
+test('저장 실패는 재시도할 수 있고 저장 중·충돌 상태에서는 중복 저장을 막는다', async () => {
+  useWorksStore.setState({ dirtyIds: ['1'], workspaceErrors: { '1': '서버 연결 실패' } })
+  show()
+  expect(screen.getByText('저장 실패 · 입력 유지')).toBeTruthy()
+  expect(
+    (screen.getByRole('button', { name: '저장', exact: true }) as HTMLButtonElement).disabled,
+  ).toBe(false)
+  act(() => useWorksStore.setState({ savingIds: ['1'], workspaceErrors: {} }))
+  expect(
+    (screen.getByRole('button', { name: '저장 중…', exact: true }) as HTMLButtonElement).disabled,
+  ).toBe(true)
+  act(() => useWorksStore.setState({ savingIds: [], conflicts: ['1'] }))
+  expect(
+    (screen.getByRole('button', { name: '저장', exact: true }) as HTMLButtonElement).disabled,
+  ).toBe(true)
+  await waitFor(() => expect(analysisClient.list).toHaveBeenCalled())
+})
+
 test('실제 전송 자료를 확인하고 동의하기 전에는 분석을 접수하지 않는다', async () => {
   show()
   fireEvent.click(screen.getByRole('button', { name: 'AI 검토', exact: true }))
   fireEvent.click(screen.getByRole('checkbox', { name: '1화', exact: true }))
   fireEvent.click(screen.getByRole('button', { name: '전송 자료 미리보기' }))
   await screen.findByRole('dialog', { name: 'AI 전송 자료 확인' })
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'AI 전송 자료 확인' }))
   expect(analysisClient.preview).toHaveBeenCalledWith(
     '1',
     expect.objectContaining({ chapterId: 'target', chapterRevision: 1, previousIds: ['previous'] }),

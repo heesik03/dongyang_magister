@@ -19,6 +19,21 @@ import java.util.Locale;
 import java.util.Optional;
 
 public interface WorkRepository extends JpaRepository<Work, Long>, JpaSpecificationExecutor<Work> {
+    /** 소유한 현재 페이지의 작품 요약을 한 번에 조회해 본문 로딩과 N+1을 피한다. */
+    @Query("""
+            select w.id as workId,
+                (select count(c) from Chapter c where c.work.id = w.id) as chapterCount,
+                (select count(s) from WorkSetting s where s.work.id = w.id) as settingCount,
+                (select c.chapterKey from Chapter c where c.work.id = w.id
+                    and c.chapterNo = (select max(latest.chapterNo) from Chapter latest
+                        where latest.work.id = w.id)) as latestChapterId,
+                (select c.title from Chapter c where c.work.id = w.id
+                    and c.chapterNo = (select max(latest.chapterNo) from Chapter latest
+                        where latest.work.id = w.id)) as latestChapterTitle
+            from Work w where w.owner.id = :ownerId and w.id in :workIds
+            """)
+    List<WorkSummary> summarizeOwned(Long ownerId, List<Long> workIds);
+
     /** 인증된 소유자 조건을 항상 조회에 포함한다. */
     Optional<Work> findByIdAndOwner_Id(Long id, Long ownerId);
 

@@ -1,3 +1,4 @@
+import { AppErrorBoundary } from './features/errors/AppErrorBoundary'
 import { BrowserRouter, useRoutes } from 'react-router-dom'
 import { AuthProvider } from './features/auth/AuthProvider'
 import { routes } from './routes'
@@ -6,9 +7,11 @@ import './App.css'
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <AppErrorBoundary>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </AppErrorBoundary>
     </BrowserRouter>
   )
 }

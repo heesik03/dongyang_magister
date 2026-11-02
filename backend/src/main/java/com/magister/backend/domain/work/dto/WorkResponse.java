@@ -10,4 +10,8 @@ public record WorkResponse(
         String description,
         Instant createdAt,
         Instant updatedAt,
-        Long version) {}
+        Long version,
+        long chapterCount,
+        long settingCount,
+        String latestChapterId,
+        String latestChapterTitle) {}

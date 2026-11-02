@@ -7,6 +7,7 @@ import type { InputSnapshot } from '../analysis/analysisClient'
 
 export function ReviewPanel({
   work,
+  onOpenLedger,
   analysis,
   stale,
   analyzing,
@@ -20,6 +21,7 @@ export function ReviewPanel({
   input,
   onDecisionSaved,
 }: {
+  onOpenLedger?: () => void
   work: Work
   analysis?: Analysis
   stale: boolean
@@ -77,9 +79,17 @@ export function ReviewPanel({
       <div role="status" aria-live="polite">
         {analyzing && (
           <div className="notice analyzing">
-            <Icon name="spark" />
+            <span className="analysis-spinner" aria-hidden="true" />
+            <span className="analysis-state-label">AI 검토 진행 중</span>
             <strong>선택한 원고와 설정을 비교하고 있어요.</strong>
-            <p className="small">서버 작업 상태를 확인하고 있습니다.</p>
+            <p>
+              결과가 준비되면 자동으로 표시됩니다.
+              <br />
+              자료의 양에 따라 시간이 걸릴 수 있습니다.
+            </p>
+            <div className="analysis-progress-track" aria-hidden="true">
+              <span />
+            </div>
           </div>
         )}
       </div>
@@ -91,7 +101,7 @@ export function ReviewPanel({
       )}
       {!analysis && !analyzing && !error && (
         <div className="empty">
-          <Icon name="spark" />
+          <Icon name="book-empty" />
           <h3>이야기를 함께 살펴볼까요?</h3>
           <p>
             확정 설정과 참고 범위를 고른 뒤<br />
@@ -307,6 +317,11 @@ export function ReviewPanel({
           onSaved={() => onDecisionSaved?.()}
           onClose={() => setEditing(null)}
         />
+      )}
+      {onOpenLedger && (
+        <button className="text-button ledger-action" onClick={onOpenLedger}>
+          작품 판단 기록
+        </button>
       )}
     </aside>
   )

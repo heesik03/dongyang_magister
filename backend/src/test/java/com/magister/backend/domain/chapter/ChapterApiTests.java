@@ -393,4 +393,42 @@ class ChapterApiTests {
                                 .content(objectMapper.writeValueAsString(future)))
                 .andExpect(status().isBadRequest());
     }
+    @Test
+    void preservesMarkdownExactlyAcrossCreateUpdateAndReload() throws Exception {
+        String original = "# 첫 장\n\n**강조**와 ~~취소선~~\n> 인용\n\n- 목록\n  줄바꿈  \n<script>alert('text')</script>";
+        create("markdown", original);
+        mockMvc.perform(get(path() + "/markdown").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.content").value(original));
+        String edited = original + "\n\n#### 끝 장\n한글 원문 😀";
+        mockMvc.perform(put(path() + "/markdown").with(authentication(owner)).with(csrf())
+                        .contentType("application/json").content(updateBody(0, "markdown-edit", edited)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(path() + "/markdown").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.content").value(edited));
+    }
+
+    @Test
+    void librarySummaryIncludesCountsAndLatestChapter() throws Exception {
+        create("first", "원고");
+        create("last", "최근 원고");
+        String markdown = "## 세계 규칙\n\n**능력**은 ~~무제한~~ 제한적이다.\n> 원문 유지  \n";
+        MvcResult setting = mockMvc.perform(post("/api/work/" + workId + "/setting")
+                        .with(authentication(owner)).with(csrf()).contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of("title", "세계", "kind", "WORLD",
+                                "status", "CONFIRMED", "content", markdown))))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.content").value(markdown))
+                .andReturn();
+        long settingId = objectMapper.readTree(setting.getResponse().getContentAsString()).path("data").path("id").asLong();
+        mockMvc.perform(get("/api/work/" + workId + "/setting/" + settingId).with(authentication(owner)))
+                .andExpect(jsonPath("$.data.content").value(markdown));
+        mockMvc.perform(get("/api/work").with(authentication(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].chapterCount").value(2))
+                .andExpect(jsonPath("$.data.items[0].settingCount").value(1))
+                .andExpect(jsonPath("$.data.items[0].latestChapterId").value("last"))
+                .andExpect(jsonPath("$.data.items[0].latestChapterTitle").value("회차 last"));
+        mockMvc.perform(get("/api/work/" + workId).with(authentication(owner)))
+                .andExpect(jsonPath("$.data.chapterCount").value(2));
+    }
+
 }
