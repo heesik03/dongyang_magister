@@ -84,6 +84,7 @@ export function MarkdownEditor({
   }
   return (
     <div className="markdown-editor" style={{ fontSize, lineHeight }}>
+      {header}
       <div className="markdown-toolbar">
         <div className="markdown-modes" role="group" aria-label="편집 보기">
           <button
@@ -117,7 +118,6 @@ export function MarkdownEditor({
           </div>
         )}
       </div>
-      {header}
       <label htmlFor={id} className="sr-only">
         {label}
       </label>

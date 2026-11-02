@@ -353,7 +353,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     return ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]
   }
   return (
-    <div className="manuscript-workspace">
+    <div className={`manuscript-workspace${focusMode ? ' manuscript-workspace--focused' : ''}`}>
       {ledgerOpen && <DecisionLedger workId={work.id} onClose={() => setLedgerOpen(false)} />}
       {jumpLoading && jumpLoading === selectedJobId && (
         <p role="status">근거 원문을 불러오고 있습니다.</p>
@@ -396,65 +396,70 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           {work.source === 'server' && chapter && (
             <details aria-label="분석 작업 이력" className="analysis-history">
               <summary>분석 작업 이력</summary>
-              {jobs.loading && <p role="status">분석 기록을 불러오고 있습니다.</p>}
-              {jobs.error && <p role="alert">{jobs.error}</p>}
-              {!jobs.loading && !jobs.history.length && !jobs.error && (
-                <p>아직 이 회차의 분석 기록이 없습니다.</p>
-              )}
-              {!!jobs.history.length && (
-                <label>
-                  분석 기록 선택
-                  <select
-                    value={jobs.job?.id ?? ''}
-                    onChange={(event) => jobs.select(event.target.value)}
-                  >
-                    <option value="" disabled>
-                      기록을 선택하세요
-                    </option>
-                    {jobs.history.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {new Date(item.createdAt).toLocaleString('ko-KR')} ·{' '}
-                        {
-                          {
-                            QUEUED: '대기',
-                            RUNNING: '분석 중',
-                            SUCCEEDED: '완료',
-                            FAILED: '실패',
-                            CANCELLED: '취소',
-                          }[item.status]
-                        }
+              <div className="analysis-history-content">
+                {jobs.loading && <p role="status">분석 기록을 불러오고 있습니다.</p>}
+                {jobs.error && <p role="alert">{jobs.error}</p>}
+                {!jobs.loading && !jobs.history.length && !jobs.error && (
+                  <p>아직 이 회차의 분석 기록이 없습니다.</p>
+                )}
+                {!!jobs.history.length && (
+                  <label>
+                    분석 기록 선택
+                    <select
+                      value={jobs.job?.id ?? ''}
+                      onChange={(event) => jobs.select(event.target.value)}
+                    >
+                      <option value="" disabled>
+                        기록을 선택하세요
                       </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <button onClick={jobs.refresh}>작업 상태 다시 확인</button>
-              {jobs.job && (
-                <button
-                  onClick={() => {
-                    setShowSnapshot(true)
-                    setSnapshotRefresh((value) => value + 1)
-                  }}
-                >
-                  분석 당시 전송 자료
-                </button>
-              )}
-              {jobs.totalPages > 1 && (
-                <div className="dialog-actions">
-                  <button disabled={jobs.page === 0} onClick={() => jobs.changePage(jobs.page - 1)}>
-                    이전 분석 기록
-                  </button>
-                  <span>
-                    {jobs.page + 1} / {jobs.totalPages}
-                  </span>
+                      {jobs.history.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {new Date(item.createdAt).toLocaleString('ko-KR')} ·{' '}
+                          {
+                            {
+                              QUEUED: '대기',
+                              RUNNING: '분석 중',
+                              SUCCEEDED: '완료',
+                              FAILED: '실패',
+                              CANCELLED: '취소',
+                            }[item.status]
+                          }
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <button onClick={jobs.refresh}>작업 상태 다시 확인</button>
+                {jobs.job && (
                   <button
-                    disabled={jobs.page + 1 >= jobs.totalPages}
-                    onClick={() => jobs.changePage(jobs.page + 1)}
+                    onClick={() => {
+                      setShowSnapshot(true)
+                      setSnapshotRefresh((value) => value + 1)
+                    }}
                   >
-                    다음 분석 기록
+                    분석 당시 전송 자료
                   </button>
-                </div>
-              )}
+                )}
+                {jobs.totalPages > 1 && (
+                  <div className="dialog-actions">
+                    <button
+                      disabled={jobs.page === 0}
+                      onClick={() => jobs.changePage(jobs.page - 1)}
+                    >
+                      이전 분석 기록
+                    </button>
+                    <span>
+                      {jobs.page + 1} / {jobs.totalPages}
+                    </span>
+                    <button
+                      disabled={jobs.page + 1 >= jobs.totalPages}
+                      onClick={() => jobs.changePage(jobs.page + 1)}
+                    >
+                      다음 분석 기록
+                    </button>
+                  </div>
+                )}
+              </div>
             </details>
           )}
           <span className="save-status" role="status">
@@ -471,7 +476,10 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           <button
             className="text-button"
             aria-pressed={focusMode}
-            onClick={() => setFocusMode(!focusMode)}
+            onClick={() => {
+              setView('원고')
+              setFocusMode(!focusMode)
+            }}
           >
             {focusMode ? '집중 모드 종료' : '집중 모드'}
           </button>
@@ -506,15 +514,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             {item}
           </button>
         ))}
-      </div>
-      <div className="focus-toolbar">
-        <button
-          className="text-button"
-          aria-pressed={focusMode}
-          onClick={() => setFocusMode(!focusMode)}
-        >
-          {focusMode ? '검토 패널 펼치기' : '검토 패널 접기'}
-        </button>
       </div>
       <div
         className={`editor-review-grid view-${view === '원고' ? 'editor' : 'review'} ${focusMode ? 'focus-mode' : ''}`}

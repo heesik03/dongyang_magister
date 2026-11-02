@@ -83,7 +83,7 @@ export function WorkPage() {
     return <Navigate to={`/works/${work.id}/manuscript`} replace />
   return (
     <main className="work-page">
-      <div className={'work-heading ' + (tab !== 'manuscript' ? 'work-heading-secondary' : '')}>
+      <div className="work-heading">
         <Link to="/" className="small muted">
           작품 보관함 /
         </Link>
@@ -147,18 +147,20 @@ export function WorkPage() {
                 작품 제목
                 <input name="title" required maxLength={100} defaultValue={work.title} autoFocus />
               </label>
-              <label>
-                장르
-                <select name="genre" defaultValue={work.genre}>
-                  {[...new Set([...GENRES, work.genre])].map((genre) => (
-                    <option key={genre}>{genre}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                시대·배경
-                <input name="era" maxLength={100} defaultValue={work.era} />
-              </label>
+              <div className="form-grid">
+                <label>
+                  장르
+                  <select name="genre" defaultValue={work.genre}>
+                    {[...new Set([...GENRES, work.genre])].map((genre) => (
+                      <option key={genre}>{genre}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  시대·배경
+                  <input name="era" maxLength={100} defaultValue={work.era} />
+                </label>
+              </div>
               <label>
                 짧은 소개
                 <textarea name="description" maxLength={500} defaultValue={work.description} />

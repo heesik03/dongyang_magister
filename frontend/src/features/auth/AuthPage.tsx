@@ -112,10 +112,12 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
       </section>
       <section className="auth-form-wrap">
         <form className="auth-form" onSubmit={submit} key={signup ? 'signup' : 'login'}>
-          <h2>{signup ? '새 이야기를 시작해요' : '다시 만나 반가워요'}</h2>
-          <p className="muted">
-            {signup ? '작가님의 세계를 함께 준비할게요.' : '이어 쓰던 이야기가 기다리고 있어요.'}
-          </p>
+          <div className="auth-form-heading">
+            <h2>{signup ? '새 이야기를 시작해요' : '다시 만나 반가워요'}</h2>
+            <p className="muted">
+              {signup ? '작가님의 세계를 함께 준비할게요.' : '이어 쓰던 이야기가 기다리고 있어요.'}
+            </p>
+          </div>
           {!signup && location.state?.registered && (
             <div role="status" className="signup-success">
               <span className="signup-success-icon" aria-hidden="true">
@@ -146,7 +148,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
               />
             </label>
           )}
-          <div>
+          <div className="auth-email-field">
             <label htmlFor="auth-email">
               이메일{' '}
               {signup && (
@@ -197,32 +199,32 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
               </p>
             )}
           </div>
-          <label>
-            <span>
-              비밀번호{' '}
-              {signup && (
-                <span className="required-mark" aria-hidden="true">
-                  *
-                </span>
-              )}
-            </span>
-            <input
-              aria-label="비밀번호"
-              name="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              aria-describedby={signup ? 'password-conditions' : undefined}
-              type="password"
-              required
-              minLength={8}
-              maxLength={128}
-              autoComplete={signup ? 'new-password' : 'current-password'}
-              placeholder="8자 이상, 영문·숫자·특수문자 조합"
-              disabled={saving}
-            />
-          </label>
-          {signup && (
-            <>
+          <div className="auth-field-group">
+            <label>
+              <span>
+                비밀번호{' '}
+                {signup && (
+                  <span className="required-mark" aria-hidden="true">
+                    *
+                  </span>
+                )}
+              </span>
+              <input
+                aria-label="비밀번호"
+                name="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                aria-describedby={signup ? 'password-conditions' : undefined}
+                type="password"
+                required
+                minLength={8}
+                maxLength={128}
+                autoComplete={signup ? 'new-password' : 'current-password'}
+                placeholder="8자 이상, 영문·숫자·특수문자 조합"
+                disabled={saving}
+              />
+            </label>
+            {signup && (
               <div className="password-rule-card">
                 <div className="row small">
                   <strong>비밀번호 조건</strong>
@@ -243,6 +245,10 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
                   ))}
                 </ul>
               </div>
+            )}
+          </div>
+          {signup && (
+            <div className="auth-field-group">
               <label>
                 <span>
                   비밀번호 확인{' '}
@@ -272,7 +278,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
                     : '비밀번호가 일치하지 않습니다.'}
                 </p>
               )}
-            </>
+            </div>
           )}
           {saving && <p role="status">처리 중입니다.</p>}
           {error && (

@@ -76,9 +76,18 @@
   font-size: 28px;
   font-weight: 700;
   line-height: 40px;
-  margin: 0 0 -16px;
+  margin: 0;
 }
 .auth-form > p {
+  margin: 0;
+}
+.auth-form-heading,
+.auth-field-group {
+  display: grid;
+  gap: 8px;
+}
+.auth-form-heading p,
+.auth-field-group > p {
   margin: 0;
 }
 .divider {
@@ -1025,12 +1034,12 @@ fieldset .check:last-child {
 fieldset input {
   flex-shrink: 0;
 }
-.focus-toolbar {
+.app-layout:has(.manuscript-workspace--focused) > .sidebar,
+.app-layout:has(.manuscript-workspace--focused) .desktop-menu {
   display: none;
 }
-.focus-toolbar button {
-  font-size: 11px;
-  min-height: 32px;
+.manuscript-workspace--focused .workspace-mobile-tabs {
+  display: none;
 }
 .editor-review-grid.focus-mode {
   grid-template-columns: 1fr;
@@ -1046,9 +1055,7 @@ fieldset input {
   margin: 8px 0 0;
 }
 .timeline-list {
-  border-left: 1px solid var(--color-border);
-  margin: 32px 0 0 12px;
-  padding-left: 28px;
+  margin-top: 24px;
 }
 .event-card {
   position: relative;
@@ -1170,9 +1177,6 @@ fieldset input {
   .view-review .review-panel {
     display: block;
   }
-  .focus-toolbar {
-    display: none;
-  }
   .review-panel {
     border-left: none;
     max-width: 780px;
@@ -1223,10 +1227,6 @@ fieldset input {
   .timeline-panel .section-line {
     flex-direction: column;
     align-items: flex-start;
-  }
-  .timeline-list {
-    margin-left: 5px;
-    padding-left: 16px;
   }
   .event-card {
     padding: 16px;
@@ -1502,9 +1502,6 @@ fieldset input {
   color: var(--color-text);
   font-weight: 500;
 }
-.topbar-left .desktop-menu {
-  display: none;
-}
 .library-page {
   flex: 1;
   display: flex;
@@ -1537,7 +1534,7 @@ fieldset input {
   flex-shrink: 0;
 }
 .genre-badge {
-  min-width: 112px;
+  width: fit-content;
   justify-content: center;
   font-size: 14px;
 }
@@ -1574,9 +1571,6 @@ fieldset input {
 }
 .work-heading p {
   margin: 0;
-}
-.work-heading-secondary {
-  display: none;
 }
 .work-management-trigger {
   min-width: 176px;
@@ -1737,11 +1731,6 @@ fieldset input {
   cursor: pointer;
   color: var(--color-text-muted);
 }
-.analysis-history[open] {
-  background: white;
-  padding: 16px;
-  border-radius: 8px;
-}
 .editor-heading .eyebrow {
   letter-spacing: 0;
   color: var(--color-text-muted);
@@ -1880,7 +1869,6 @@ fieldset input {
   color: var(--color-text-muted);
 }
 .password-rule-card {
-  margin-top: -16px;
   padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -1899,7 +1887,7 @@ fieldset input {
   min-height: 48px;
   font-size: 16px;
 }
-.auth-form-wrap .auth-form > div > label {
+.auth-email-field > label {
   display: block;
   margin-bottom: 8px;
 }
@@ -2167,14 +2155,27 @@ fieldset input {
   padding: 10px;
   min-height: 44px;
 }
-.analysis-history[open] {
+.analysis-history-content {
   position: absolute;
   z-index: 3;
-  right: 32px;
-  top: 200px;
+  right: 0;
+  top: calc(100% + 8px);
   width: min(520px, calc(100vw - 64px));
+  max-height: min(480px, 60dvh);
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
   border: 1px solid var(--color-border);
   box-shadow: 0 12px 32px #19191918;
+}
+@media (max-width: 1279px) {
+  .analysis-history-content {
+    left: 0;
+    right: auto;
+  }
 }
 .editor-pane {
   display: flex;
