@@ -16,6 +16,7 @@ import { AnalysisMaterials } from '../analysis/AnalysisMaterials'
 import { ApiError } from '../../shared/httpClient'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
+import { ManuscriptTransfer } from './ManuscriptTransfer'
 
 export function ManuscriptPanel({ work }: { work: Work }) {
   const updateWork = useWorksStore((state) => state.updateWork)
@@ -419,6 +420,9 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           </span>
         </div>
         <div className="toolbar-actions">
+          {work.source === 'server' && (
+            <ManuscriptTransfer work={work} chapter={chapter} onImported={changeChapter} />
+          )}
           {work.source === 'server' && chapter && (
             <details aria-label="분석 작업 이력" className="analysis-history">
               <summary>
