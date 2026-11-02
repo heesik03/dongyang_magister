@@ -363,7 +363,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           {jumpError.message}
         </p>
       )}
-      {analyzing && <button onClick={() => void cancelAnalysis()}>AI 검토 취소</button>}
       <div className="manuscript-toolbar">
         <div className="chapter-select">
           <label>
@@ -480,12 +479,17 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             <Icon name="settings" />
             분석 설정
           </button>
+          {analyzing && <button onClick={() => void cancelAnalysis()}>AI 검토 취소</button>}
           <button
             className="primary"
             disabled={analyzing || preparing || submitting || !chapter}
             onClick={() => setOptionsOpen(true)}
           >
-            <Icon name="spark" />
+            {analyzing ? (
+              <span className="analysis-spinner analysis-spinner--small" aria-hidden="true" />
+            ) : (
+              <Icon name="spark" />
+            )}
             {analyzing ? '분석 중…' : 'AI 검토'}
           </button>
         </div>

@@ -79,9 +79,17 @@ export function ReviewPanel({
       <div role="status" aria-live="polite">
         {analyzing && (
           <div className="notice analyzing">
-            <Icon name="spark" />
+            <span className="analysis-spinner" aria-hidden="true" />
+            <span className="analysis-state-label">AI 검토 진행 중</span>
             <strong>선택한 원고와 설정을 비교하고 있어요.</strong>
-            <p className="small">서버 작업 상태를 확인하고 있습니다.</p>
+            <p>
+              결과가 준비되면 자동으로 표시됩니다.
+              <br />
+              자료의 양에 따라 시간이 걸릴 수 있습니다.
+            </p>
+            <div className="analysis-progress-track" aria-hidden="true">
+              <span />
+            </div>
           </div>
         )}
       </div>

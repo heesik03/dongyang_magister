@@ -97,12 +97,20 @@
 }
 .auth-switch {
   text-align: center;
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 28px;
+  color: var(--color-text-muted);
 }
 .auth-switch a {
   color: var(--color-info);
-  font-weight: 500;
-  margin-left: 6px;
+  font-size: 18px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-left: 8px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 .app-layout {
   display: flex;
@@ -370,7 +378,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  flex: 1;
+  align-content: start;
 }
 .work-card {
   display: flex;
@@ -819,19 +827,24 @@ dialog::backdrop {
 }
 .analysis-scope {
   background: var(--color-info-soft);
-  color: var(--color-info);
+  color: var(--color-text);
   border-radius: 6px;
-  padding: 12px;
-  font-size: 11px;
+  padding: 16px;
+  font-size: 16px;
+  line-height: 1.65;
   margin: 16px 0;
   overflow-wrap: anywhere;
+}
+.analysis-scope > strong {
+  color: var(--color-info);
 }
 .analysis-scope p {
   margin: 6px 0;
 }
 .analysis-scope span {
   display: block;
-  font-size: 10px;
+  font-size: 14px;
+  color: var(--color-text-muted);
   line-height: 1.6;
   margin-top: 8px;
 }
@@ -912,19 +925,79 @@ mark {
   background: #f6e3a8;
   color: #292524;
 }
-.analyzing {
+.notice.analyzing {
   text-align: center;
+  padding: 24px 16px;
+  background: var(--color-info-soft);
+  color: var(--color-text);
 }
-.analyzing > svg {
+.analyzing .analysis-spinner {
   display: block;
   margin: 8px auto 16px;
-  color: var(--color-primary);
+  color: var(--color-info);
 }
 .analyzing strong {
-  font-size: 13px;
+  display: block;
+  font-size: 18px;
+  line-height: 28px;
 }
 .analyzing p {
-  margin: 8px 0;
+  margin: 12px 0 20px;
+  font-size: 14px;
+  line-height: 24px;
+  color: var(--color-text-muted);
+}
+.analysis-state-label {
+  display: block;
+  color: var(--color-info);
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.analysis-spinner {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 3px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: analysis-spin 1s linear infinite;
+}
+.analysis-spinner--small {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+.analysis-progress-track {
+  overflow: hidden;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--color-border);
+}
+.analysis-progress-track > span {
+  display: block;
+  width: 30%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-info);
+  animation: analysis-slide 1.8s ease-in-out infinite alternate;
+}
+@keyframes analysis-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes analysis-slide {
+  to {
+    transform: translateX(233.33%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .analysis-spinner,
+  .analysis-progress-track > span {
+    animation: none;
+  }
 }
 .stale {
   color: var(--color-warning);
@@ -1536,6 +1609,130 @@ fieldset input {
   padding: 0;
   font-size: 14px;
 }
+.analysis-preview {
+  gap: 24px;
+}
+.preview-intro p {
+  margin: 0 0 8px;
+  line-height: 26px;
+}
+.analysis-materials {
+  display: grid;
+  gap: 16px;
+  overflow-wrap: anywhere;
+}
+.material-section,
+.material-policy {
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  min-width: 0;
+}
+.material-section h3,
+.material-policy h3 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 18px;
+  line-height: 28px;
+  color: var(--color-info);
+}
+.material-count,
+.material-meta {
+  font-size: 14px;
+  line-height: 24px;
+  font-weight: 400;
+  border-radius: 4px;
+  padding: 2px 8px;
+  background: white;
+  color: var(--color-text-muted);
+}
+.material-section details + details {
+  border-top: 1px solid var(--color-border);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.material-section summary {
+  cursor: pointer;
+  padding: 8px 0;
+  line-height: 28px;
+}
+.material-section summary::marker {
+  color: var(--color-info);
+}
+.material-title {
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 500;
+  margin-right: 12px;
+}
+.material-meta {
+  display: inline-block;
+}
+.material-source {
+  white-space: pre-wrap;
+  background: white;
+  border-left: 3px solid var(--color-info);
+  border-radius: 4px;
+  padding: 16px;
+  margin: 8px 0 0;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 16px;
+  line-height: 28px;
+  color: var(--color-text);
+}
+.material-help {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0;
+}
+.material-policy {
+  background: var(--color-info-soft);
+  border-color: transparent;
+}
+.material-policy h3 {
+  color: var(--color-info);
+  font-size: 16px;
+}
+.material-policy a {
+  display: inline-block;
+  margin-top: 16px;
+  color: var(--color-info);
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.material-facts {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  font-size: 16px;
+  line-height: 26px;
+}
+.material-facts dt {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  margin-top: 8px;
+}
+.material-facts dd {
+  margin: 0;
+  color: var(--color-text);
+  white-space: pre-wrap;
+}
+.material-consent {
+  padding: 16px;
+  border: 1px solid var(--color-control-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  font-weight: 500;
+  line-height: 26px;
+}
 .analysis-history summary {
   cursor: pointer;
   color: var(--color-text-muted);
@@ -1712,9 +1909,6 @@ fieldset input {
 @media (min-width: 1440px) {
   .editor-review-grid {
     min-height: calc(100dvh - 396px);
-  }
-  .library-page .work-card {
-    flex: 1;
   }
 }
 @media (min-width: 768px) and (max-width: 1439px) {

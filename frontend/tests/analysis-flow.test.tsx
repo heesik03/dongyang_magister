@@ -143,6 +143,7 @@ test('실제 전송 자료를 확인하고 동의하기 전에는 분석을 접�
   fireEvent.click(screen.getByRole('checkbox', { name: '1화', exact: true }))
   fireEvent.click(screen.getByRole('button', { name: '전송 자료 미리보기' }))
   await screen.findByRole('dialog', { name: 'AI 전송 자료 확인' })
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'AI 전송 자료 확인' }))
   expect(analysisClient.preview).toHaveBeenCalledWith(
     '1',
     expect.objectContaining({ chapterId: 'target', chapterRevision: 1, previousIds: ['previous'] }),
