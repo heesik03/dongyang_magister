@@ -221,6 +221,19 @@ export function ExtractionFlow({ work }: { work: Work }) {
     setMode(null)
     setMessage('선택한 사건을 타임라인에 추가했습니다. 기존 사건은 유지됩니다.')
   }
+  async function reloadTimeline() {
+    const state = useWorksStore.getState()
+    if (
+      state.dirtyIds.includes(work.id) ||
+      state.savingIds.includes(work.id) ||
+      state.conflicts.includes(work.id)
+    )
+      throw new Error(
+        '현재 입력을 유지하고 있습니다. 작품 관리에서 저장·충돌을 확인한 뒤 최신 상태를 불러와 주세요.',
+      )
+    await state.reloadWorkspace(work.id)
+    if (active.current) setMessage('최신 타임라인을 불러왔습니다. 후보 입력은 유지됩니다.')
+  }
   if (work.source !== 'server') return null
   return (
     <section className="extraction-flow stack" aria-label="AI 사건 추출">
@@ -326,7 +339,7 @@ export function ExtractionFlow({ work }: { work: Work }) {
           {error}
         </p>
       )}
-      {message && <p role="status">{message}</p>}
+      {message && !mode && <p role="status">{message}</p>}
       {mode && (
         <Dialog
           initialFocus="heading"
@@ -581,6 +594,9 @@ export function ExtractionFlow({ work }: { work: Work }) {
                   >
                     서버 후보 다시 불러오기
                   </button>
+                  <button disabled={busy} onClick={() => void run(reloadTimeline)}>
+                    타임라인 최신 상태 확인
+                  </button>
                   <button
                     disabled={busy}
                     onClick={() =>
@@ -606,6 +622,7 @@ export function ExtractionFlow({ work }: { work: Work }) {
               </>
             )}
             {busy && <p role="status">처리 중입니다. 입력과 기존 사건을 유지합니다.</p>}
+            {message && <p role="status">{message}</p>}
             {error && (
               <p role="alert" className="error">
                 {error}

@@ -229,3 +229,43 @@ test('확정 전에 후보를 저장하고 현재 Workspace 버전으로 확정�
   expect(confirm.mock.calls[0][2]).toBe(7)
   expect(useWorksStore.getState().reloadWorkspace).toHaveBeenCalledWith('1')
 })
+
+test('확정 충돌 뒤 후보를 유지하면서 최신 타임라인 버전으로 재시도한다', async () => {
+  vi.mocked(extractionClient.list).mockResolvedValue(page([job]))
+  vi.spyOn(extractionClient, 'save').mockResolvedValue({
+    ...job,
+    version: 3,
+    candidates: [{ ...candidate, title: '유지할 후보', decision: 'INCLUDE' }],
+  })
+  const confirm = vi
+    .spyOn(extractionClient, 'confirm')
+    .mockRejectedValueOnce(new ApiError('충돌', 409))
+    .mockResolvedValueOnce(undefined)
+  useWorksStore.setState({
+    reloadWorkspace: vi.fn().mockImplementation(async () => {
+      useWorksStore.setState({ works: [{ ...work, workspaceVersion: 8 }] })
+    }),
+  })
+  render(<ExtractionFlow work={work} />)
+  fireEvent.click(await screen.findByRole('button', { name: '사건 후보 확인' }))
+  fireEvent.change(screen.getByLabelText('사건명'), { target: { value: '유지할 후보' } })
+  fireEvent.change(screen.getByLabelText('작가 선택'), { target: { value: 'INCLUDE' } })
+  fireEvent.click(screen.getByRole('button', { name: '선택한 사건 확정' }))
+  await screen.findByRole('alert')
+  fireEvent.click(screen.getByRole('button', { name: '타임라인 최신 상태 확인' }))
+  await screen.findByText('최신 타임라인을 불러왔습니다. 후보 입력은 유지됩니다.')
+  expect((screen.getByLabelText('사건명') as HTMLInputElement).value).toBe('유지할 후보')
+  fireEvent.click(screen.getByRole('button', { name: '선택한 사건 확정' }))
+  await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2))
+  expect(confirm.mock.calls[0][2]).toBe(7)
+  expect(confirm.mock.calls[1][2]).toBe(8)
+})
+test('미저장 입력이 있으면 최신 타임라인 조회로 덮어쓰지 않는다', async () => {
+  vi.mocked(extractionClient.list).mockResolvedValue(page([job]))
+  useWorksStore.setState({ dirtyIds: ['1'] })
+  render(<ExtractionFlow work={work} />)
+  fireEvent.click(await screen.findByRole('button', { name: '사건 후보 확인' }))
+  fireEvent.click(screen.getByRole('button', { name: '타임라인 최신 상태 확인' }))
+  await screen.findByRole('alert')
+  expect(useWorksStore.getState().reloadWorkspace).not.toHaveBeenCalled()
+})
