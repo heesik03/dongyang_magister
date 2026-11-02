@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useWorksStore } from '../works/useWorksStore'
 import type { Work } from '../works/workTypes'
 import { Dialog } from '../../shared/Dialog'
+import { Icon } from '../../shared/Icon'
 import { chapterClient, chapterSignature, type SavedChapter } from '../manuscript/chapterClient'
 export function WorkspaceStatus({ work }: { work: Work }) {
   const dirty = useWorksStore((state) => state.dirtyIds.includes(work.id))
@@ -41,57 +42,75 @@ export function WorkspaceStatus({ work }: { work: Work }) {
     URL.revokeObjectURL(url)
   }
   return (
-    <section aria-label="원고 저장 상태" className="notice">
-      <span role="status">
-        {saving
-          ? '서버 저장 중…'
-          : dirty
-            ? '저장 대기 · 현재 입력은 화면에 보존됩니다.'
-            : '서버 저장 완료'}
-      </span>
-      {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
-      {dirty && (
-        <button
-          disabled={saving || conflict}
-          onClick={() => void useWorksStore.getState().flushWorkspace(work.id)}
-        >
-          저장 재시도
+    <section aria-label="원고 저장 상태" className="workspace-status">
+      <div className="notice workspace-status-summary">
+        <span role="status">
+          {saving
+            ? '서버 저장 중…'
+            : dirty
+              ? '저장 대기 · 현재 입력은 화면에 보존됩니다.'
+              : '서버 저장 완료'}
+        </span>
+        {error && <p role="alert">{error}</p>}
+        {notice && <p role="status">{notice}</p>}
+      </div>
+      <div className="workspace-recovery-actions">
+        {dirty && (
+          <button
+            className="management-action management-action--edit"
+            disabled={saving || conflict}
+            onClick={() => void useWorksStore.getState().flushWorkspace(work.id)}
+          >
+            <Icon name="save" />
+            <span>저장 재시도</span>
+          </button>
+        )}
+        <button className="management-action management-action--download" onClick={download}>
+          <Icon name="download" />
+          <span>현재 입력 내려받기</span>
         </button>
-      )}
-      <button onClick={download}>현재 입력 내려받기</button>
-      {conflict && (
-        <button disabled={saving || comparing} onClick={() => void compareChapters()}>
-          {comparing ? '서버 원고 조회 중…' : '충돌 원고 비교·복구'}
-        </button>
-      )}
-      {conflict && (
-        <button
-          disabled={saving}
-          onClick={() => {
-            download()
-            void useWorksStore
-              .getState()
-              .reloadWorkspace(work.id)
-              .catch((error) => setNotice(error instanceof Error ? error.message : '조회 실패'))
-          }}
-        >
-          입력을 파일로 보관하고 서버본 불러오기
-        </button>
-      )}
-      {
-        <button
-          disabled={saving}
-          onClick={() => {
-            useWorksStore.getState().recoverDraft(work.id)
-            setNotice(
-              '보관된 초안이 있으면 화면에 불러옵니다. 자동으로 기존 서버 문서를 덮어쓰지 않습니다.',
-            )
-          }}
-        >
-          이전 초안·탭 복구본 불러오기
-        </button>
-      }
+        {conflict && (
+          <button
+            className="management-action management-action--restore"
+            disabled={saving || comparing}
+            onClick={() => void compareChapters()}
+          >
+            <Icon name="file" />
+            <span>{comparing ? '서버 원고 조회 중…' : '충돌 원고 비교·복구'}</span>
+          </button>
+        )}
+        {conflict && (
+          <button
+            className="management-action management-action--restore"
+            disabled={saving}
+            onClick={() => {
+              download()
+              void useWorksStore
+                .getState()
+                .reloadWorkspace(work.id)
+                .catch((error) => setNotice(error instanceof Error ? error.message : '조회 실패'))
+            }}
+          >
+            <Icon name="refresh" />
+            <span>입력을 파일로 보관하고 서버본 불러오기</span>
+          </button>
+        )}
+        {
+          <button
+            className="management-action management-action--restore"
+            disabled={saving}
+            onClick={() => {
+              useWorksStore.getState().recoverDraft(work.id)
+              setNotice(
+                '보관된 초안이 있으면 화면에 불러옵니다. 자동으로 기존 서버 문서를 덮어쓰지 않습니다.',
+              )
+            }}
+          >
+            <Icon name="history" />
+            <span>이전 초안·탭 복구본 불러오기</span>
+          </button>
+        }
+      </div>
       {comparison && (
         <Dialog size="wide" title="충돌 원고 비교" onClose={() => setComparison(null)}>
           <div className="stack">

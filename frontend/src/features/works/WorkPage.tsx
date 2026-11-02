@@ -99,8 +99,8 @@ export function WorkPage() {
             onClick={() => setManaging(true)}
             aria-label="작품 관리"
           >
+            <Icon name="gear" />
             <span>작품 관리</span>
-            <span aria-hidden="true">···</span>
           </button>
         </div>
       </div>
@@ -108,25 +108,33 @@ export function WorkPage() {
         <Dialog size="compact" title="작품 관리" onClose={() => setManaging(false)}>
           <div className="management-actions">
             <button
+              className="management-action management-action--edit"
               onClick={() => {
                 setManaging(false)
                 setEditing(true)
               }}
             >
-              작품 정보 수정
+              <Icon name="edit" />
+              <span>작품 정보 수정</span>
             </button>
-            <button onClick={() => void loadWork(work.id)} disabled={detailLoading}>
-              새로 불러오기
+            <button
+              className="management-action management-action--neutral"
+              onClick={() => void loadWork(work.id)}
+              disabled={detailLoading}
+            >
+              <Icon name="refresh" />
+              <span>새로 불러오기</span>
             </button>
             {work.source === 'server' && (
               <button
-                className="danger"
+                className="management-action management-action--danger"
                 onClick={() => {
                   setManaging(false)
                   setDeleting(true)
                 }}
               >
-                작품 삭제
+                <Icon name="trash" />
+                <span>작품 삭제</span>
               </button>
             )}
           </div>

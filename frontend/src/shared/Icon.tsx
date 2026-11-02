@@ -23,7 +23,37 @@ export type IconName =
   | 'close'
   | 'settings'
   | 'chevron'
+  | 'save'
+  | 'history'
+  | 'eye'
+  | 'eye-off'
+  | 'edit'
+  | 'refresh'
+  | 'download'
+  | 'trash'
+  | 'gear'
+  | 'cloud-check'
+  | 'cloud-upload'
+  | 'cloud-alert'
+  | 'panel-left-close'
+  | 'panel-left-open'
 const paths: Record<IconName, string> = {
+  save: 'M5 3h12l4 4v14H3V3h2Zm2 0v6h10V3M7 21v-8h10v8',
+  history: 'M3 11a9 9 0 1 1 2.5 7M3 4v7h7m2-4v6l4 2',
+  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Zm13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+  edit: 'm15 4 5 5M4 20l4-1L21 6l-4-4L4 15v5Z',
+  refresh: 'M20 7a9 9 0 0 0-15-1L2 9m0-6v6h6m-4 8a9 9 0 0 0 15 1l3-3m0 6v-6h-6',
+  download: 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',
+  trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7',
+  gear: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8 4c0-.6-.1-1.2-.2-1.7l2-1.5-2-3.4-2.3.9a8 8 0 0 0-3-1.7L14 2h-4l-.5 2.6a8 8 0 0 0-3 1.7l-2.3-.9-2 3.4 2 1.5a8 8 0 0 0 0 3.4l-2 1.5 2 3.4 2.3-.9a8 8 0 0 0 3 1.7L10 22h4l.5-2.6a8 8 0 0 0 3-1.7l2.3.9 2-3.4-2-1.5c.1-.5.2-1.1.2-1.7Z',
+  'eye-off':
+    'M3 3l18 18M10.6 5.1A12 12 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.1 4M6.2 6.2A20 20 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5.8-1.5M10 10a3 3 0 0 0 4 4',
+  'cloud-check': 'M8 17H6a4 4 0 0 1-1-7.87A7 7 0 0 1 18.5 8 4.5 4.5 0 0 1 1 8.89M10 18l3 3 7-7',
+  'cloud-upload':
+    'M7 17H6a4 4 0 0 1-1-7.87A7 7 0 0 1 18.5 8 4.5 4.5 0 0 1 1 8.89M12 21V12m-3 3 3-3 3 3',
+  'cloud-alert': 'M7 17H6a4 4 0 0 1-1-7.87A7 7 0 0 1 18.5 8 4.5 4.5 0 0 1 1 8.89M13 12v4m0 4v.01',
+  'panel-left-close': 'M3 3h18v18H3V3Zm5 0v18m8-13-4 4 4 4',
+  'panel-left-open': 'M3 3h18v18H3V3Zm5 0v18m4-13 4 4-4 4',
   'book-empty': '',
   chevron: 'm9 6 6 6-6 6',
   book: 'M3 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H3V4Zm18 0h-6a3 3 0 0 0-3 3v14a4 4 0 0 1 4-3h5V4Z',

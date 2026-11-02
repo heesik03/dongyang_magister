@@ -19,6 +19,9 @@ import { Icon } from '../../shared/Icon'
 
 export function ManuscriptPanel({ work }: { work: Work }) {
   const updateWork = useWorksStore((state) => state.updateWork)
+  const flushWorkspace = useWorksStore((state) => state.flushWorkspace)
+  const retrySave = useWorksStore((state) => state.retrySave)
+  const conflict = useWorksStore((state) => state.conflicts.includes(work.id))
   const storageError = useWorksStore((state) => state.storageError)
   const saving = useWorksStore((state) => state.savingIds.includes(work.id))
   const dirty = useWorksStore((state) => state.dirtyIds.includes(work.id))
@@ -61,7 +64,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const [markdownPreview, setMarkdownPreview] = useState(false)
   const [highlight, setHighlight] = useState(params.get('quote') || '')
   const [lineHeight, setLineHeight] = useState(1.8)
-  const [focusMode, setFocusMode] = useState(false)
   const editor = useRef<HTMLTextAreaElement>(null)
   const analysisRequest = useRef<AbortController | null>(null)
   const selectedJobId = jobs.job?.id,
@@ -232,7 +234,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       jobs.accept(created, context)
       setPreview(null)
       setView('검토')
-      setFocusMode(false)
     } catch (failure) {
       if (controller.signal.aborted) return
       setError(failure instanceof Error ? failure.message : '분석 접수 실패')
@@ -353,7 +354,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     return ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]
   }
   return (
-    <div className={`manuscript-workspace${focusMode ? ' manuscript-workspace--focused' : ''}`}>
+    <div className="manuscript-workspace">
       {ledgerOpen && <DecisionLedger workId={work.id} onClose={() => setLedgerOpen(false)} />}
       {jumpLoading && jumpLoading === selectedJobId && (
         <p role="status">근거 원문을 불러오고 있습니다.</p>
@@ -364,38 +365,69 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         </p>
       )}
       <div className="manuscript-toolbar">
-        <div className="chapter-select">
-          <label>
-            <span className="sr-only">현재 회차</span>
-            <select
-              value={chapter?.id || ''}
-              disabled={preparing || submitting || !chapter}
-              onChange={(event) => changeChapter(event.target.value)}
+        <div className="manuscript-editor-tools">
+          <div className="chapter-select">
+            <label>
+              <span className="sr-only">현재 회차</span>
+              <select
+                value={chapter?.id || ''}
+                disabled={preparing || submitting || !chapter}
+                onChange={(event) => changeChapter(event.target.value)}
+              >
+                {work.chapters.length ? (
+                  work.chapters.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">아직 회차가 없습니다</option>
+                )}
+              </select>
+            </label>
+            <button
+              className="icon-button"
+              aria-label="새 회차 추가"
+              disabled={preparing || submitting}
+              onClick={() => setCreating(true)}
             >
-              {work.chapters.length ? (
-                work.chapters.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
-                  </option>
-                ))
-              ) : (
-                <option value="">아직 회차가 없습니다</option>
-              )}
-            </select>
-          </label>
-          <button
-            className="icon-button"
-            aria-label="새 회차 추가"
-            disabled={preparing || submitting}
-            onClick={() => setCreating(true)}
+              <Icon name="plus" />
+            </button>
+          </div>
+          <span
+            className={`save-status${storageError || saveError ? ' save-status--error' : saving || dirty ? ' save-status--pending' : ''}`}
+            role="status"
           >
-            <Icon name="plus" />
-          </button>
+            <Icon
+              name={
+                storageError || saveError
+                  ? 'cloud-alert'
+                  : saving || dirty
+                    ? 'cloud-upload'
+                    : 'cloud-check'
+              }
+            />
+            {storageError || saveError
+              ? '저장 실패 · 입력 유지'
+              : saving
+                ? '서버 저장 중…'
+                : dirty
+                  ? '저장 대기 · 입력 유지'
+                  : work.source === 'server'
+                    ? '서버에 자동 저장'
+                    : '브라우저에 자동 저장'}
+          </span>
         </div>
         <div className="toolbar-actions">
           {work.source === 'server' && chapter && (
             <details aria-label="분석 작업 이력" className="analysis-history">
-              <summary>분석 작업 이력</summary>
+              <summary>
+                <Icon name="history" />
+                <span>분석 작업 이력</span>
+                <span className="analysis-history-chevron">
+                  <Icon name="chevron" />
+                </span>
+              </summary>
               <div className="analysis-history-content">
                 {jobs.loading && <p role="status">분석 기록을 불러오고 있습니다.</p>}
                 {jobs.error && <p role="alert">{jobs.error}</p>}
@@ -462,44 +494,25 @@ export function ManuscriptPanel({ work }: { work: Work }) {
               </div>
             </details>
           )}
-          <span className="save-status" role="status">
-            {storageError || saveError
-              ? '저장 실패 · 입력 유지'
-              : saving
-                ? '서버 저장 중…'
-                : dirty
-                  ? '저장 대기 · 입력 유지'
-                  : work.source === 'server'
-                    ? '서버에 자동 저장'
-                    : '브라우저에 자동 저장'}
-          </span>
-          <button
-            className="text-button"
-            aria-pressed={focusMode}
-            onClick={() => {
-              setView('원고')
-              setFocusMode(!focusMode)
-            }}
-          >
-            {focusMode ? '집중 모드 종료' : '집중 모드'}
-          </button>
-          <button disabled={preparing || submitting} onClick={() => setOptionsOpen(true)}>
-            <Icon name="settings" />
-            분석 설정
-          </button>
-          {analyzing && <button onClick={() => void cancelAnalysis()}>AI 검토 취소</button>}
-          <button
-            className="primary"
-            disabled={analyzing || preparing || submitting || !chapter}
-            onClick={() => setOptionsOpen(true)}
-          >
-            {analyzing ? (
-              <span className="analysis-spinner analysis-spinner--small" aria-hidden="true" />
-            ) : (
-              <Icon name="spark" />
-            )}
-            {analyzing ? '분석 중…' : 'AI 검토'}
-          </button>
+          <div className="manuscript-action-group">
+            <button disabled={preparing || submitting} onClick={() => setOptionsOpen(true)}>
+              <Icon name="settings" />
+              분석 설정
+            </button>
+            {analyzing && <button onClick={() => void cancelAnalysis()}>AI 검토 취소</button>}
+            <button
+              className="primary"
+              disabled={analyzing || preparing || submitting || !chapter}
+              onClick={() => setOptionsOpen(true)}
+            >
+              {analyzing ? (
+                <span className="analysis-spinner analysis-spinner--small" aria-hidden="true" />
+              ) : (
+                <Icon name="spark" />
+              )}
+              {analyzing ? '분석 중…' : 'AI 검토'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -515,9 +528,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           </button>
         ))}
       </div>
-      <div
-        className={`editor-review-grid view-${view === '원고' ? 'editor' : 'review'} ${focusMode ? 'focus-mode' : ''}`}
-      >
+      <div className={`editor-review-grid view-${view === '원고' ? 'editor' : 'review'}`}>
         <section className="editor-pane" aria-label="회차 원고">
           {chapter ? (
             <>
@@ -604,7 +615,26 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                 <span>
                   {chapter.content.length.toLocaleString()}자 · 원고 버전 {chapter.revision}
                 </span>
-                <Link to={`/works/${work.id}/settings`}>설정집 참고하기 →</Link>
+                <div className="editor-bottom-actions">
+                  <Link to={`/works/${work.id}/settings`}>설정집 참고하기 →</Link>
+                  <button
+                    disabled={
+                      saving || conflict || !chapter || (work.source === 'server' && !dirty)
+                    }
+                    title={
+                      conflict
+                        ? '작품 관리에서 저장 충돌을 먼저 해결해 주세요.'
+                        : '현재 변경 사항 저장'
+                    }
+                    onClick={() => {
+                      if (work.source === 'server') void flushWorkspace(work.id)
+                      else retrySave()
+                    }}
+                  >
+                    <Icon name="save" />
+                    {saving ? '저장 중…' : '저장'}
+                  </button>
+                </div>
               </div>
             </>
           ) : (

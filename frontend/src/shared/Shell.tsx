@@ -130,10 +130,22 @@ function ShellContent() {
   return (
     <div className="app-layout">
       <aside className={'sidebar ' + (collapsed ? 'sidebar-collapsed' : '')}>
-        <NavLink to="/" className="brand" aria-label="Magister 작품 보관함">
-          <Icon name="book" brand />
-          Magister
-        </NavLink>
+        <div className="sidebar-header">
+          <NavLink to="/" className="brand" aria-label="Magister 작품 보관함">
+            <Icon name="book" brand />
+            Magister
+          </NavLink>
+          <button
+            className="icon-button sidebar-toggle"
+            aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            aria-expanded={!collapsed}
+            aria-controls="sidebar-navigation"
+            onClick={() => setCollapsed(!collapsed)}
+          >
+            <Icon name={collapsed ? 'panel-left-open' : 'panel-left-close'} />
+          </button>
+        </div>
         <button
           className="icon-button mobile-menu"
           aria-label="작품 탐색 메뉴 열기"
@@ -141,7 +153,9 @@ function ShellContent() {
         >
           <Icon name="menu" />
         </button>
-        <div className="sidebar-navigation">{navigation()}</div>
+        <div className="sidebar-navigation" id="sidebar-navigation">
+          {navigation()}
+        </div>
         <div className="sidebar-bottom">
           {!current && (
             <p className="sidebar-note">
@@ -165,13 +179,6 @@ function ShellContent() {
       <div className="main-area">
         <header className="topbar">
           <div className="topbar-left">
-            <button
-              className="icon-button desktop-menu"
-              aria-label={collapsed ? '탐색 패널 펼치기' : '탐색 패널 접기'}
-              onClick={() => setCollapsed(!collapsed)}
-            >
-              <Icon name="menu" />
-            </button>
             <NavLink to="/">작품 보관함</NavLink>
             <Icon name="chevron" />
             <strong>{current?.title || '나의 작업 공간'}</strong>

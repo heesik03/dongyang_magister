@@ -6,6 +6,7 @@ import { authClient } from './authClient'
 import { ApiError } from '../../shared/httpClient'
 import { useEmailAvailability } from './useEmailAvailability'
 import { Icon } from '../../shared/Icon'
+import { PasswordInput } from './PasswordInput'
 
 export function AuthPage({ signup = false }: { signup?: boolean }) {
   const login = useAuthStore((state) => state.login)
@@ -200,30 +201,19 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
             )}
           </div>
           <div className="auth-field-group">
-            <label>
-              <span>
-                비밀번호{' '}
-                {signup && (
-                  <span className="required-mark" aria-hidden="true">
-                    *
-                  </span>
-                )}
-              </span>
-              <input
-                aria-label="비밀번호"
-                name="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                aria-describedby={signup ? 'password-conditions' : undefined}
-                type="password"
-                required
-                minLength={8}
-                maxLength={128}
-                autoComplete={signup ? 'new-password' : 'current-password'}
-                placeholder="8자 이상, 영문·숫자·특수문자 조합"
-                disabled={saving}
-              />
-            </label>
+            <PasswordInput
+              label="비밀번호"
+              name="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              aria-describedby={signup ? 'password-conditions' : undefined}
+              required
+              minLength={8}
+              maxLength={128}
+              autoComplete={signup ? 'new-password' : 'current-password'}
+              placeholder="8자 이상, 영문·숫자·특수문자 조합"
+              disabled={saving}
+            />
             {signup && (
               <div className="password-rule-card">
                 <div className="row small">
@@ -249,28 +239,19 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
           </div>
           {signup && (
             <div className="auth-field-group">
-              <label>
-                <span>
-                  비밀번호 확인{' '}
-                  <span className="required-mark" aria-hidden="true">
-                    *
-                  </span>
-                </span>
-                <input
-                  aria-label="비밀번호 확인"
-                  name="confirm"
-                  value={confirmation}
-                  onChange={(event) => setConfirmation(event.target.value)}
-                  aria-describedby="password-confirmation"
-                  type="password"
-                  required
-                  minLength={8}
-                  maxLength={128}
-                  autoComplete="new-password"
-                  placeholder="비밀번호를 한 번 더 입력"
-                  disabled={saving}
-                />
-              </label>
+              <PasswordInput
+                label="비밀번호 확인"
+                name="confirm"
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                aria-describedby="password-confirmation"
+                required
+                minLength={8}
+                maxLength={128}
+                autoComplete="new-password"
+                placeholder="비밀번호를 한 번 더 입력"
+                disabled={saving}
+              />
               {confirmation && (
                 <p id="password-confirmation" role="status" className="small">
                   {password === confirmation
