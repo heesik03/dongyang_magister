@@ -30,4 +30,11 @@ public class GeminiService {
             return geminiClient.generateAnalysis(prompt);
         }
     }
+
+    /** 사건 추출도 같은 사용자별 호출 제한과 공급자 슬롯을 사용한다. */
+    public String extractEvents(Long ownerId, String prompt) {
+        try (Reservation reservation = rateLimiter.awaitReservation(ownerId)) {
+            return geminiClient.generateEvents(prompt);
+        }
+    }
 }
