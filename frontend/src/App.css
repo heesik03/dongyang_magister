@@ -8,6 +8,32 @@
   line-height: 32px;
   letter-spacing: 0;
 }
+.extraction-flow {
+  padding: 16px;
+  margin: 16px 0;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.extraction-candidate {
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.extraction-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.extraction-check input,
+.event-order button {
+  width: auto;
+}
+.extraction-source {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .manuscript-transfer textarea {
   max-height: 240px;
   overflow: auto;

@@ -38,6 +38,18 @@ export function isWorks(value: unknown): value is Work[] {
         (event) =>
           record(event) &&
           strings(event, ['id', 'title', 'time', 'characters', 'chapterId', 'quote']) &&
+          ['sequence', 'startOffset', 'endOffset', 'sourceRevision'].every(
+            (key) =>
+              event[key] == null ||
+              (typeof event[key] === 'number' &&
+                Number.isSafeInteger(event[key]) &&
+                event[key] >= (key === 'sourceRevision' || key === 'endOffset' ? 1 : 0)),
+          ) &&
+          (event.timeStatus == null ||
+            event.timeStatus === 'CONFIRMED' ||
+            event.timeStatus === 'UNRESOLVED') &&
+          (event.extractionId == null ||
+            (typeof event.extractionId === 'string' && event.extractionId.length <= 36)) &&
           (event.description === undefined ||
             (typeof event.description === 'string' && event.description.length <= 2000)),
       ) &&
