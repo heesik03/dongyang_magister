@@ -48,6 +48,11 @@ public class RequestSizeFilter extends OncePerRequestFilter {
             reject(response);
             return;
         }
+        String contentType = request.getContentType();
+        if (contentType != null && contentType.regionMatches(true, 0, "multipart/", 0, 10)) {
+            chain.doFilter(request, response);
+            return;
+        }
         // chunked 전송도 같은 상한을 적용해 JSON 역직렬화 전에 크기를 제한한다.
         byte[] body = request.getInputStream().readNBytes(MAX_BYTES + 1);
         if (body.length > MAX_BYTES) {

@@ -1,6 +1,10 @@
 spring:
   application:
     name: backend
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 8MB
   config:
     import: "optional:file:./.env[.properties]"
 

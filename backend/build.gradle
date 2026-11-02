@@ -29,6 +29,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
+    // 원고 Export/Import: 마크다운 AST 파싱(CommonMark), PDF 생성·추출(PDFBox), DOCX 생성·추출(Apache POI).
+    // Java 21 호환 안정 버전을 고정하며 외부 런타임 의존 없이 서버 내부에서 문서를 변환한다.
+    implementation 'org.commonmark:commonmark:0.24.0'
+    implementation 'org.commonmark:commonmark-ext-gfm-strikethrough:0.24.0'
+    implementation 'org.apache.pdfbox:pdfbox:3.0.4'
+    implementation 'org.apache.poi:poi-ooxml:5.4.0'
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'com.mysql:mysql-connector-j'
     annotationProcessor 'org.projectlombok:lombok'
