@@ -52,7 +52,37 @@ public record WorkspaceData(
             @NotNull @Size(max = 500) String characters,
             @NotNull @Size(max = 64) String chapterId,
             @NotNull @Size(max = 10000) String quote,
-            @NotNull @Size(max = 2000) String description) {
+            @NotNull @Size(max = 2000) String description,
+            @Min(0) Integer sequence,
+            @Pattern(regexp = "CONFIRMED|UNRESOLVED") String timeStatus,
+            @Min(1) Long sourceRevision,
+            @Min(0) Integer startOffset,
+            @Min(1) Integer endOffset,
+            @Size(max = 36) String extractionId) {
+        public EventData(
+                String id,
+                String title,
+                String time,
+                String characters,
+                String chapterId,
+                String quote,
+                String description) {
+            this(
+                    id,
+                    title,
+                    time,
+                    characters,
+                    chapterId,
+                    quote,
+                    description,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+        }
+
         public EventData {
             // 이전 JSON에는 사건 설명이 없으므로 빈 설명으로 읽어 호환성을 유지한다.
             description = description == null ? "" : description;

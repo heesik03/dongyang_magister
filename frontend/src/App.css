@@ -8,6 +8,49 @@
   line-height: 32px;
   letter-spacing: 0;
 }
+.extraction-flow {
+  padding: 16px;
+  margin: 16px 0;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.extraction-candidate {
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.extraction-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.extraction-check input,
+.event-order button {
+  width: auto;
+}
+.extraction-source {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.manuscript-transfer textarea {
+  max-height: 240px;
+  overflow: auto;
+}
+.transfer-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: var(--color-warning-soft, #fff7e5);
+  border-radius: 8px;
+}
+.transfer-confirm input {
+  width: auto;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
 .brand svg {
   color: var(--color-primary);
   width: 26px;

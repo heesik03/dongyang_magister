@@ -1,5 +1,7 @@
 package com.magister.backend.domain.work.controller;
 
+import com.magister.backend.domain.chapter.dto.ManuscriptExportFile;
+import com.magister.backend.domain.chapter.service.ManuscriptExportService;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.docs.WorkControllerDocs;
 import com.magister.backend.domain.work.dto.CreateWorkRequest;
@@ -12,6 +14,8 @@ import com.magister.backend.global.response.ApiResult;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/work")
@@ -32,6 +37,7 @@ import java.net.URI;
 public class WorkController implements WorkControllerDocs {
     private final WorkService workService;
     private final WorkDeletionService workDeletionService;
+    private final ManuscriptExportService manuscriptExportService;
 
     @Override
     @DeleteMapping("/{workId}")
@@ -77,5 +83,23 @@ public class WorkController implements WorkControllerDocs {
             @PathVariable Long workId,
             @RequestBody UpdateWorkRequest request) {
         return ApiResult.success(workService.update(user.id(), workId, request));
+    }
+
+    @Override
+    @GetMapping("/{workId}/export")
+    public ResponseEntity<byte[]> exportWork(
+            @AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId,
+            @RequestParam(defaultValue = "txt") String format) {
+        ManuscriptExportFile exported =
+                manuscriptExportService.exportWork(user.id(), workId, format);
+        ContentDisposition disposition =
+                ContentDisposition.attachment()
+                        .filename(exported.filename(), StandardCharsets.UTF_8)
+                        .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .header(HttpHeaders.CONTENT_TYPE, exported.contentType())
+                .body(exported.content());
     }
 }

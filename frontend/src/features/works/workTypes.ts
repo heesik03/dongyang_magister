@@ -41,6 +41,12 @@ export interface Analysis {
   settingsSnapshot?: string
 }
 export interface StoryEvent {
+  sequence?: number | null
+  timeStatus?: 'CONFIRMED' | 'UNRESOLVED' | null
+  sourceRevision?: number | null
+  startOffset?: number | null
+  endOffset?: number | null
+  extractionId?: string | null
   description?: string
   id: string
   title: string

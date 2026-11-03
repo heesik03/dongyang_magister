@@ -7,6 +7,10 @@ import com.magister.backend.domain.analysis.dto.AnalysisInput.SettingReference;
 import com.magister.backend.domain.analysis.dto.ValidatedAnalysis;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.decision.dto.DecisionReference;
+import com.magister.backend.domain.timeline.dto.ExtractionData.Candidate;
+import com.magister.backend.domain.timeline.dto.ExtractionData.Input;
+import com.magister.backend.domain.timeline.dto.ExtractionData.Source;
+import com.magister.backend.domain.timeline.service.ExtractionResultProcessor;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.gemini.GeminiClient;
@@ -45,6 +49,80 @@ class GeminiQualityEvaluationTests {
     @Autowired GeminiProperties geminiProperties;
     @Autowired AnalysisResultProcessor resultProcessor;
     @Autowired ObjectMapper objectMapper;
+    @Autowired ExtractionResultProcessor extractionResultProcessor;
+
+    @Test
+    void evaluatesSyntheticTimelineAndWritesMeasuredResults() throws Exception {
+        Input input =
+                new Input(
+                        List.of(
+                                new Source(
+                                        "c1",
+                                        "1화",
+                                        1,
+                                        1,
+                                        "1일차 아침, 린은 마법학교에 입학했다.\n종이 울렸다.\n"
+                                                + "린은 어린 시절을 떠올렸다. 열 살 때 유진과 도서관에서 약속을 맺었다.\n"
+                                                + "사흘 뒤 린은 왕도로 출발했다.\n종이 울렸다."),
+                                new Source("c2", "2화", 1, 2, "언제인지 알 수 없는 날, 유진은 은빛 열쇠를 발견했다.")),
+                        geminiProperties.model());
+        long started = System.nanoTime();
+        Path report = Path.of("build/reports/event-extraction-evaluation.json");
+        Files.createDirectories(report.getParent());
+        try {
+            String raw = geminiClient.generateEvents(extractionResultProcessor.prompt(input));
+            List<Candidate> candidates = extractionResultProcessor.parse(raw, input);
+            String quotes =
+                    candidates.stream().map(Candidate::quote).collect(Collectors.joining("\n"));
+            List<String> missing =
+                    List.of("입학", "약속", "왕도", "열쇠").stream()
+                            .filter(marker -> !quotes.contains(marker))
+                            .toList();
+            long uniqueEvidence =
+                    candidates.stream()
+                            .map(
+                                    candidate ->
+                                            candidate.chapterId()
+                                                    + ":"
+                                                    + candidate.startOffset()
+                                                    + ":"
+                                                    + candidate.endOffset())
+                            .distinct()
+                            .count();
+            Files.writeString(
+                    report,
+                    objectMapper.writeValueAsString(
+                            Map.of(
+                                    "model",
+                                    geminiProperties.model(),
+                                    "milliseconds",
+                                    (System.nanoTime() - started) / 1_000_000,
+                                    "contractValid",
+                                    true,
+                                    "missingExpectedMarkers",
+                                    missing,
+                                    "duplicateEvidenceCount",
+                                    candidates.size() - uniqueEvidence,
+                                    "candidates",
+                                    candidates)));
+            assertThat(candidates).isNotEmpty();
+            assertThat(missing).isEmpty();
+            assertThat(candidates)
+                    .allMatch(candidate -> candidate.timeStatus().equals("UNRESOLVED"));
+        } catch (Exception failure) {
+            Files.writeString(
+                    report,
+                    objectMapper.writeValueAsString(
+                            Map.of(
+                                    "milliseconds",
+                                    (System.nanoTime() - started) / 1_000_000,
+                                    "contractValid",
+                                    false,
+                                    "errorType",
+                                    failure.getClass().getSimpleName())));
+            throw failure;
+        }
+    }
 
     private record Scenario(
             String name,

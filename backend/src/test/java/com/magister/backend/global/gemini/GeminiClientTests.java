@@ -106,6 +106,22 @@ class GeminiClientTests {
     }
 
     @Test
+    void eventsUseTheirOwnSchemaWithoutChangingReviewContract() {
+        when(models.generateContent(
+                        eq("test-model"), eq("events"), any(GenerateContentConfig.class)))
+                .thenReturn(
+                        GenerateContentResponse.fromJson(
+                                "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{}\"}]}}]}"));
+        client.generateEvents("events");
+        ArgumentCaptor<GenerateContentConfig> captured =
+                ArgumentCaptor.forClass(GenerateContentConfig.class);
+        verify(models).generateContent(eq("test-model"), eq("events"), captured.capture());
+        assertThat(captured.getValue().responseSchema().orElseThrow().required().orElseThrow())
+                .containsExactly("events");
+        assertThat(captured.getValue().responseMimeType()).contains("application/json");
+    }
+
+    @Test
     void rejectsBlankInputWithoutCallingProvider() {
         assertThatThrownBy(() -> client.generateText(" "))
                 .isInstanceOf(IllegalArgumentException.class);

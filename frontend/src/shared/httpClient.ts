@@ -44,6 +44,7 @@ interface RequestOptions {
   params?: Record<string, string | number | undefined>
   // 로그인 거절의 401은 기존 세션 만료와 구분한다.
   expireSessionOnUnauthorized?: boolean
+  responseType?: 'blob'
 }
 async function send(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
@@ -72,9 +73,21 @@ async function send(
     if (response.status === 401 && expireSessionOnUnauthorized) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
     }
-    throw new ApiError(parseErrorMessage(response.data), response.status)
+    let errorBody: unknown = response.data
+    if (errorBody instanceof Blob) {
+      try {
+        errorBody = JSON.parse(await errorBody.text())
+      } catch {
+        errorBody = undefined
+      }
+    }
+    throw new ApiError(parseErrorMessage(errorBody), response.status)
   }
   if (response.status === 204) return undefined
+  if (options.responseType === 'blob') {
+    if (!(response.data instanceof Blob)) throw new Error('파일 응답 형식이 올바르지 않습니다.')
+    return response.data
+  }
   const body = readRecord(response.data)
   if (body.success !== true || !('data' in body)) {
     throw new Error('서버 응답 형식이 올바르지 않습니다.')
@@ -130,7 +143,7 @@ async function sendWithCsrf(
     options,
     data,
     {
-      'Content-Type': 'application/json',
+      ...(data instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       [headerName]: token,
     },
     requestRevision,

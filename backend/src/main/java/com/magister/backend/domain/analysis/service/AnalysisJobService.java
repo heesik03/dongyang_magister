@@ -12,6 +12,7 @@ import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.support.AnalysisInputFactory;
 import com.magister.backend.domain.chapter.repository.ChapterRepository;
 import com.magister.backend.domain.decision.service.DecisionReferenceService;
+import com.magister.backend.domain.timeline.repository.EventExtractionRepository;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.service.WorkAccessService;
@@ -46,6 +47,7 @@ public class AnalysisJobService {
     private static final List<AnalysisJobStatus> ACTIVE_STATUSES =
             List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING);
     private final AnalysisAdmissionRepository admissionRepository;
+    private final EventExtractionRepository eventExtractionRepository;
     private final AnalysisJobRepository analysisJobRepository;
     private final WorkAccessService workAccessService;
     private final WorkspaceSnapshotService snapshotService;
@@ -90,8 +92,13 @@ public class AnalysisJobService {
         }
 
         // 이 검사는 공통 접수 잠금을 보유한 상태에서만 원자적인 예약 의미를 가진다.
-        if (analysisJobRepository.countByWork_Owner_IdAndStatusIn(ownerId, ACTIVE_STATUSES) >= 1
+        if (analysisJobRepository.countByWork_Owner_IdAndStatusIn(ownerId, ACTIVE_STATUSES)
+                                + eventExtractionRepository.countByWork_Owner_IdAndStatusIn(
+                                        ownerId, List.of("QUEUED", "RUNNING"))
+                        >= 1
                 || analysisJobRepository.countByStatusIn(ACTIVE_STATUSES)
+                                + eventExtractionRepository.countByStatusIn(
+                                        List.of("QUEUED", "RUNNING"))
                         >= executionProperties.getMaxActiveJobs()) {
             throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
         }

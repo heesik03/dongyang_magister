@@ -284,4 +284,11 @@ public interface WorkControllerDocs {
     })
     ApiResult<WorkResponse> update(
             LoginUser user, @Positive Long workId, @Valid UpdateWorkRequest request);
+
+    @Operation(
+            summary = "작품 전체 회차 통합 내보내기 (Export)",
+            description =
+                    "본인 작품의 전체 회차를 회차 번호 오름차순으로 통합하여 요청 포맷(txt, md, pdf, docx)으로 내보냅니다. 작품 제목과 장르,"
+                        + " 각 회차 제목이 포함됩니다. 200/400/401/404.")
+    ResponseEntity<byte[]> exportWork(LoginUser user, @Positive Long workId, String format);
 }

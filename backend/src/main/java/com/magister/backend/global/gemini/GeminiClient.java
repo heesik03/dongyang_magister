@@ -36,6 +36,11 @@ public class GeminiClient {
         return generateText(prompt, GeminiAnalysisConfig.create(properties.model()));
     }
 
+    /** 사건 추출 전용 JSON 계약을 사용하며 기존 설정 검토의 응답 스키마는 유지한다. */
+    public String generateEvents(String prompt) {
+        return generateText(prompt, GeminiEventConfig.create());
+    }
+
     private String generateText(String prompt, GenerateContentConfig config) {
         if (prompt == null || prompt.isBlank()) {
             throw new IllegalArgumentException("prompt must not be blank");

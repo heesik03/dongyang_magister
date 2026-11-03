@@ -59,6 +59,7 @@ interface WorksState {
   handleRemoteSave: (id: string, version: number) => void
   handleRemoteChapterSave: (id: string, chapterId: string, version: number) => Promise<void>
   resolveChapterConflict: (id: string, server: SavedChapter) => void
+  acceptImportedChapter: (id: string, server: SavedChapter) => void
   recoverDraft: (id: string) => void
 }
 const emptyView: SettingView = {
@@ -748,6 +749,49 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     } catch (error) {
       if (revision === accountRevision && !deletedWorkIds.has(id))
         set({ workspaceErrors: { ...get().workspaceErrors, [id]: message(error) } })
+    }
+  },
+  acceptImportedChapter(id, server) {
+    const work = get().works.find((item) => item.id === id)
+    if (!work || deletedWorkIds.has(id)) return
+    // 가져오기 응답보다 최신인 다른 탭의 원고가 이미 도착했다면 되돌리지 않는다.
+    const current = work.chapters.find((chapter) => chapter.id === server.id)
+    if (current?.version !== undefined && current.version > server.version) return
+    if (pendingChapters(work).some((item) => item.id === server.id)) {
+      set({ conflicts: [...new Set([...get().conflicts, id])] })
+      throw new Error(
+        '서버에 가져오기는 완료됐지만 새 입력과 충돌했습니다. 충돌 원고 비교에서 확인해 주세요.',
+      )
+    }
+    const snapshots = chapterSnapshots.get(id) || new Map<string, string>()
+    snapshots.set(server.id, chapterSignature(server))
+    chapterSnapshots.set(id, snapshots)
+    chapterClient.rebase(id, server.id)
+    set({
+      works: get().works.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              version: Math.max(item.version ?? 0, server.workVersion),
+              updatedAt: server.updatedAt,
+              chapters: [
+                ...item.chapters.filter((chapter) => chapter.id !== server.id),
+                server,
+              ].sort((first, second) => (first.chapterNo ?? 0) - (second.chapterNo ?? 0)),
+            }
+          : item,
+      ),
+    })
+    try {
+      localStorage.setItem(
+        'magister.chapter-saved:' + get().account,
+        JSON.stringify({ id, chapterId: server.id, version: server.version, at: Date.now() }),
+      )
+    } catch {
+      set({
+        storageError:
+          '가져오기는 완료됐지만 다른 탭에 알리지 못했습니다. 다른 탭에서 원고를 다시 확인해 주세요.',
+      })
     }
   },
   resolveChapterConflict(id, server) {

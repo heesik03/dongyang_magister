@@ -4,6 +4,9 @@ import type { StoryEvent, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
+import { eventLocation, orderedEvents, sourceLines } from './timelineEvidence'
+import { ExtractionFlow } from './ExtractionFlow'
+import { ExtractionSourceButton } from './ExtractionSourceButton'
 
 export function TimelinePanel({ work }: { work: Work }) {
   const updateWork = useWorksStore((state) => state.updateWork)
@@ -11,11 +14,8 @@ export function TimelinePanel({ work }: { work: Work }) {
   const [filterChapter, setFilterChapter] = useState('')
   const [chapterId, setChapterId] = useState(work.chapters[0]?.id || '')
   const draft = editing && editing !== 'new' ? editing : null
-  const paragraphs =
-    work.chapters
-      .find((chapter) => chapter.id === chapterId)
-      ?.content.split('\n')
-      .filter((text) => text.trim()) || []
+  const sourceChapter = work.chapters.find((chapter) => chapter.id === chapterId)
+  const paragraphs = sourceLines(sourceChapter?.content || '')
   function open(event: StoryEvent | 'new') {
     setEditing(event)
     setChapterId(event === 'new' ? work.chapters[0]?.id || '' : event.chapterId)
@@ -25,14 +25,27 @@ export function TimelinePanel({ work }: { work: Work }) {
     const data = new FormData(event.currentTarget)
     const title = String(data.get('title')).trim()
     if (!title) return
+    const keepEvidence = data.get('quote') === 'stored' && !!draft
+    const selectedLine = paragraphs.find((line) => String(line.start) === data.get('quote'))
     const next: StoryEvent = {
+      ...draft,
       id: draft?.id || crypto.randomUUID(),
       title,
       description: String(data.get('description') || ''),
       time: String(data.get('time')).trim(),
       characters: String(data.get('characters')).trim(),
       chapterId,
-      quote: String(data.get('quote') || ''),
+      quote: keepEvidence ? draft.quote : selectedLine?.quote || '',
+      sourceRevision: keepEvidence
+        ? draft.sourceRevision
+        : selectedLine
+          ? sourceChapter?.revision
+          : undefined,
+      startOffset: keepEvidence ? draft.startOffset : selectedLine?.start,
+      endOffset: keepEvidence ? draft.endOffset : selectedLine?.end,
+      extractionId: keepEvidence ? draft.extractionId : null,
+      sequence: Number(data.get('sequence')),
+      timeStatus: data.get('timeConfirmed') ? 'CONFIRMED' : 'UNRESOLVED',
     }
     updateWork({
       ...work,
@@ -46,20 +59,36 @@ export function TimelinePanel({ work }: { work: Work }) {
   const displayed = work.events.filter(
     (event) => !filterChapter || event.chapterId === filterChapter,
   )
-  const known = displayed
-    .filter((event) => event.time)
-    .sort((a, b) => a.time.localeCompare(b.time, 'ko', { numeric: true }))
-  const unknown = displayed.filter((event) => !event.time)
+  const known = orderedEvents(
+    displayed.filter((event) => event.time && event.timeStatus !== 'UNRESOLVED'),
+  )
+  const unknown = orderedEvents(
+    displayed.filter((event) => !event.time || event.timeStatus === 'UNRESOLVED'),
+  )
+  function move(event: StoryEvent, direction: number) {
+    const sorted = orderedEvents(work.events)
+    const index = sorted.findIndex((item) => item.id === event.id)
+    const target = index + direction
+    if (target < 0 || target >= sorted.length) return
+    ;[sorted[index], sorted[target]] = [sorted[target], sorted[index]]
+    updateWork({ ...work, events: sorted.map((item, sequence) => ({ ...item, sequence })) })
+  }
   function renderEvent(event: StoryEvent, index: number) {
     const chapter = work.chapters.find((item) => item.id === event.chapterId)
     // 원고에서 인용문이 사라졌다면 기존 위치로 이동시키지 않고 근거 변경을 표시한다.
-    const hasSource = chapter?.content.includes(event.quote) && !!event.quote
+    const location = eventLocation(event, chapter)
     return (
       <article className="event-card" key={event.id}>
         <div className="event-order">
           <strong>{String(index + 1).padStart(2, '0')}</strong>
           <span>{event.time || '시점 미상'}</span>
           <span className="small muted">사건 순서 {index + 1}</span>
+          <button onClick={() => move(event, -1)} aria-label={`${event.title} 앞 순서로`}>
+            ↑
+          </button>
+          <button onClick={() => move(event, 1)} aria-label={`${event.title} 뒤 순서로`}>
+            ↓
+          </button>
         </div>
         <div className="event-body">
           <div className="row">
@@ -73,16 +102,21 @@ export function TimelinePanel({ work }: { work: Work }) {
           {event.quote && <blockquote>{event.quote}</blockquote>}
           <div className="row">
             <strong className="event-source">근거 회차 · {chapter?.title || '회차 미지정'}</strong>
-            {hasSource ? (
+            {location ? (
               <Link
                 className="button"
-                to={`/works/${work.id}/manuscript?chapter=${event.chapterId}&quote=${encodeURIComponent(event.quote)}`}
+                to={`/works/${work.id}/manuscript?chapter=${encodeURIComponent(event.chapterId)}&quote=${encodeURIComponent(event.quote)}&start=${location.start}&end=${location.end}`}
               >
                 원문으로 이동 <Icon name="arrow" />
               </Link>
             ) : (
-              <span className="badge warning">원문 확인 필요</span>
+              <span className="badge warning">
+                {event.sourceRevision != null && event.sourceRevision !== chapter?.revision
+                  ? '근거 변경 · 재확인 필요'
+                  : '원문 위치 확인 필요'}
+              </span>
             )}
+            {event.extractionId && <ExtractionSourceButton workId={work.id} event={event} />}
           </div>
         </div>
       </article>
@@ -102,6 +136,7 @@ export function TimelinePanel({ work }: { work: Work }) {
           사건 추가
         </button>
       </div>
+      <ExtractionFlow work={work} />
       <label className="timeline-filter">
         근거 회차
         <select value={filterChapter} onChange={(event) => setFilterChapter(event.target.value)}>
@@ -114,8 +149,8 @@ export function TimelinePanel({ work }: { work: Work }) {
         </select>
       </label>
       <p className="notice small">
-        사건 시점은 숫자를 포함한 이름 순으로 정렬합니다. ‘1일차 밤’, ‘2일차 아침’처럼 기록하세요.
-        시점이 비어 있는 사건은 별도로 표시합니다.
+        사건은 작가가 지정한 이야기 순서로 배치합니다. 회차의 서술 순서와 다를 수 있습니다. 기준이
+        불명확한 상대 시점·회상은 확인 전까지 시점 미상으로 남겨 주세요.
       </p>
       <div className="timeline-list">{known.map(renderEvent)}</div>
       {unknown.length > 0 && (
@@ -158,8 +193,32 @@ export function TimelinePanel({ work }: { work: Work }) {
               />
             </label>
             <label>
+              이야기 순서
+              <input
+                name="sequence"
+                type="number"
+                min={0}
+                max={10000}
+                required
+                defaultValue={
+                  draft?.sequence ??
+                  (draft
+                    ? work.events.findIndex((item) => item.id === draft.id)
+                    : work.events.length)
+                }
+              />
+            </label>
+            <label>
+              <input
+                name="timeConfirmed"
+                type="checkbox"
+                defaultChecked={!!draft?.time && draft.timeStatus !== 'UNRESOLVED'}
+              />
+              시점과 이야기 속 순서를 확인했습니다
+            </label>
+            <label>
               등장인물
-              <input name="characters" defaultValue={draft?.characters} maxLength={200} />
+              <input name="characters" defaultValue={draft?.characters} maxLength={500} />
             </label>
             <label>
               근거 회차
@@ -177,16 +236,15 @@ export function TimelinePanel({ work }: { work: Work }) {
               <select
                 name="quote"
                 key={chapterId}
-                defaultValue={
-                  draft?.chapterId === chapterId && paragraphs.includes(draft.quote)
-                    ? draft.quote
-                    : ''
-                }
+                defaultValue={draft?.chapterId === chapterId && draft.quote ? 'stored' : ''}
               >
                 <option value="">원문 미지정</option>
-                {paragraphs.map((text, index) => (
-                  <option key={`${chapterId}-${index}`} value={text}>
-                    {text}
+                {draft?.chapterId === chapterId && draft.quote && (
+                  <option value="stored">기존 근거 유지 · {draft.quote}</option>
+                )}
+                {paragraphs.map((line) => (
+                  <option key={`${chapterId}-${line.start}`} value={line.start}>
+                    {line.start}–{line.end} · {line.quote}
                   </option>
                 ))}
               </select>

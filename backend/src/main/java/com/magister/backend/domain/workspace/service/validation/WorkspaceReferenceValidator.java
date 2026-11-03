@@ -59,6 +59,35 @@ public class WorkspaceReferenceValidator {
                     || (!event.chapterId().isEmpty() && !chapterIds.contains(event.chapterId()))) {
                 invalid();
             }
+            boolean located =
+                    event.startOffset() != null
+                            || event.endOffset() != null
+                            || event.sourceRevision() != null;
+            if (located) {
+                ChapterData chapter =
+                        data.chapters().stream()
+                                .filter(item -> item.id().equals(event.chapterId()))
+                                .findFirst()
+                                .orElse(null);
+                if (chapter == null
+                        || event.startOffset() == null
+                        || event.endOffset() == null
+                        || event.sourceRevision() == null
+                        || event.sourceRevision() > chapter.revision()
+                        || event.startOffset() < 0
+                        || event.endOffset() <= event.startOffset()
+                        || event.endOffset() - event.startOffset() != event.quote().length()) {
+                    invalid();
+                }
+                // 과거 버전의 근거는 보존한다. 현재 버전이라고 주장한 인용은 정확한 위치까지 검사한다.
+                if (event.sourceRevision() == chapter.revision()
+                        && (event.endOffset() > chapter.content().length()
+                                || !chapter.content()
+                                        .substring(event.startOffset(), event.endOffset())
+                                        .equals(event.quote()))) {
+                    invalid();
+                }
+            }
         }
     }
 
