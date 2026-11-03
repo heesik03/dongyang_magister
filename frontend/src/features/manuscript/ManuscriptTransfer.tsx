@@ -111,14 +111,16 @@ export function ManuscriptTransfer({
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
-        link.download =
-          Array.from(
-            `${work.title}_${scope === 'work' ? '전체 원고' : current?.title}`,
-            (character) =>
-              character.charCodeAt(0) < 32 || /[<>:"/\\|?*]/.test(character) ? '_' : character,
-          ).join('') +
-          '.' +
-          format
+        const safeName = Array.from(
+          `${work.title}_${scope === 'work' ? '전체 원고' : current?.title}`,
+          (character) =>
+            character.charCodeAt(0) < 32 || /[<>:"/\\|?*]/.test(character) ? '_' : character,
+        )
+          .join('')
+          .trim()
+          .replace(/[. ]+$/, '')
+          .slice(0, 80)
+        link.download = (safeName || '원고') + '.' + format
         document.body.appendChild(link)
         link.click()
         link.remove()

@@ -1,7 +1,6 @@
 package com.magister.backend.domain.work.service;
 
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
-import com.magister.backend.domain.timeline.repository.EventExtractionRepository;
 import com.magister.backend.domain.timeline.service.ExtractionDispatcher;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
@@ -23,7 +22,6 @@ public class WorkDeletionService {
     private final WorkAccessService workAccessService;
     private final WorkDeletionRepository workDeletionRepository;
     private final AnalysisDispatcher analysisDispatcher;
-    private final EventExtractionRepository eventExtractionRepository;
     private final ExtractionDispatcher extractionDispatcher;
 
     /** 본인 작품·최신 버전을 확인해 모두 삭제하고 커밋 후에만 로컬 실행을 중단한다. 공급자 자료 삭제는 보장하지 않는다. */
@@ -41,7 +39,14 @@ public class WorkDeletionService {
                                                 || job.status().equals("RUNNING"))
                         .map(WorkDeletionRepository.LockedJob::id)
                         .toList();
-        List<String> extractionIds = eventExtractionRepository.findActiveIds(workId);
+        List<String> extractionIds =
+                workDeletionRepository.lockExtractions(workId).stream()
+                        .filter(
+                                extraction ->
+                                        extraction.status().equals("QUEUED")
+                                                || extraction.status().equals("RUNNING"))
+                        .map(WorkDeletionRepository.LockedJob::id)
+                        .toList();
         workDeletionRepository.delete(workId);
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {

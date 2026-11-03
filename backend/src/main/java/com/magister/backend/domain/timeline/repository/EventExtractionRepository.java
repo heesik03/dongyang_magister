@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,17 +46,27 @@ public interface EventExtractionRepository extends JpaRepository<EventExtraction
     /** 기존 분석과 같은 전역 실행 한도를 사용한다. */
     long countByStatusIn(List<String> statuses);
 
-    /** 작품 삭제 커밋 뒤 로컬에서 실행 중인 사건 추출도 취소하기 위한 ID 목록이다. */
+    /** 로컬 실행기에 남아 있는 미완료 작업의 lease를 갱신하며 만료된 작업을 되살리지 않는다. */
+    @Modifying
     @Query(
-            "select e.id from EventExtraction e where e.work.id=:workId and e.status in"
-                    + " ('QUEUED','RUNNING')")
-    List<String> findActiveIds(@Param("workId") Long workId);
+            "update EventExtraction e set e.leaseUntil = :until, e.version = e.version + 1"
+                    + " where e.id in :ids and e.status in ('QUEUED','RUNNING') and e.leaseUntil > :now")
+    int renewLeases(
+            @Param("ids") Collection<String> ids,
+            @Param("now") Instant now,
+            @Param("until") Instant until);
 
     /** 사라진 실행기의 작업을 실패로 바꾸되 후보와 원고를 삭제하지 않는다. */
     @Modifying
     @Query(
             "update EventExtraction e set e.status='FAILED',e.error='작업 실행 시간이 만료되었습니다. 다시 요청해"
                     + " 주세요.',e.version=e.version+1 where e.status in ('QUEUED','RUNNING') and"
-                    + " e.leaseUntil < :now")
+                    + " e.leaseUntil <= :now")
     int expire(@Param("now") Instant now);
+
+    /** 취소·만료·삭제로 종료된 작업을 로컬 실행기에서도 중단하기 위해 여전히 활성인 ID만 조회한다. */
+    @Query(
+            "select e.id from EventExtraction e where e.id in :ids and e.status in"
+                    + " ('QUEUED','RUNNING')")
+    List<String> findPresentActiveIds(@Param("ids") Collection<String> ids);
 }

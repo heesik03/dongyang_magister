@@ -38,9 +38,9 @@ public class ExtractionInputService {
         for (Chapter chapter : chapters) {
             if (selected.stream()
                     .noneMatch(
-                            s ->
-                                    s.id().equals(chapter.getChapterKey())
-                                            && s.revision() == chapter.getRevision())) {
+                            selection ->
+                                    selection.id().equals(chapter.getChapterKey())
+                                            && selection.revision() == chapter.getRevision())) {
                 throw new CustomException(WorkErrorCode.VERSION_CONFLICT);
             }
         }

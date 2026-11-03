@@ -12,39 +12,31 @@ import com.magister.backend.domain.workspace.dto.SaveWorkspaceRequest;
 import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.EventData;
 
-import lombok.RequiredArgsConstructor;
-
 import org.springframework.stereotype.Component;
 
-import tools.jackson.databind.ObjectMapper;
-
-import java.util.Arrays;
 import java.util.List;
 
 @Component
-@RequiredArgsConstructor
 public class ExtractionConverter {
-    private final ObjectMapper objectMapper;
-
-    public Job response(ExtractionView extraction) {
+    public Job response(ExtractionView extraction, List<Candidate> candidates) {
         return new Job(
                 extraction.getId(),
                 extraction.getStatus(),
                 extraction.getVersion(),
                 extraction.getCreatedAt(),
                 extraction.getError(),
-                Arrays.asList(objectMapper.readValue(extraction.getResult(), Candidate[].class)),
+                candidates,
                 List.of());
     }
 
-    public Job response(EventExtraction extraction) {
+    public Job response(EventExtraction extraction, List<Candidate> candidates) {
         return new Job(
                 extraction.getId(),
                 extraction.getStatus(),
                 extraction.getVersion(),
                 extraction.getCreatedAt(),
                 extraction.getError(),
-                Arrays.asList(objectMapper.readValue(extraction.getResult(), Candidate[].class)),
+                candidates,
                 List.of());
     }
 
@@ -65,6 +57,34 @@ public class ExtractionConverter {
                                                 chapter.getContent()))
                         .toList(),
                 model);
+    }
+
+    public Candidate candidate(
+            String id,
+            String title,
+            String description,
+            String time,
+            String characters,
+            String chapterId,
+            long sourceRevision,
+            int startOffset,
+            int endOffset,
+            String quote,
+            int sequence) {
+        return new Candidate(
+                id,
+                title,
+                description,
+                time,
+                characters,
+                chapterId,
+                sourceRevision,
+                startOffset,
+                endOffset,
+                quote,
+                "HOLD",
+                "UNRESOLVED",
+                sequence);
     }
 
     public EventData event(Candidate candidate, String extractionId) {

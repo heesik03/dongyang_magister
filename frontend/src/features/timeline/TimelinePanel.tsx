@@ -218,7 +218,7 @@ export function TimelinePanel({ work }: { work: Work }) {
             </label>
             <label>
               등장인물
-              <input name="characters" defaultValue={draft?.characters} maxLength={200} />
+              <input name="characters" defaultValue={draft?.characters} maxLength={500} />
             </label>
             <label>
               근거 회차

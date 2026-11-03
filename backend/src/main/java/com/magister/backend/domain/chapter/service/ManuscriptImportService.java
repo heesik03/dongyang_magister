@@ -73,7 +73,7 @@ public class ManuscriptImportService {
         String resolvedTitle = resolveTitle(requestedTitle, parsed.chapterTitle());
 
         CreateChapterRequest createRequest =
-                new CreateChapterRequest(
+                chapterConverter.toCreateRequest(
                         resolvedId, resolvedTitle, parsed.content(), resolvedMutationId);
         return chapterService.create(ownerId, workId, createRequest);
     }
@@ -107,7 +107,7 @@ public class ManuscriptImportService {
                         : existing.getTitle();
 
         UpdateChapterRequest updateRequest =
-                new UpdateChapterRequest(
+                chapterConverter.toUpdateRequest(
                         resolvedTitle, parsed.content(), version, mutationId.strip());
         return chapterService.update(ownerId, workId, chapterId, updateRequest);
     }

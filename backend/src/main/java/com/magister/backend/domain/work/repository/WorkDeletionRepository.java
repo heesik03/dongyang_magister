@@ -23,11 +23,24 @@ public class WorkDeletionRepository {
                 workId);
     }
 
+    /** 작품 삭제와 사건 추출 상태 저장의 순서를 맞추기 위해 추출 작업 행도 ID 순서로 잠근다. */
+    public List<LockedJob> lockExtractions(Long workId) {
+        return jdbcTemplate.query(
+                "SELECT id,status FROM event_extractions WHERE work_id=? ORDER BY id FOR UPDATE",
+                (row, index) -> new LockedJob(row.getString("id"), row.getString("status")),
+                workId);
+    }
+
     /** 실행 중 작업을 먼저 종료시키고 참조 -> 판단 -> 결과 -> 원본 순서로 같은 트랜잭션에서 제거한다. */
     public void delete(Long workId) {
         jdbcTemplate.update(
                 "UPDATE analysis_jobs SET"
                     + " status='CANCELLED',version=version+1,updated_at=CURRENT_TIMESTAMP WHERE"
+                    + " work_id=? AND status IN ('QUEUED','RUNNING')",
+                workId);
+        jdbcTemplate.update(
+                "UPDATE event_extractions SET"
+                    + " status='CANCELLED',version=version+1 WHERE"
                     + " work_id=? AND status IN ('QUEUED','RUNNING')",
                 workId);
         jdbcTemplate.update(
@@ -57,6 +70,7 @@ public class WorkDeletionRepository {
                     + " work_id=?)",
                 workId);
         jdbcTemplate.update("DELETE FROM analysis_jobs WHERE work_id=?", workId);
+        jdbcTemplate.update("DELETE FROM event_extractions WHERE work_id=?", workId);
         jdbcTemplate.update("DELETE FROM workspaces WHERE work_id=?", workId);
         jdbcTemplate.update("DELETE FROM chapters WHERE work_id=?", workId);
         jdbcTemplate.update("DELETE FROM work_settings WHERE work_id=?", workId);

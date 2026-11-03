@@ -24,10 +24,13 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Writer;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,6 +48,7 @@ public class ManuscriptPdfSupport {
     private static final float QUOTE_INDENT = 16.0f;
     private static final float LIST_INDENT = 14.0f;
     private static final int MAX_PDF_PAGES = 2000;
+    private static final int MAX_EXTRACTED_CHARS = 250_000;
 
     private static final List<String> REGULAR_FONT_PATHS =
             List.of(
@@ -69,6 +73,10 @@ public class ManuscriptPdfSupport {
 
     private final MarkdownAstSupport markdownAstSupport;
     private final ManuscriptTextFormatter textFormatter;
+    private volatile byte[] cachedRegularFontBytes;
+    private volatile boolean regularFontResolved;
+    private volatile byte[] cachedBoldFontBytes;
+    private volatile boolean boldFontResolved;
 
     public byte[] exportChapter(Work work, Chapter chapter) {
         try (PDDocument document = new PDDocument();
@@ -120,8 +128,9 @@ public class ManuscriptPdfSupport {
             }
             PDFTextStripper stripper = new PDFTextStripper();
             stripper.setSortByPosition(true);
-            String extracted = stripper.getText(document);
-            String strippedContent = stripTrailingSpacing(extracted);
+            BoundedStringWriter boundedWriter = new BoundedStringWriter(MAX_EXTRACTED_CHARS);
+            stripper.writeText(document, boundedWriter);
+            String strippedContent = stripTrailingSpacing(boundedWriter.toString());
             return textFormatter.extractHeaderAndBody(
                     strippedContent, ExportFormat.PDF, fallbackChapterTitle);
         } catch (CustomException exception) {
@@ -150,12 +159,16 @@ public class ManuscriptPdfSupport {
     }
 
     private PdfFontSet loadFonts(PDDocument document) throws IOException {
-        PDFont regular = loadFontCandidate(document, "/fonts/NotoSansKR-Regular.ttf", REGULAR_FONT_PATHS);
-        PDFont bold = loadFontCandidate(document, "/fonts/NotoSansKR-Bold.ttf", BOLD_FONT_PATHS);
-        if (regular == null) {
-            regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-        }
-        if (bold == null) {
+        byte[] regularBytes = resolveRegularFontBytes();
+        byte[] boldBytes = resolveBoldFontBytes();
+        PDFont regular =
+                regularBytes != null
+                        ? PDType0Font.load(document, new ByteArrayInputStream(regularBytes), true)
+                        : new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+        PDFont bold;
+        if (boldBytes != null) {
+            bold = PDType0Font.load(document, new ByteArrayInputStream(boldBytes), true);
+        } else {
             bold =
                     regular instanceof PDType0Font
                             ? regular
@@ -164,22 +177,76 @@ public class ManuscriptPdfSupport {
         return new PdfFontSet(regular, bold);
     }
 
-    private PDFont loadFontCandidate(
-            PDDocument document, String classpathResource, List<String> systemPaths)
+    private byte[] resolveRegularFontBytes() throws IOException {
+        if (!regularFontResolved) {
+            synchronized (this) {
+                if (!regularFontResolved) {
+                    cachedRegularFontBytes =
+                            readFontCandidateBytes(
+                                    "/fonts/NotoSansKR-Regular.ttf", REGULAR_FONT_PATHS);
+                    regularFontResolved = true;
+                }
+            }
+        }
+        return cachedRegularFontBytes;
+    }
+
+    private byte[] resolveBoldFontBytes() throws IOException {
+        if (!boldFontResolved) {
+            synchronized (this) {
+                if (!boldFontResolved) {
+                    cachedBoldFontBytes =
+                            readFontCandidateBytes("/fonts/NotoSansKR-Bold.ttf", BOLD_FONT_PATHS);
+                    boldFontResolved = true;
+                }
+            }
+        }
+        return cachedBoldFontBytes;
+    }
+
+    private byte[] readFontCandidateBytes(String classpathResource, List<String> systemPaths)
             throws IOException {
         try (InputStream resourceStream =
                 ManuscriptPdfSupport.class.getResourceAsStream(classpathResource)) {
             if (resourceStream != null) {
-                return PDType0Font.load(document, resourceStream, true);
+                return resourceStream.readAllBytes();
             }
         }
         for (String path : systemPaths) {
             File file = new File(path);
             if (file.isFile() && file.canRead() && path.endsWith(".ttf")) {
-                return PDType0Font.load(document, file);
+                return Files.readAllBytes(file.toPath());
             }
         }
         return null;
+    }
+
+    private static final class BoundedStringWriter extends Writer {
+        private final StringBuilder builder = new StringBuilder();
+        private final int maxChars;
+
+        private BoundedStringWriter(int maxChars) {
+            this.maxChars = maxChars;
+        }
+
+        @Override
+        public void write(char[] characters, int offset, int length) {
+            if (builder.length() + length > maxChars) {
+                throw new CustomException(ChapterErrorCode.MANUSCRIPT_TOO_LONG);
+            }
+            builder.append(characters, offset, length);
+        }
+
+        @Override
+        public void flush() {}
+
+        @Override
+        public void close() {}
+
+        @Override
+        public String toString() {
+            return builder.toString();
+        }
     }
 
     private record PdfFontSet(PDFont regular, PDFont bold) {}
@@ -373,7 +440,8 @@ public class ManuscriptPdfSupport {
                 float currentX = PAGE_MARGIN_X + indent;
                 for (StyledSegment segment : line) {
                     PDFont font = segment.bold() ? fonts.bold() : fonts.regular();
-                    String encodable = filterEncodable(font, segment.text());
+                    // wrapSegments에서 이미 인코딩 가능 문자로 정제되었으므로 중복 검사를 생략한다.
+                    String encodable = segment.text();
                     if (encodable.isEmpty()) {
                         continue;
                     }

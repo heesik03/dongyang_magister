@@ -11,6 +11,7 @@ import com.magister.backend.global.error.exception.CustomException;
 
 import lombok.RequiredArgsConstructor;
 
+import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.xwpf.usermodel.Borders;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
@@ -32,6 +33,18 @@ import java.util.Locale;
 public class ManuscriptDocxSupport {
     private static final int BODY_FONT_PT = 11;
     private static final int CODE_FONT_PT = 10;
+    private static final int MAX_RAW_CHARS = 250_000;
+    private static final int MAX_PARAGRAPHS = 20_000;
+    private static final long MAX_ZIP_ENTRY_BYTES = 16L * 1024L * 1024L;
+    private static final long MAX_ZIP_TEXT_CHARS = 1_000_000L;
+    private static final double MIN_INFLATE_RATIO = 0.01d;
+
+    static {
+        // OOXML 압축 폭탄(Zip Bomb) 및 과도한 엔트리 확장을 차단한다.
+        ZipSecureFile.setMinInflateRatio(MIN_INFLATE_RATIO);
+        ZipSecureFile.setMaxEntrySize(MAX_ZIP_ENTRY_BYTES);
+        ZipSecureFile.setMaxTextSize(MAX_ZIP_TEXT_CHARS);
+    }
 
     private final MarkdownAstSupport markdownAstSupport;
     private final ManuscriptTextFormatter textFormatter;
@@ -78,7 +91,11 @@ public class ManuscriptDocxSupport {
         }
         try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(rawBytes))) {
             List<XWPFParagraph> paragraphs = document.getParagraphs();
+            if (paragraphs.size() > MAX_PARAGRAPHS) {
+                throw new CustomException(ChapterErrorCode.MANUSCRIPT_TOO_LONG);
+            }
             List<String> lines = new ArrayList<>();
+            int accumulatedChars = 0;
 
             for (XWPFParagraph paragraph : paragraphs) {
                 String text = paragraph.getText();
@@ -87,11 +104,15 @@ public class ManuscriptDocxSupport {
                 }
                 String trimmed = text.strip();
                 int headingLevel = detectHeadingLevel(paragraph, trimmed);
-                if (headingLevel >= 1 && headingLevel <= 6 && !trimmed.isEmpty()) {
-                    lines.add("#".repeat(headingLevel) + " " + trimmed);
-                } else {
-                    lines.add(text);
+                String line =
+                        (headingLevel >= 1 && headingLevel <= 6 && !trimmed.isEmpty())
+                                ? "#".repeat(headingLevel) + " " + trimmed
+                                : text;
+                accumulatedChars += line.length() + 1;
+                if (accumulatedChars > MAX_RAW_CHARS) {
+                    throw new CustomException(ChapterErrorCode.MANUSCRIPT_TOO_LONG);
                 }
+                lines.add(line);
             }
 
             String joined = String.join("\n", lines);

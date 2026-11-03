@@ -14,6 +14,7 @@ import com.magister.backend.domain.timeline.dto.ExtractionData.PreviewRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.SaveCandidates;
 import com.magister.backend.domain.timeline.entity.EventExtraction;
 import com.magister.backend.domain.timeline.repository.EventExtractionRepository;
+import com.magister.backend.domain.timeline.repository.ExtractionView;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.service.WorkAccessService;
@@ -37,6 +38,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -86,7 +88,7 @@ public class ExtractionService {
                     .equals(request)) {
                 invalid();
             }
-            return extractionConverter.response(existing);
+            return toJob(existing);
         }
         if (!request.consent()) {
             invalid();
@@ -112,14 +114,14 @@ public class ExtractionService {
                         objectMapper.writeValueAsString(input));
         eventExtractionRepository.saveAndFlush(extraction);
         afterCommit(() -> extractionDispatcher.submit(extraction.getId()));
-        return extractionConverter.response(extraction);
+        return toJob(extraction);
     }
 
     /** 소유권을 확인하고 후보만 조회한다. 원고는 별도 근거 API에서 요청한다. */
     @Transactional(readOnly = true)
     public Job get(Long ownerId, Long workId, String id) {
         workAccessService.requireOwned(ownerId, workId);
-        return extractionConverter.response(
+        return toJob(
                 eventExtractionRepository
                         .view(id, workId)
                         .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND)));
@@ -135,7 +137,7 @@ public class ExtractionService {
         return OffsetPageResponse.from(
                 eventExtractionRepository
                         .history(workId, PageRequest.of(page, 5))
-                        .map(extractionConverter::response));
+                        .map(this::toJob));
     }
 
     /** 추출 당시 원고만 반환하고 현재 원고로 대체하지 않는다. */
@@ -157,11 +159,11 @@ public class ExtractionService {
             if (extraction
                     .getResult()
                     .equals(objectMapper.writeValueAsString(request.candidates()))) {
-                return extractionConverter.response(extraction);
+                return toJob(extraction);
             }
             conflict();
         }
-        List<Candidate> original = extractionConverter.response(extraction).candidates();
+        List<Candidate> original = readCandidates(extraction.getResult());
         if (original.size() != request.candidates().size()) {
             invalid();
         }
@@ -184,7 +186,7 @@ public class ExtractionService {
         }
         extraction.edit(objectMapper.writeValueAsString(request.candidates()));
         eventExtractionRepository.flush();
-        return extractionConverter.response(extraction);
+        return toJob(extraction);
     }
 
     /** 선택 후보만 기존 사건 뒤에 추가한다. 기존 ID는 재생성·덮어쓰기하지 않으며 Workspace 버전을 검사한다. */
@@ -204,7 +206,7 @@ public class ExtractionService {
         WorkspaceResponse current = workspaceService.get(ownerId, workId);
         List<EventData> events = new ArrayList<>(current.content().events());
         List<Candidate> included =
-                extractionConverter.response(extraction).candidates().stream()
+                readCandidates(extraction.getResult()).stream()
                         .filter(candidate -> candidate.decision().equals("INCLUDE"))
                         .toList();
         if (included.isEmpty()) {
@@ -239,7 +241,19 @@ public class ExtractionService {
         extraction.cancel();
         eventExtractionRepository.flush();
         afterCommit(() -> extractionDispatcher.cancel(id));
-        return extractionConverter.response(extraction);
+        return toJob(extraction);
+    }
+
+    private Job toJob(ExtractionView extraction) {
+        return extractionConverter.response(extraction, readCandidates(extraction.getResult()));
+    }
+
+    private Job toJob(EventExtraction extraction) {
+        return extractionConverter.response(extraction, readCandidates(extraction.getResult()));
+    }
+
+    private List<Candidate> readCandidates(String resultJson) {
+        return Arrays.asList(objectMapper.readValue(resultJson, Candidate[].class));
     }
 
     private EventExtraction owned(Long ownerId, Long workId, String id, boolean lock) {

@@ -1,11 +1,14 @@
 package com.magister.backend.domain.chapter.service.support;
 
+import com.magister.backend.domain.chapter.converter.ChapterConverter;
 import com.magister.backend.domain.chapter.dto.ExportFormat;
 import com.magister.backend.domain.chapter.dto.ParsedManuscript;
 import com.magister.backend.domain.chapter.entity.Chapter;
 import com.magister.backend.domain.chapter.error.ChapterErrorCode;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.global.error.exception.CustomException;
+
+import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Component;
 
@@ -21,11 +24,14 @@ import java.util.List;
  * TXT·MD 원고 내보내기 문자열 조립과 가져오기 시 UTF-8 디코딩·Magister 상단 헤더 분리를 담당한다.
  */
 @Component
+@RequiredArgsConstructor
 public class ManuscriptTextFormatter {
     private static final String WORK_TITLE_PREFIX = "제목: ";
     private static final String GENRE_PREFIX = "장르: ";
     private static final String CHAPTER_TITLE_PREFIX = "회차: ";
     private static final String HEADER_SEPARATOR = "---";
+
+    private final ChapterConverter chapterConverter;
 
     public byte[] formatChapter(Work work, Chapter chapter) {
         StringBuilder builder = new StringBuilder();
@@ -115,7 +121,7 @@ public class ManuscriptTextFormatter {
 
         String resolvedChapterTitle =
                 chapterTitle.isBlank() ? fallbackChapterTitle : truncateTitle(chapterTitle);
-        return new ParsedManuscript(
+        return chapterConverter.toParsedManuscript(
                 workTitle, genre, resolvedChapterTitle, bodyBuilder.toString(), format);
     }
 

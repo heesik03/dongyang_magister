@@ -52,6 +52,11 @@ public final class ExtractionData {
             @Min(0) long version,
             @NotNull @Size(max = 100) List<@NotNull @Valid Candidate> candidates) {}
 
+    public record ConfirmationRequest(
+            @Min(0) long version,
+            @Min(0) long workspaceVersion,
+            @NotBlank @Size(max = 64) String mutationId) {}
+
     public record Job(
             String id,
             String status,

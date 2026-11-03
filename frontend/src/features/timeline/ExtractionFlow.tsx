@@ -40,13 +40,17 @@ export function ExtractionFlow({ work }: { work: Work }) {
     [message, setMessage] = useState('')
   const active = useRef(true),
     requestId = useRef(''),
-    currentId = useRef('')
+    currentId = useRef(''),
+    editingModal = useRef(false)
   const activeJob = job?.status === 'QUEUED' || job?.status === 'RUNNING'
   const jobId = job?.id
   const key = useCallback(
     (id: string) => `magister.event-draft:${account}:${work.id}:${id}`,
     [account, work.id],
   )
+  useEffect(() => {
+    editingModal.current = mode === 'candidates'
+  }, [mode])
   useEffect(() => {
     active.current = true
     return () => {
@@ -90,7 +94,7 @@ export function ExtractionFlow({ work }: { work: Work }) {
         setHistory(result.items)
         setTotalPages(result.totalPages)
         const next = result.items.find((item) => item.id === currentId.current) ?? result.items[0]
-        if (next) accept(next)
+        if (next && (!editingModal.current || next.id !== currentId.current)) accept(next)
       })
       .catch((failure) => {
         if (!controller.signal.aborted)
@@ -109,11 +113,13 @@ export function ExtractionFlow({ work }: { work: Work }) {
       try {
         const next = await extractionClient.get(work.id, jobId, controller.signal)
         if (controller.signal.aborted) return
-        setJob(next)
-        setCandidates(next.candidates)
-        if (next.status === 'QUEUED' || next.status === 'RUNNING')
+        if (next.status === 'QUEUED' || next.status === 'RUNNING') {
+          setJob(next)
+          setCandidates(next.candidates)
           timer = setTimeout(() => void poll(), 2000)
-        else setHistory((previous) => previous.map((item) => (item.id === next.id ? next : item)))
+        } else {
+          accept(next)
+        }
       } catch (failure) {
         if (!controller.signal.aborted) {
           setError(failure instanceof Error ? failure.message : '추출 상태 조회 실패')
@@ -126,7 +132,7 @@ export function ExtractionFlow({ work }: { work: Work }) {
       controller.abort()
       clearTimeout(timer)
     }
-  }, [work.id, jobId, activeJob])
+  }, [work.id, jobId, activeJob, accept])
   function edit(id: string, patch: Partial<EventCandidate>) {
     if (!job) return
     const next = candidates.map((candidate) =>
@@ -166,14 +172,15 @@ export function ExtractionFlow({ work }: { work: Work }) {
     await useWorksStore.getState().flushWorkspace(work.id)
     const state = useWorksStore.getState(),
       latest = state.works.find((item) => item.id === work.id)
-    if (!active.current || state.account !== account)
-      throw new Error('작품 화면을 다시 확인해 주세요.')
+    if (!active.current) return null
+    if (state.account !== account) throw new Error('작품 화면을 다시 확인해 주세요.')
     if (!latest || state.dirtyIds.includes(work.id) || state.conflicts.includes(work.id))
       throw new Error('현재 입력을 먼저 저장하고 충돌을 해결해 주세요.')
     return latest
   }
   async function preparePreview() {
     const latest = await prepare()
+    if (!latest) return
     const next = await extractionClient.preview(latest, selected)
     if (!active.current) return
     setPreview(next)
@@ -208,6 +215,7 @@ export function ExtractionFlow({ work }: { work: Work }) {
   }
   async function confirm() {
     const latest = await prepare()
+    if (!latest) return
     const next = await saveDraft()
     if (!next) return
     await extractionClient.confirm(work.id, next, latest.workspaceVersion ?? 0, crypto.randomUUID())

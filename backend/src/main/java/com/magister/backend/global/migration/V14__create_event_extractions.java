@@ -32,6 +32,9 @@ public class V14__create_event_extractions extends BaseJavaMigration {
                     "CREATE INDEX ix_extraction_history ON"
                             + " event_extractions(work_id,created_at,id)");
             statement.execute(
+                    "CREATE INDEX ix_extraction_work_status ON"
+                            + " event_extractions(work_id,status)");
+            statement.execute(
                     "CREATE INDEX ix_extraction_active ON event_extractions(status,lease_until)");
         }
     }

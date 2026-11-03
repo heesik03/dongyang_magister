@@ -1,5 +1,6 @@
 package com.magister.backend.domain.timeline.controller;
 
+import com.magister.backend.domain.timeline.dto.ExtractionData.ConfirmationRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.CreateRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Input;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Job;
@@ -17,8 +18,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 import lombok.RequiredArgsConstructor;
 
@@ -43,11 +42,6 @@ import org.springframework.web.bind.annotation.RestController;
         description = "본인 작품·세션·CSRF 필수. 최대 10회차/20만 자, 사용자당 미완료 작업 1개. 409 버전 불일치, 429 접수 한도.")
 public class ExtractionController {
     private final ExtractionService extractionService;
-
-    public record Confirmation(
-            @Min(0) long version,
-            @Min(0) long workspaceVersion,
-            @NotBlank @Size(max = 64) String mutationId) {}
 
     @PostMapping("/preview")
     @Operation(
@@ -119,7 +113,7 @@ public class ExtractionController {
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @PathVariable String id,
-            @Valid @RequestBody Confirmation request) {
+            @Valid @RequestBody ConfirmationRequest request) {
         return ApiResult.success(
                 extractionService.confirm(
                         user.id(),

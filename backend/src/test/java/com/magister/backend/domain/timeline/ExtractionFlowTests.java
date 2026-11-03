@@ -52,44 +52,45 @@ import java.util.UUID;
 @ActiveProfiles("test")
 class ExtractionFlowTests {
     private static final String MANUSCRIPT = "린은 떠났다.\n\n린은 떠났다.";
-    @Autowired ExtractionService service;
-    @Autowired ExtractionWorker worker;
-    @Autowired WorkspaceService workspace;
-    @Autowired ChapterService chapters;
-    @Autowired UserRepository users;
-    @Autowired WorkRepository works;
+    @Autowired ExtractionService extractionService;
+    @Autowired ExtractionWorker extractionWorker;
+    @Autowired WorkspaceService workspaceService;
+    @Autowired ChapterService chapterService;
+    @Autowired UserRepository userRepository;
+    @Autowired WorkRepository workRepository;
     @Autowired MockMvc mockMvc;
-    @MockitoBean ExtractionDispatcher dispatcher;
-    @MockitoBean GeminiClient gemini;
+    @MockitoBean ExtractionDispatcher extractionDispatcher;
+    @MockitoBean GeminiClient geminiClient;
     private Long ownerId;
     private Long workId;
 
     @BeforeEach
     void prepare() {
         User author =
-                users.saveAndFlush(new User(UUID.randomUUID() + "@example.com", "작가", "hash"));
+                userRepository.saveAndFlush(
+                        new User(UUID.randomUUID() + "@example.com", "작가", "hash"));
         ownerId = author.getId();
-        workId = works.saveAndFlush(new Work(author, "타임라인 검증", "판타지", "", "")).getId();
-        chapters.create(
+        workId = workRepository.saveAndFlush(new Work(author, "타임라인 검증", "판타지", "", "")).getId();
+        chapterService.create(
                 ownerId, workId, new CreateChapterRequest("chapter", "1화", MANUSCRIPT, "create"));
     }
 
     private CreateRequest request() {
         List<Selection> selection = List.of(new Selection("chapter", 1));
-        Preview preview = service.preview(ownerId, workId, new PreviewRequest(selection));
+        Preview preview = extractionService.preview(ownerId, workId, new PreviewRequest(selection));
         return new CreateRequest(selection, preview.token(), true, UUID.randomUUID().toString());
     }
 
     private Job succeeded() {
-        when(gemini.generateEvents(anyString()))
+        when(geminiClient.generateEvents(anyString()))
                 .thenReturn(
                         """
                         {"events":[{"title":"왕도로 출발","description":"린이 떠남","time":"사흘 뒤",
                         "characters":"린","chapterId":"chapter","quote":"린은 떠났다.","occurrence":1}]}
                         """);
-        Job created = service.create(ownerId, workId, request());
-        worker.execute(created.id());
-        return service.get(ownerId, workId, created.id());
+        Job created = extractionService.create(ownerId, workId, request());
+        extractionWorker.execute(created.id());
+        return extractionService.get(ownerId, workId, created.id());
     }
 
     private Candidate include(Candidate candidate) {
@@ -116,8 +117,13 @@ class ExtractionFlowTests {
         Candidate candidate = completed.candidates().getFirst();
         assertThat(candidate.startOffset()).isEqualTo(MANUSCRIPT.lastIndexOf("린은 떠났다."));
         assertThat(candidate.timeStatus()).isEqualTo("UNRESOLVED");
-        assertThat(workspace.get(ownerId, workId).content().events()).isEmpty();
-        assertThat(service.source(ownerId, workId, completed.id()).sources().getFirst().content())
+        assertThat(workspaceService.get(ownerId, workId).content().events()).isEmpty();
+        assertThat(
+                        extractionService
+                                .source(ownerId, workId, completed.id())
+                                .sources()
+                                .getFirst()
+                                .content())
                 .isEqualTo(MANUSCRIPT);
     }
 
@@ -125,7 +131,7 @@ class ExtractionFlowTests {
     void confirmationPreservesManualEventsAndIsIdempotentAfterReload() {
         EventData manual = new EventData("manual", "기존 수동 사건", "1일차", "린", "chapter", "", "");
         WorkspaceResponse before =
-                workspace.save(
+                workspaceService.save(
                         ownerId,
                         workId,
                         new SaveWorkspaceRequest(
@@ -136,7 +142,7 @@ class ExtractionFlowTests {
                                 true));
         Job completed = succeeded();
         Job edited =
-                service.save(
+                extractionService.save(
                         ownerId,
                         workId,
                         completed.id(),
@@ -144,7 +150,7 @@ class ExtractionFlowTests {
                                 completed.version(),
                                 List.of(include(completed.candidates().getFirst()))));
         WorkspaceResponse confirmed =
-                service.confirm(
+                extractionService.confirm(
                         ownerId,
                         workId,
                         edited.id(),
@@ -155,7 +161,8 @@ class ExtractionFlowTests {
         assertThat(confirmed.content().events().getFirst()).isEqualTo(manual);
         assertThat(confirmed.content().events().getLast().extractionId()).isEqualTo(edited.id());
         assertThat(
-                        service.confirm(
+                        extractionService
+                                .confirm(
                                         ownerId,
                                         workId,
                                         edited.id(),
@@ -165,16 +172,16 @@ class ExtractionFlowTests {
                                 .content()
                                 .events())
                 .hasSize(2);
-        assertThat(service.get(ownerId, workId, edited.id()).candidates().getFirst().title())
+        assertThat(extractionService.get(ownerId, workId, edited.id()).candidates().getFirst().title())
                 .isEqualTo("작가가 확인한 사건");
     }
 
     @Test
     void changedPreviewAndUnconfirmedConsentNeverCallProvider() {
         CreateRequest prepared = request();
-        chapters.update(
+        chapterService.update(
                 ownerId, workId, "chapter", new UpdateChapterRequest("1화", "바뀐 원고", 0, "change"));
-        assertThatThrownBy(() -> service.create(ownerId, workId, prepared))
+        assertThatThrownBy(() -> extractionService.create(ownerId, workId, prepared))
                 .isInstanceOf(CustomException.class);
         CreateRequest noConsent =
                 new CreateRequest(
@@ -182,39 +189,41 @@ class ExtractionFlowTests {
                         prepared.token(),
                         false,
                         "no-consent");
-        assertThatThrownBy(() -> service.create(ownerId, workId, noConsent))
+        assertThatThrownBy(() -> extractionService.create(ownerId, workId, noConsent))
                 .isInstanceOf(CustomException.class);
-        verifyNoInteractions(gemini);
+        verifyNoInteractions(geminiClient);
     }
 
     @Test
     void requestReplayAndCancellationDoNotRunTwice() {
         CreateRequest request = request();
-        Job created = service.create(ownerId, workId, request);
-        assertThat(service.create(ownerId, workId, request).id()).isEqualTo(created.id());
-        service.cancel(ownerId, workId, created.id());
-        worker.execute(created.id());
-        assertThat(service.get(ownerId, workId, created.id()).status()).isEqualTo("CANCELLED");
-        verifyNoInteractions(gemini);
+        Job created = extractionService.create(ownerId, workId, request);
+        assertThat(extractionService.create(ownerId, workId, request).id()).isEqualTo(created.id());
+        extractionService.cancel(ownerId, workId, created.id());
+        extractionWorker.execute(created.id());
+        assertThat(extractionService.get(ownerId, workId, created.id()).status())
+                .isEqualTo("CANCELLED");
+        verifyNoInteractions(geminiClient);
     }
 
     @Test
     void invalidProviderEvidenceFailsExplicitlyWithoutChangingTimeline() {
-        when(gemini.generateEvents(anyString()))
+        when(geminiClient.generateEvents(anyString()))
                 .thenReturn(
                         """
                         {"events":[{"title":"없는 사건","description":"","time":"","characters":"","chapterId":"chapter","quote":"없는 문장","occurrence":0}]}
                         """);
-        Job created = service.create(ownerId, workId, request());
-        worker.execute(created.id());
-        assertThat(service.get(ownerId, workId, created.id()).status()).isEqualTo("FAILED");
-        assertThat(workspace.get(ownerId, workId).content().events()).isEmpty();
+        Job created = extractionService.create(ownerId, workId, request());
+        extractionWorker.execute(created.id());
+        assertThat(extractionService.get(ownerId, workId, created.id()).status())
+                .isEqualTo("FAILED");
+        assertThat(workspaceService.get(ownerId, workId).content().events()).isEmpty();
     }
 
     @Test
     void staleDraftVersionAndForeignOwnerAreRejected() {
         Job completed = succeeded();
-        service.save(
+        extractionService.save(
                 ownerId,
                 workId,
                 completed.id(),
@@ -222,7 +231,7 @@ class ExtractionFlowTests {
                         completed.version(), List.of(include(completed.candidates().getFirst()))));
         assertThatThrownBy(
                         () ->
-                                service.save(
+                                extractionService.save(
                                         ownerId,
                                         workId,
                                         completed.id(),
@@ -230,8 +239,9 @@ class ExtractionFlowTests {
                                                 completed.version(), completed.candidates())))
                 .isInstanceOf(CustomException.class);
         User stranger =
-                users.saveAndFlush(new User(UUID.randomUUID() + "@example.com", "다른 작가", "hash"));
-        assertThatThrownBy(() -> service.source(stranger.getId(), workId, completed.id()))
+                userRepository.saveAndFlush(
+                        new User(UUID.randomUUID() + "@example.com", "다른 작가", "hash"));
+        assertThatThrownBy(() -> extractionService.source(stranger.getId(), workId, completed.id()))
                 .isInstanceOf(CustomException.class);
     }
 
@@ -241,8 +251,8 @@ class ExtractionFlowTests {
         SaveCandidates request =
                 new SaveCandidates(
                         completed.version(), List.of(include(completed.candidates().getFirst())));
-        Job saved = service.save(ownerId, workId, completed.id(), request);
-        Job replay = service.save(ownerId, workId, completed.id(), request);
+        Job saved = extractionService.save(ownerId, workId, completed.id(), request);
+        Job replay = extractionService.save(ownerId, workId, completed.id(), request);
         assertThat(replay.version()).isEqualTo(saved.version());
         assertThat(replay.candidates()).isEqualTo(saved.candidates());
     }
@@ -251,18 +261,18 @@ class ExtractionFlowTests {
     void sourceSnapshotSurvivesManuscriptChangesAndWorkspaceConflict() {
         Job completed = succeeded();
         Job edited =
-                service.save(
+                extractionService.save(
                         ownerId,
                         workId,
                         completed.id(),
                         new SaveCandidates(
                                 completed.version(),
                                 List.of(include(completed.candidates().getFirst()))));
-        chapters.update(
+        chapterService.update(
                 ownerId, workId, "chapter", new UpdateChapterRequest("1화", "원고 수정", 0, "change"));
-        Input original = service.source(ownerId, workId, edited.id());
+        Input original = extractionService.source(ownerId, workId, edited.id());
         assertThat(original.sources().getFirst().content()).isEqualTo(MANUSCRIPT);
-        workspace.save(
+        workspaceService.save(
                 ownerId,
                 workId,
                 new SaveWorkspaceRequest(
@@ -273,7 +283,7 @@ class ExtractionFlowTests {
                         true));
         assertThatThrownBy(
                         () ->
-                                service.confirm(
+                                extractionService.confirm(
                                         ownerId,
                                         workId,
                                         edited.id(),
@@ -281,9 +291,10 @@ class ExtractionFlowTests {
                                         0,
                                         "confirm"))
                 .isInstanceOf(CustomException.class);
-        assertThat(service.get(ownerId, workId, edited.id()).candidates()).hasSize(1);
+        assertThat(extractionService.get(ownerId, workId, edited.id()).candidates()).hasSize(1);
         WorkspaceResponse confirmed =
-                service.confirm(ownerId, workId, edited.id(), edited.version(), 1, "confirm");
+                extractionService.confirm(
+                        ownerId, workId, edited.id(), edited.version(), 1, "confirm");
         assertThat(confirmed.content().events().getFirst().sourceRevision()).isEqualTo(1L);
     }
 

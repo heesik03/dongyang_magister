@@ -4,6 +4,7 @@ import com.magister.backend.domain.timeline.dto.ExtractionData.Candidate;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Input;
 import com.magister.backend.domain.timeline.entity.EventExtraction;
 import com.magister.backend.domain.timeline.repository.EventExtractionRepository;
+import com.magister.backend.global.config.AnalysisExecutionProperties;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,6 +22,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ExtractionStateService {
     private final EventExtractionRepository eventExtractionRepository;
+    private final AnalysisExecutionProperties executionProperties;
     private final ObjectMapper objectMapper;
 
     public record Claim(Long ownerId, Input input) {}
@@ -56,6 +58,23 @@ public class ExtractionStateService {
                 .ifPresent(
                         extraction ->
                                 extraction.fail("사건 추출에 실패했습니다. 원고와 기존 사건은 유지됩니다. 다시 요청해 주세요."));
+    }
+
+    /** 살아 있는 로컬 작업의 lease를 연장하고 만료·취소된 작업 ID를 반환해 실행기에서 중단시킨다. */
+    @Transactional
+    public List<String> maintain(List<String> localIds) {
+        Instant now = Instant.now();
+        List<String> sortedIds = localIds.stream().sorted().toList();
+        if (!sortedIds.isEmpty()) {
+            eventExtractionRepository.renewLeases(
+                    sortedIds, now, now.plus(executionProperties.getLeaseDuration()));
+        }
+        eventExtractionRepository.expire(now);
+        if (sortedIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> presentActive = eventExtractionRepository.findPresentActiveIds(sortedIds);
+        return sortedIds.stream().filter(id -> !presentActive.contains(id)).toList();
     }
 
     /** 서버 중단·실행 유실은 유한 lease로 복구하며 후보는 보존한다. */
