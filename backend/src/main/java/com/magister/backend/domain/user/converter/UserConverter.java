@@ -2,8 +2,11 @@ package com.magister.backend.domain.user.converter;
 
 import com.magister.backend.domain.user.dto.CsrfResponse;
 import com.magister.backend.domain.user.dto.EmailCheckResponse;
+import com.magister.backend.domain.user.dto.UserActivityResponse;
+import com.magister.backend.domain.user.dto.UserActivityResponse.RecentManuscriptSummary;
 import com.magister.backend.domain.user.dto.UserResponse;
 import com.magister.backend.domain.user.entity.User;
+import com.magister.backend.domain.user.repository.UserActivityRepository.RecentManuscriptRow;
 import com.magister.backend.domain.user.security.AccountPrincipal;
 import com.magister.backend.domain.user.security.LoginUser;
 
@@ -25,11 +28,33 @@ public final class UserConverter {
         return new LoginUser(account.userId(), account.getUsername(), account.displayName());
     }
 
+    public static LoginUser toLoginUser(User user) {
+        return new LoginUser(user.getId(), user.getEmail(), user.getName());
+    }
+
     public static EmailCheckResponse toEmailCheckResponse(boolean available) {
         return new EmailCheckResponse(available);
     }
 
     public static CsrfResponse toCsrfResponse(CsrfToken token) {
         return new CsrfResponse(token.getHeaderName(), token.getToken());
+    }
+
+    public static UserActivityResponse toActivityResponse(
+            long workCount,
+            long chapterCount,
+            long unreviewedCount,
+            RecentManuscriptRow recentRow) {
+        RecentManuscriptSummary recent =
+                recentRow == null
+                        ? null
+                        : new RecentManuscriptSummary(
+                                recentRow.workId(),
+                                recentRow.workTitle(),
+                                recentRow.chapterId(),
+                                recentRow.chapterNo(),
+                                recentRow.chapterTitle(),
+                                recentRow.updatedAt());
+        return new UserActivityResponse(workCount, chapterCount, unreviewedCount, recent);
     }
 }

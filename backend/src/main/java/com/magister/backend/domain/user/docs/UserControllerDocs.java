@@ -1,11 +1,15 @@
 package com.magister.backend.domain.user.docs;
 
+import com.magister.backend.domain.user.dto.ChangePasswordRequest;
 import com.magister.backend.domain.user.dto.CsrfResponse;
 import com.magister.backend.domain.user.dto.EmailCheckRequest;
 import com.magister.backend.domain.user.dto.EmailCheckResponse;
 import com.magister.backend.domain.user.dto.LoginRequest;
 import com.magister.backend.domain.user.dto.SignupRequest;
+import com.magister.backend.domain.user.dto.UpdateProfileRequest;
+import com.magister.backend.domain.user.dto.UserActivityResponse;
 import com.magister.backend.domain.user.dto.UserResponse;
+import com.magister.backend.domain.user.dto.WithdrawUserRequest;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.response.ApiResult;
 
@@ -24,7 +28,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.web.csrf.CsrfToken;
 
-@Tag(name = "User", description = "작가 계정 생성과 세션 기반 로그인·CSRF 토큰 관리")
+@Tag(name = "User", description = "작가 계정 생성과 세션 기반 로그인·CSRF 토큰 및 마이페이지 관리")
 public interface UserControllerDocs {
 
     @Operation(
@@ -288,4 +292,175 @@ public interface UserControllerDocs {
                                 schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<UserResponse> me(LoginUser user);
+
+    @SecurityRequirement(name = "session")
+    @Operation(
+            summary = "내 창작 활동 현황 조회",
+            description =
+                    """
+                    **목적**
+
+                    마이페이지에서 보유 작품 수·저장된 회차 수·미검토 후보 수와 최근 작업 원고를 확인합니다.
+
+                    **도메인 정책**
+
+                    - 미검토 후보 수는 각 회차의 최신 원고 버전(revision)에 대한 가장 최근 완료(SUCCEEDED) 분석 결과만을 기준으로 집계합니다.
+                    - 이전 원고 버전의 분석 결과나 동일 회차의 중복 재분석 이력은 합산하지 않습니다.
+                    """)
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "창작 활동 현황 조회 성공",
+                useReturnTypeSchema = true),
+        @ApiResponse(
+                responseCode = "401",
+                description = "로그인 필요 또는 세션 만료",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
+    })
+    ApiResult<UserActivityResponse> activity(LoginUser user);
+
+    @SecurityRequirement(name = "session")
+    @Operation(
+            summary = "필명 수정",
+            description =
+                    """
+                    **목적**
+
+                    작가 필명을 수정하고 현재 세션의 표시 이름을 즉시 갱신합니다.
+
+                    **도메인 정책**
+
+                    - 필명은 앞뒤 공백을 제거한 뒤 1~30자여야 합니다.
+                    - 서로 다른 계정이 동일한 필명을 사용하는 것을 허용합니다. 이메일은 변경할 수 없습니다.
+                    """)
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "필명 수정 성공",
+                useReturnTypeSchema = true),
+        @ApiResponse(
+                responseCode = "400",
+                description = "필명 검증 오류",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "로그인 필요",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "CSRF 토큰 검증 실패",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
+    })
+    ApiResult<UserResponse> updateProfile(
+            LoginUser user,
+            @Valid UpdateProfileRequest input,
+            HttpServletRequest request,
+            HttpServletResponse response);
+
+    @SecurityRequirement(name = "session")
+    @Operation(
+            summary = "비밀번호 변경",
+            description =
+                    """
+                    **목적**
+
+                    현재 비밀번호를 확인한 뒤 새 비밀번호로 변경하고 모든 로그인 세션을 종료합니다.
+
+                    **도메인 정책**
+
+                    - 새 비밀번호는 공백 없이 영문·숫자·특수문자를 포함한 8~128자여야 하며 확인 입력과 일치해야 합니다.
+                    - 변경 성공 시 해당 계정의 모든 세션을 즉시 무효화하므로 새 비밀번호로 다시 로그인해야 합니다.
+                    """)
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "비밀번호 변경 및 전체 세션 무효화 성공",
+                useReturnTypeSchema = true),
+        @ApiResponse(
+                responseCode = "400",
+                description = "현재 비밀번호 불일치·확인 불일치·새 비밀번호 규칙 위반",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "로그인 필요",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "CSRF 토큰 검증 실패",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
+    })
+    ApiResult<Void> changePassword(
+            LoginUser user,
+            @Valid ChangePasswordRequest input,
+            HttpServletRequest request,
+            HttpServletResponse response);
+
+    @SecurityRequirement(name = "session")
+    @Operation(
+            summary = "회원 탈퇴",
+            description =
+                    """
+                    **목적**
+
+                    본인 확인과 영구 삭제 동의를 거쳐 작가 계정과 소유 작품·하위 기록을 모두 영구 삭제합니다.
+
+                    **도메인 정책**
+
+                    - 현재 비밀번호가 일치하고 agreed=true여야만 탈퇴를 수행합니다.
+                    - 대기·실행 중인 AI 분석 및 사건 추출 작업을 먼저 취소(CANCELLED) 처리하여 늦게 도착하는 워커 결과가 반영되지 않게 합니다.
+                    - 소유 작품·설정집·회차 원고·사건 타임라인·AI 검토 결과·작가 판단 기록·사용자 계정을 단일 트랜잭션에서 삭제하고 모든 세션을 무효화합니다.
+                    """)
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "회원 탈퇴 및 전체 자료 삭제 성공",
+                useReturnTypeSchema = true),
+        @ApiResponse(
+                responseCode = "400",
+                description = "현재 비밀번호 불일치 또는 영구 삭제 미동의",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "로그인 필요",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "CSRF 토큰 검증 실패",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
+    })
+    ApiResult<Void> withdraw(
+            LoginUser user,
+            @Valid WithdrawUserRequest input,
+            HttpServletRequest request,
+            HttpServletResponse response);
 }
