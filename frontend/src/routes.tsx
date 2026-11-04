@@ -1,5 +1,6 @@
 import { ErrorPage } from './features/errors/ErrorPage'
 import { type RouteObject } from 'react-router-dom'
+import { MyPage } from './features/account/MyPage'
 import { AuthPage } from './features/auth/AuthPage'
 import { GuestRoute, ProtectedRoute } from './features/auth/ProtectedRoute'
 import { LibraryPage } from './features/works/LibraryPage'
@@ -13,6 +14,7 @@ export const guestRoutes: RouteObject[] = [
 
 export const protectedRoutes: RouteObject[] = [
   { index: true, element: <LibraryPage /> },
+  { path: 'mypage', element: <MyPage /> },
   { path: 'works/:workId/:tab', element: <WorkPage /> },
 ]
 
