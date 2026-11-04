@@ -2,11 +2,16 @@ import { useState } from 'react'
 import type { Analysis, Decision, Work } from '../works/workTypes'
 import { DecisionEditor } from './DecisionEditor'
 import { Icon } from '../../shared/Icon'
+import { ReviewOverviewModal } from './ReviewOverviewModal'
+import { ReviewComparisonSection } from './ReviewComparisonSection'
 import type { ReviewReport, SourceLocation } from './reviewClient'
 import type { InputSnapshot } from '../analysis/analysisClient'
 
 export function ReviewPanel({
   work,
+  jobId,
+  currentChapterId,
+  onSelectChapter,
   onOpenLedger,
   analysis,
   stale,
@@ -23,6 +28,9 @@ export function ReviewPanel({
 }: {
   onOpenLedger?: () => void
   work: Work
+  jobId?: string
+  currentChapterId?: string
+  onSelectChapter?: (chapterId: string) => void
   analysis?: Analysis
   stale: boolean
   analyzing: boolean
@@ -39,6 +47,10 @@ export function ReviewPanel({
   const [selectedId, setSelectedId] = useState('')
   const [filter, setFilter] = useState('전체')
   const [editing, setEditing] = useState<{ id: string; status: Decision } | null>(null)
+  const [showOverview, setShowOverview] = useState(false)
+  const [showComparison, setShowComparison] = useState(false)
+  const [showSummary, setShowSummary] = useState(true)
+
   const filtered =
     analysis?.reviews
       .map((review) => {
@@ -53,6 +65,25 @@ export function ReviewPanel({
   const selected = filtered.find((review) => review.id === selectedId) || filtered[0]
   const linked = report?.reviews.find((review) => review.id === selected?.id)
   const editingReview = report?.reviews.find((review) => review.id === editing?.id)
+  const summary = report?.summary
+
+  const groupMap = new Map<string, { title: string; ids: string[] }>()
+  if (report?.reviews) {
+    for (const candidate of report.reviews) {
+      const key = candidate.issueGroupKey || candidate.id
+      const existing = groupMap.get(key)
+      if (existing) {
+        existing.ids.push(candidate.id)
+      } else {
+        groupMap.set(key, {
+          title: candidate.issueGroupTitle || candidate.reason,
+          ids: [candidate.id],
+        })
+      }
+    }
+  }
+  const repeatedGroups = Array.from(groupMap.entries()).filter(([, item]) => item.ids.length > 1)
+
   return (
     <aside className="review-panel" aria-label="검토 결과">
       <div className="section-line">
@@ -63,6 +94,53 @@ export function ReviewPanel({
         <span className="badge info">AI 검토</span>
       </div>
       <p className="small muted">근거를 읽고, 이야기의 의도를 알려 주세요.</p>
+
+      {work.source === 'server' && (
+        <div className="review-utility-bar">
+          <button
+            type="button"
+            className={showOverview ? 'selected' : 'ghost small'}
+            aria-pressed={showOverview}
+            onClick={() => setShowOverview((prev) => !prev)}
+          >
+            회차별 검토 현황
+          </button>
+          {jobId && analysis && !analyzing && (
+            <button
+              type="button"
+              className={showComparison ? 'selected' : 'ghost small'}
+              aria-pressed={showComparison}
+              onClick={() => setShowComparison((prev) => !prev)}
+            >
+              수정 전·후 비교
+            </button>
+          )}
+        </div>
+      )}
+
+      {showOverview && work.source === 'server' && (
+        <ReviewOverviewModal
+          workId={work.id}
+          currentChapterId={currentChapterId ?? analysis?.chapterId}
+          onSelectChapter={(chapterId) => {
+            onSelectChapter?.(chapterId)
+          }}
+          onClose={() => setShowOverview(false)}
+        />
+      )}
+
+      {showComparison && jobId && work.source === 'server' && (
+        <ReviewComparisonSection
+          workId={work.id}
+          jobId={jobId}
+          onSelectCandidate={(candidateId) => {
+            setFilter('전체')
+            setSelectedId(candidateId)
+          }}
+          onClose={() => setShowComparison(false)}
+        />
+      )}
+
       {report && !report.legacy && <button onClick={onDecisionSaved}>판단 상태 새로 확인</button>}
       {reportLoading && <p role="status">검토 근거를 불러오고 있습니다.</p>}
       {reportError && (
@@ -141,6 +219,100 @@ export function ReviewPanel({
             </p>
             <span>선택한 이전 원고와 확정 설정을 함께 참고한 결과입니다.</span>
           </div>
+
+          {summary && (
+            <section className="scope-summary-card" aria-label="선택 범위 종합 요약">
+              <div className="row">
+                <strong>선택 범위 종합 요약</strong>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => setShowSummary((prev) => !prev)}
+                >
+                  {showSummary ? '요약 접기' : '요약 펼치기'}
+                </button>
+              </div>
+              {showSummary && (
+                <>
+                  <p className="small muted">{summary.scopeNotice}</p>
+                  <div className="scope-summary-badges">
+                    <span className="badge danger">설정 충돌 후보 {summary.conflictCount}건</span>
+                    <span className="badge warning">설명 보완 {summary.supplementCount}건</span>
+                    <span className="badge">쟁점 그룹 {summary.issueGroupCount}개</span>
+                    <span className="badge info">미검토 {summary.unreviewedCount}건</span>
+                  </div>
+                  {summary.priorityItems.length > 0 && (
+                    <div className="priority-issues">
+                      <span className="detail-label">우선 확인 쟁점</span>
+                      {summary.priorityItems.map((item) => (
+                        <div className="priority-issue-item" key={item.groupKey}>
+                          <div className="row">
+                            <strong>{item.title}</strong>
+                            <span
+                              className={`badge ${
+                                item.type === '설정 충돌 후보' ? 'danger' : 'warning'
+                              }`}
+                            >
+                              {item.type} · {item.candidateIds.length}건
+                            </span>
+                          </div>
+                          <p className="small">{item.summary}</p>
+                          {item.sourceTitles.length > 0 && (
+                            <p className="small muted">관련 출처: {item.sourceTitles.join(', ')}</p>
+                          )}
+                          {item.candidateIds[0] && (
+                            <button
+                              type="button"
+                              className="text-button"
+                              onClick={() => {
+                                setFilter('전체')
+                                setSelectedId(item.candidateIds[0])
+                              }}
+                            >
+                              관련 후보 확인 ({item.candidateIds.length}건) →
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+
+          {repeatedGroups.length > 0 && (
+            <details className="issue-groups-box">
+              <summary>
+                반복 쟁점 묶음 ({repeatedGroups.length}개 그룹 · 개별 근거 분리 유지)
+              </summary>
+              <div className="issue-groups-list">
+                {repeatedGroups.map(([groupKey, group]) => (
+                  <div key={groupKey} className="issue-group-item">
+                    <strong>
+                      {group.title} ({group.ids.length}건)
+                    </strong>
+                    <div className="issue-group-candidates">
+                      {group.ids.map((id, index) => (
+                        <button
+                          key={id}
+                          type="button"
+                          className={`ghost small ${selected?.id === id ? 'selected' : ''}`}
+                          onClick={() => {
+                            setFilter('전체')
+                            setSelectedId(id)
+                          }}
+                        >
+                          위치 {index + 1} 열기
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
           {stale && (
             <p className="notice stale" role="status">
               원고·이전 회차 또는 참고 설정이 바뀌었습니다. 이전 결과입니다. 근거를 선택하면 분석
@@ -176,27 +348,32 @@ export function ReviewPanel({
           ) : (
             <>
               <div className="review-list">
-                {filtered.map((review) => (
-                  <button
-                    className={`review-summary ${selected?.id === review.id ? 'selected' : ''}`}
-                    key={review.id}
-                    onClick={() => {
-                      setSelectedId(review.id)
-                      const candidate = report?.reviews.find((item) => item.id === review.id)
-                      if (candidate) onJump({ ...candidate, sourceId: candidate.targetSourceId })
-                    }}
-                  >
-                    <div className="row">
-                      <span
-                        className={`badge ${review.type === '설정 충돌 후보' ? 'danger' : 'warning'}`}
-                      >
-                        {review.type}
-                      </span>
-                      <span className="badge">{review.decision}</span>
-                    </div>
-                    <p>{review.quote}</p>
-                  </button>
-                ))}
+                {filtered.map((review) => {
+                  const candidate = report?.reviews.find((item) => item.id === review.id)
+                  return (
+                    <button
+                      className={`review-summary ${selected?.id === review.id ? 'selected' : ''}`}
+                      key={review.id}
+                      onClick={() => {
+                        setSelectedId(review.id)
+                        if (candidate) onJump({ ...candidate, sourceId: candidate.targetSourceId })
+                      }}
+                    >
+                      <div className="row">
+                        <span
+                          className={`badge ${review.type === '설정 충돌 후보' ? 'danger' : 'warning'}`}
+                        >
+                          {review.type}
+                        </span>
+                        <span className="badge">{review.decision}</span>
+                      </div>
+                      {candidate?.issueGroupTitle && (
+                        <span className="small muted">{candidate.issueGroupTitle}</span>
+                      )}
+                      <p>{review.quote}</p>
+                    </button>
+                  )
+                })}
               </div>
               {selected && (
                 <article className="review-detail">
@@ -205,7 +382,7 @@ export function ReviewPanel({
                       ? '확인 필요 · 능력 설정'
                       : '판단 유보 · 행동의 동기'}
                   </span>
-                  <h3>원문과 설정 사이의 연결</h3>
+                  <h3>{linked?.issueGroupTitle || '원문과 설정 사이의 연결'}</h3>
                   <span className="detail-label">
                     검토 원문 ·{' '}
                     {input?.chapter.title ??
@@ -253,6 +430,55 @@ export function ReviewPanel({
                   <p>{selected.reason}</p>
                   <span className="detail-label">수정 방향</span>
                   <p>{selected.suggestion}</p>
+
+                  {linked &&
+                    (linked.confirmedFact ||
+                      linked.interpretation ||
+                      linked.missingInfo ||
+                      (linked.options && linked.options.length > 0)) && (
+                      <section className="structured-review-stages" aria-label="4단계 검토 구조">
+                        <span className="detail-label">사실 · 해석 · 부족 정보 · 보완 선택지</span>
+                        {linked.confirmedFact && (
+                          <div className="review-stage-block">
+                            <strong>1. 확인된 사실</strong>
+                            <p>{linked.confirmedFact}</p>
+                          </div>
+                        )}
+                        {linked.interpretation && (
+                          <div className="review-stage-block">
+                            <strong>2. 해석이 필요한 부분</strong>
+                            <p>{linked.interpretation}</p>
+                          </div>
+                        )}
+                        {linked.missingInfo && (
+                          <div className="review-stage-block">
+                            <strong>3. 부족한 정보</strong>
+                            <p>{linked.missingInfo}</p>
+                          </div>
+                        )}
+                        {linked.options && linked.options.length > 0 && (
+                          <div className="review-stage-block">
+                            <strong>4. 가능한 보완 방향 (원고 자동 수정 없음)</strong>
+                            <div className="revision-options-list">
+                              {linked.options.map((option, index) => (
+                                <div
+                                  className="revision-option-card"
+                                  key={`${option.title}:${index}`}
+                                >
+                                  <strong>{option.title}</strong>
+                                  <p>{option.direction}</p>
+                                  <p className="small muted">전제: {option.premise}</p>
+                                  {option.rationale && (
+                                    <p className="small muted">이유: {option.rationale}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </section>
+                    )}
+
                   {selected.note && (
                     <div className="notice small">
                       <strong>작가 판단 · 지정한 범위와 조건에서 참고</strong>

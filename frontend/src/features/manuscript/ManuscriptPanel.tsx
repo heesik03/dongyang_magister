@@ -655,6 +655,9 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         <ReviewPanel
           key={chapter?.id || 'empty'}
           work={work}
+          jobId={jobs.job?.status === 'SUCCEEDED' ? jobs.job.id : undefined}
+          currentChapterId={chapter?.id}
+          onSelectChapter={changeChapter}
           analysis={analysis}
           report={reportState.report}
           input={snapshot?.input}

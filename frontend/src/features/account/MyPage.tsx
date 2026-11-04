@@ -16,15 +16,17 @@ export function MyPage() {
   const dirtyIds = useWorksStore((state) => state.dirtyIds)
 
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile')
-  const [name, setName] = useState(user?.name ?? '')
+  const [nameDraft, setNameDraft] = useState<string | null>(null)
   const [profileBusy, setProfileBusy] = useState(false)
   const [profileError, setProfileError] = useState('')
   const [profileNotice, setProfileNotice] = useState('')
 
-  const [activity, setActivity] = useState<UserActivity | null>(null)
-  const [activityLoading, setActivityLoading] = useState(true)
-  const [activityError, setActivityError] = useState('')
   const [activityReload, setActivityReload] = useState(0)
+  const [activityState, setActivityState] = useState<{
+    key: number
+    activity: UserActivity | null
+    error: string
+  } | null>(null)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -36,31 +38,23 @@ export function MyPage() {
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false)
 
   useEffect(() => {
-    if (user) {
-      setName(user.name)
-    }
-  }, [user])
-
-  useEffect(() => {
+    const key = activityReload
     const controller = new AbortController()
-    setActivityLoading(true)
-    setActivityError('')
     void accountClient
       .getActivity(controller.signal)
       .then((result) => {
         if (!controller.signal.aborted) {
-          setActivity(result)
-          setActivityLoading(false)
+          setActivityState({ key, activity: result, error: '' })
         }
       })
       .catch((failure) => {
         if (!controller.signal.aborted) {
-          setActivityLoading(false)
-          setActivityError(
-            failure instanceof Error
-              ? failure.message
-              : '창작 공간 현황을 불러오지 못했습니다.',
-          )
+          setActivityState({
+            key,
+            activity: null,
+            error:
+              failure instanceof Error ? failure.message : '창작 공간 현황을 불러오지 못했습니다.',
+          })
         }
       })
     return () => controller.abort()
@@ -68,6 +62,12 @@ export function MyPage() {
 
   if (!user) return null
 
+  const currentActivityState = activityState?.key === activityReload ? activityState : null
+  const activity = currentActivityState?.activity ?? null
+  const activityLoading = !currentActivityState
+  const activityError = currentActivityState?.error ?? ''
+
+  const name = nameDraft ?? user.name
   const trimmedName = name.trim()
   const isProfileUnchanged = trimmedName === user.name
 
@@ -90,7 +90,7 @@ export function MyPage() {
     try {
       const updated = await accountClient.updateProfile(trimmedName)
       updateUser(updated)
-      setName(updated.name)
+      setNameDraft(null)
       setProfileNotice('필명이 저장되었습니다.')
     } catch (failure) {
       setProfileError(
@@ -112,11 +112,7 @@ export function MyPage() {
       setPasswordError('현재 비밀번호를 입력해 주세요.')
       return
     }
-    if (
-      newPassword.length < 8 ||
-      newPassword.length > 128 ||
-      !PASSWORD_PATTERN.test(newPassword)
-    ) {
+    if (newPassword.length < 8 || newPassword.length > 128 || !PASSWORD_PATTERN.test(newPassword)) {
       setPasswordError(
         '새 비밀번호는 공백 없이 영문·숫자·특수문자를 포함하여 8~128자로 입력해 주세요.',
       )
@@ -226,7 +222,7 @@ export function MyPage() {
                     maxLength={30}
                     disabled={profileBusy}
                     onChange={(event) => {
-                      setName(event.target.value)
+                      setNameDraft(event.target.value)
                       if (profileError) setProfileError('')
                       if (profileNotice) setProfileNotice('')
                     }}
@@ -260,7 +256,7 @@ export function MyPage() {
                     className="ghost"
                     disabled={profileBusy || isProfileUnchanged}
                     onClick={() => {
-                      setName(user.name)
+                      setNameDraft(null)
                       setProfileError('')
                       setProfileNotice('')
                     }}
@@ -289,10 +285,7 @@ export function MyPage() {
               {activityError ? (
                 <div role="alert" className="storage-error">
                   <span>{activityError}</span>
-                  <button
-                    type="button"
-                    onClick={() => setActivityReload((value) => value + 1)}
-                  >
+                  <button type="button" onClick={() => setActivityReload((value) => value + 1)}>
                     다시 시도
                   </button>
                 </div>
@@ -357,8 +350,8 @@ export function MyPage() {
 
               <div className="mypage-privacy-box">
                 <p className="small muted">
-                  작품·설정집·원고는 로그인한 본인 계정에서만 조회할 수 있습니다. AI 검토는 작가가 선택한
-                  자료만 전송하며 원고를 자동 수정하지 않습니다.
+                  작품·설정집·원고는 로그인한 본인 계정에서만 조회할 수 있습니다. AI 검토는 작가가
+                  선택한 자료만 전송하며 원고를 자동 수정하지 않습니다.
                 </p>
                 <button
                   type="button"
@@ -375,15 +368,11 @@ export function MyPage() {
             <div>
               <h2 id="mypage-withdraw-heading">회원 탈퇴</h2>
               <p className="small muted">
-                계정과 보유 작품, 설정집, 원고, AI 검토 이력을 영구 삭제합니다. 삭제된 자료는 복구할 수
-                없습니다.
+                계정과 보유 작품, 설정집, 원고, AI 검토 이력을 영구 삭제합니다. 삭제된 자료는 복구할
+                수 없습니다.
               </p>
             </div>
-            <button
-              type="button"
-              className="danger"
-              onClick={() => setShowWithdrawDialog(true)}
-            >
+            <button type="button" className="danger" onClick={() => setShowWithdrawDialog(true)}>
               회원 탈퇴...
             </button>
           </section>
@@ -399,9 +388,7 @@ export function MyPage() {
             <div className="mypage-card-header">
               <div>
                 <h2 id="mypage-pwd-title">비밀번호 변경</h2>
-                <p className="small muted">
-                  현재 비밀번호를 확인한 뒤 새 비밀번호로 변경합니다.
-                </p>
+                <p className="small muted">현재 비밀번호를 확인한 뒤 새 비밀번호로 변경합니다.</p>
               </div>
             </div>
 
@@ -455,15 +442,15 @@ export function MyPage() {
 
               <div className="mypage-session-warning">
                 <p className="small">
-                  비밀번호를 변경하면 보안을 위해 현재 로그인 세션을 포함한 모든 기기의 세션이 종료되며,
-                  새 비밀번호로 다시 로그인해야 합니다.
+                  비밀번호를 변경하면 보안을 위해 현재 로그인 세션을 포함한 모든 기기의 세션이
+                  종료되며, 새 비밀번호로 다시 로그인해야 합니다.
                 </p>
               </div>
 
               {dirtyIds.length > 0 && (
                 <p role="status" className="mypage-unsaved-warning">
-                  아직 저장되지 않은 원고가 있습니다. 비밀번호 변경 시 자동 저장을 먼저 시도하며, 저장에
-                  실패하면 세션 종료를 중단합니다.
+                  아직 저장되지 않은 원고가 있습니다. 비밀번호 변경 시 자동 저장을 먼저 시도하며,
+                  저장에 실패하면 세션 종료를 중단합니다.
                 </p>
               )}
 
@@ -508,16 +495,16 @@ export function MyPage() {
             <p>
               <strong>2. 선택 기반 외부 AI 전송</strong>
               <br />
-              AI 검토와 사건 추출은 작가가 직접 선택한 대상 회차·확정 설정·참고 회차만 접수 시점에 외부
-              공급자(Google Gemini API)로 전송합니다. 선택하지 않은 자료는 전송하거나 평가하지 않으며,
-              AI가 원고나 설정집을 자동으로 수정하지 않습니다.
+              AI 검토와 사건 추출은 작가가 직접 선택한 대상 회차·확정 설정·참고 회차만 접수 시점에
+              외부 공급자(Google Gemini API)로 전송합니다. 선택하지 않은 자료는 전송하거나 평가하지
+              않으며, AI가 원고나 설정집을 자동으로 수정하지 않습니다.
             </p>
             <p>
               <strong>3. 삭제 및 취소 정책</strong>
               <br />
-              작품 삭제 또는 회원 탈퇴 시 서버에 저장된 모든 창작 자료와 분석 이력은 즉시 영구 삭제되고
-              대기·실행 중인 작업은 취소됩니다. 다만 이미 외부 AI 공급자로 전송된 요청 자료는 공급자
-              약관에 따라 처리됩니다.
+              작품 삭제 또는 회원 탈퇴 시 서버에 저장된 모든 창작 자료와 분석 이력은 즉시 영구
+              삭제되고 대기·실행 중인 작업은 취소됩니다. 다만 이미 외부 AI 공급자로 전송된 요청
+              자료는 공급자 약관에 따라 처리됩니다.
             </p>
             <div className="dialog-actions">
               <button

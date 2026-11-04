@@ -13,6 +13,8 @@ export function TimelinePanel({ work }: { work: Work }) {
   const [editing, setEditing] = useState<StoryEvent | 'new' | null>(null)
   const [filterChapter, setFilterChapter] = useState('')
   const [chapterId, setChapterId] = useState(work.chapters[0]?.id || '')
+  const [flowOpen, setFlowOpen] = useState(true)
+  const [flowMode, setFlowMode] = useState<'matrix' | 'table'>('matrix')
   const draft = editing && editing !== 'new' ? editing : null
   const sourceChapter = work.chapters.find((chapter) => chapter.id === chapterId)
   const paragraphs = sourceLines(sourceChapter?.content || '')
@@ -65,6 +67,38 @@ export function TimelinePanel({ work }: { work: Work }) {
   const unknown = orderedEvents(
     displayed.filter((event) => !event.time || event.timeStatus === 'UNRESOLVED'),
   )
+
+  // 서술 회차 순서와 이야기 사건 순서(sequence)를 대조하여 회상·역순 배치를 탐지한다.
+  const chapterIndexMap = new Map(work.chapters.map((chapter, index) => [chapter.id, index]))
+  const knownOrderMap = new Map(known.map((event, index) => [event.id, index + 1]))
+  const reversedEventIds = new Set<string>()
+  let maxSeenSequence = -1
+  for (const chapter of work.chapters) {
+    const chapterConfirmedEvents = known.filter((event) => event.chapterId === chapter.id)
+    for (const event of chapterConfirmedEvents) {
+      const seq = event.sequence ?? 0
+      if (seq < maxSeenSequence) {
+        reversedEventIds.add(event.id)
+      }
+      if (seq > maxSeenSequence) {
+        maxSeenSequence = seq
+      }
+    }
+  }
+  // 반대로 이야기 시간순에서는 앞인데 뒤쪽 회차에서 서술된 경우도 함께 표시한다.
+  let maxSeenChapterIndex = -1
+  for (const event of known) {
+    const chIdx = chapterIndexMap.get(event.chapterId) ?? -1
+    if (chIdx >= 0) {
+      if (chIdx < maxSeenChapterIndex) {
+        reversedEventIds.add(event.id)
+      }
+      if (chIdx > maxSeenChapterIndex) {
+        maxSeenChapterIndex = chIdx
+      }
+    }
+  }
+
   function move(event: StoryEvent, direction: number) {
     const sorted = orderedEvents(work.events)
     const index = sorted.findIndex((item) => item.id === event.id)
@@ -77,12 +111,14 @@ export function TimelinePanel({ work }: { work: Work }) {
     const chapter = work.chapters.find((item) => item.id === event.chapterId)
     // 원고에서 인용문이 사라졌다면 기존 위치로 이동시키지 않고 근거 변경을 표시한다.
     const location = eventLocation(event, chapter)
+    const isReversed = reversedEventIds.has(event.id)
     return (
       <article className="event-card" key={event.id}>
         <div className="event-order">
           <strong>{String(index + 1).padStart(2, '0')}</strong>
           <span>{event.time || '시점 미상'}</span>
           <span className="small muted">사건 순서 {index + 1}</span>
+          {isReversed && <span className="badge warning">역순·회상 서술</span>}
           <button onClick={() => move(event, -1)} aria-label={`${event.title} 앞 순서로`}>
             ↑
           </button>
@@ -137,6 +173,169 @@ export function TimelinePanel({ work }: { work: Work }) {
         </button>
       </div>
       <ExtractionFlow work={work} />
+
+      {work.events.length > 0 && (
+        <section className="timeline-flow-comparison" aria-label="서술 순서와 사건 순서 비교">
+          <div className="review-overview-header">
+            <div>
+              <strong>회차 서술 순서 ↔ 이야기 시간순 비교</strong>
+              <p className="small muted">
+                각 회차에 서술된 사건이 이야기 시간순(순번)에서 어디에 놓이는지 비교하고, 회상·역순
+                서술과 시점 미확정 사건을 구분합니다.
+              </p>
+            </div>
+            <div className="review-overview-actions">
+              <div className="filter-tabs" role="group" aria-label="사건 흐름 보기 방식">
+                <button
+                  type="button"
+                  aria-pressed={flowMode === 'matrix'}
+                  className={flowMode === 'matrix' ? 'selected' : ''}
+                  onClick={() => setFlowMode('matrix')}
+                >
+                  회차별 흐름도
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={flowMode === 'table'}
+                  className={flowMode === 'table' ? 'selected' : ''}
+                  onClick={() => setFlowMode('table')}
+                >
+                  대조 목록 표
+                </button>
+              </div>
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => setFlowOpen((prev) => !prev)}
+              >
+                {flowOpen ? '흐름도 접기' : '흐름도 펼치기'}
+              </button>
+            </div>
+          </div>
+
+          {flowOpen && (
+            <>
+              <div className="review-overview-legend" aria-label="사건 흐름 범례">
+                <span>
+                  <i className="legend-dot legend-dot--normal" aria-hidden="true" /> 정순 서술 (회차
+                  순서 = 사건 시간순)
+                </span>
+                <span>
+                  <i className="legend-dot legend-dot--supplement" aria-hidden="true" /> 역순·회상
+                  서술 (회차 순서 ≠ 사건 시간순)
+                </span>
+                <span>
+                  <i className="legend-dot legend-dot--unreviewed" aria-hidden="true" /> 시점 미확정
+                  (작가 확인 필요 · 시간순 미배치)
+                </span>
+              </div>
+
+              {flowMode === 'matrix' ? (
+                <div className="timeline-flow-lanes" role="list">
+                  {work.chapters.map((chapter, chapterIdx) => {
+                    const chapterEvents = displayed.filter((item) => item.chapterId === chapter.id)
+                    return (
+                      <div className="timeline-flow-lane" role="listitem" key={chapter.id}>
+                        <div className="timeline-flow-lane-header">
+                          <strong>
+                            서술 {chapterIdx + 1}순 · {chapter.title}
+                          </strong>
+                          <span className="small muted">사건 {chapterEvents.length}건</span>
+                        </div>
+                        {chapterEvents.length === 0 ? (
+                          <p className="small muted">이 회차에 연결된 사건이 없습니다.</p>
+                        ) : (
+                          <div className="timeline-flow-chips">
+                            {chapterEvents.map((event) => {
+                              const isUnresolved = !event.time || event.timeStatus === 'UNRESOLVED'
+                              const isReversed = reversedEventIds.has(event.id)
+                              const orderNo = knownOrderMap.get(event.id)
+                              return (
+                                <button
+                                  type="button"
+                                  key={event.id}
+                                  className={`timeline-flow-chip ${
+                                    isUnresolved
+                                      ? 'timeline-flow-chip--unresolved'
+                                      : isReversed
+                                        ? 'timeline-flow-chip--reversed'
+                                        : 'timeline-flow-chip--normal'
+                                  }`}
+                                  onClick={() => open(event)}
+                                >
+                                  <span className="timeline-chip-order">
+                                    {isUnresolved
+                                      ? '시점 미확정'
+                                      : `시간순 #${orderNo ?? (event.sequence ?? 0) + 1}`}
+                                  </span>
+                                  <strong>{event.title}</strong>
+                                  <span className="small muted">
+                                    {event.time || '시점 미상'}
+                                    {isReversed ? ' · 역순/회상' : ''}
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="review-overview-table-wrap">
+                  <table className="review-overview-table">
+                    <caption>서술 회차 순서와 이야기 시간순 대조 표</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">사건명</th>
+                        <th scope="col">서술 회차</th>
+                        <th scope="col">이야기 시간순</th>
+                        <th scope="col">시점 표현</th>
+                        <th scope="col">배치 구분</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayed.map((event) => {
+                        const chapterIdx = chapterIndexMap.get(event.chapterId)
+                        const chapterTitle =
+                          work.chapters.find((c) => c.id === event.chapterId)?.title ||
+                          '회차 미지정'
+                        const isUnresolved = !event.time || event.timeStatus === 'UNRESOLVED'
+                        const isReversed = reversedEventIds.has(event.id)
+                        const orderNo = knownOrderMap.get(event.id)
+                        return (
+                          <tr key={event.id}>
+                            <td>{event.title}</td>
+                            <td>
+                              {chapterIdx !== undefined ? `${chapterIdx + 1}순 · ` : ''}
+                              {chapterTitle}
+                            </td>
+                            <td>
+                              {isUnresolved
+                                ? '미배치 (확인 필요)'
+                                : `시간순 #${orderNo ?? (event.sequence ?? 0) + 1}`}
+                            </td>
+                            <td>{event.time || '시점 미상'}</td>
+                            <td>
+                              {isUnresolved
+                                ? '시점 미확정'
+                                : isReversed
+                                  ? '역순·회상 서술'
+                                  : '정순 서술'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
       <label className="timeline-filter">
         근거 회차
         <select value={filterChapter} onChange={(event) => setFilterChapter(event.target.value)}>

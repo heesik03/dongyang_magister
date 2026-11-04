@@ -147,7 +147,9 @@ test('미저장 원고 자동 저장에 실패하면 비밀번호 변경으로 �
 
   fireEvent.submit(screen.getByRole('button', { name: '비밀번호 변경' }).closest('form')!)
 
-  expect((await screen.findByRole('alert')).textContent).toContain('저장되지 않은 원고 입력이 있습니다')
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    '저장되지 않은 원고 입력이 있습니다',
+  )
   expect(flushSpy).toHaveBeenCalledWith('10')
   expect(accountClient.changePassword).not.toHaveBeenCalled()
 })
@@ -189,7 +191,9 @@ test('회원 탈퇴 모달에서 비밀번호와 동의 확인 후 브라우저 
   expect(enabledBtn).toHaveProperty('disabled', false)
 
   fireEvent.click(enabledBtn)
-  expect((await screen.findByRole('alert')).textContent).toContain('현재 비밀번호가 일치하지 않습니다')
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    '현재 비밀번호가 일치하지 않습니다',
+  )
 
   fireEvent.change(screen.getByLabelText('현재 비밀번호 확인', { exact: true }), {
     target: { value: 'CorrectPass1!' },

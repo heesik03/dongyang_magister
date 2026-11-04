@@ -13,11 +13,7 @@ interface WithdrawAccountDialogProps {
   onClose: () => void
 }
 
-export function WithdrawAccountDialog({
-  user,
-  activity,
-  onClose,
-}: WithdrawAccountDialogProps) {
+export function WithdrawAccountDialog({ user, activity, onClose }: WithdrawAccountDialogProps) {
   const navigate = useNavigate()
   const dirtyIds = useWorksStore((state) => state.dirtyIds)
   const [currentPassword, setCurrentPassword] = useState('')
@@ -84,16 +80,16 @@ export function WithdrawAccountDialog({
 
         <div className="mypage-ai-notice-box">
           <p className="small">
-            진행 중이거나 대기 중인 AI 분석·사건 추출 작업은 즉시 취소되며 늦게 도착한 결과도 반영되지
-            않습니다. 단, 이미 외부 AI 공급자(Google Gemini API)로 전송된 요청 자료는 공급자 정책에
-            따라 처리되며 탈퇴로 회수할 수 없습니다.
+            진행 중이거나 대기 중인 AI 분석·사건 추출 작업은 즉시 취소되며 늦게 도착한 결과도
+            반영되지 않습니다. 단, 이미 외부 AI 공급자(Google Gemini API)로 전송된 요청 자료는
+            공급자 정책에 따라 처리되며 탈퇴로 회수할 수 없습니다.
           </p>
         </div>
 
         {dirtyIds.length > 0 && (
           <p role="status" className="mypage-unsaved-warning">
-            현재 브라우저에 아직 서버로 저장되지 않은 편집 중 원고가 있습니다. 탈퇴 시 브라우저 초안과
-            복구 자료도 함께 삭제됩니다.
+            현재 브라우저에 아직 서버로 저장되지 않은 편집 중 원고가 있습니다. 탈퇴 시 브라우저
+            초안과 복구 자료도 함께 삭제됩니다.
           </p>
         )}
 
@@ -121,8 +117,8 @@ export function WithdrawAccountDialog({
             }}
           />
           <span>
-            위 작품·원고·설정·사건 타임라인·AI 검토 결과·판단 기록이 모두 영구 삭제되며 복구할 수 없음을
-            확인했고 이에 동의합니다.
+            위 작품·원고·설정·사건 타임라인·AI 검토 결과·판단 기록이 모두 영구 삭제되며 복구할 수
+            없음을 확인했고 이에 동의합니다.
           </span>
         </label>
 
@@ -136,11 +132,7 @@ export function WithdrawAccountDialog({
           <button type="button" className="ghost" disabled={busy} onClick={onClose}>
             취소하고 돌아가기
           </button>
-          <button
-            type="submit"
-            className="danger"
-            disabled={!canSubmit}
-          >
+          <button type="submit" className="danger" disabled={!canSubmit}>
             {busy ? '탈퇴 처리 중…' : agreed ? '회원 탈퇴' : '동의 후 탈퇴 가능'}
           </button>
         </div>

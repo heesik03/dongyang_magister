@@ -269,3 +269,61 @@ test('미저장 입력이 있으면 최신 타임라인 조회로 덮어쓰지 �
   await screen.findByRole('alert')
   expect(useWorksStore.getState().reloadWorkspace).not.toHaveBeenCalled()
 })
+
+test('서술 회차 순서와 이야기 시간순 비교 흐름도에서 역순 서술과 시점 미확정을 구분한다', () => {
+  const flowWork: Work = {
+    ...work,
+    chapters: [
+      { id: 'ch-1', title: '1화 현재의 항구', content: '현재 장면', revision: 1 },
+      { id: 'ch-2', title: '2화 과거의 맹세', content: '회상 장면', revision: 1 },
+    ],
+    events: [
+      {
+        id: 'ev-1',
+        title: '항구 도착',
+        description: '현재 도착',
+        time: '10년 뒤 겨울',
+        characters: '린',
+        chapterId: 'ch-1',
+        quote: '현재 장면',
+        sequence: 2,
+        timeStatus: 'CONFIRMED',
+      },
+      {
+        id: 'ev-2',
+        title: '어린 시절의 서약',
+        description: '과거 회상',
+        time: '10년 전 봄',
+        characters: '린',
+        chapterId: 'ch-2',
+        quote: '회상 장면',
+        sequence: 1,
+        timeStatus: 'CONFIRMED',
+      },
+      {
+        id: 'ev-3',
+        title: '수수께끼의 편지',
+        description: '시점 미정',
+        time: '',
+        characters: '린',
+        chapterId: 'ch-2',
+        quote: '회상 장면',
+        sequence: 3,
+        timeStatus: 'UNRESOLVED',
+      },
+    ],
+  }
+
+  render(
+    <MemoryRouter>
+      <TimelinePanel work={flowWork} />
+    </MemoryRouter>,
+  )
+
+  expect(screen.getByText('회차 서술 순서 ↔ 이야기 시간순 비교')).toBeTruthy()
+  expect(screen.getAllByText(/역순·회상 서술/).length).toBeGreaterThan(0)
+
+  fireEvent.click(screen.getByRole('button', { name: '대조 목록 표' }))
+  expect(screen.getByText('서술 회차 순서와 이야기 시간순 대조 표')).toBeTruthy()
+  expect(screen.getByText('미배치 (확인 필요)')).toBeTruthy()
+})

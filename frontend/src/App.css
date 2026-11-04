@@ -2551,7 +2551,6 @@ fieldset input {
   border-color: var(--color-warning);
 }
 
-
 .profile-link {
   display: flex;
   align-items: center;
@@ -2840,4 +2839,204 @@ fieldset input {
   .mypage-metrics {
     grid-template-columns: 1fr;
   }
+}
+
+/* ─── 작품 흐름 시각화 및 AI 검토 고도화 ─── */
+.review-utility-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.review-overview-box,
+.review-comparison-box,
+.scope-summary-card,
+.issue-groups-box,
+.timeline-flow-comparison {
+  background: var(--color-surface-subtle, #f9fafb);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 12px;
+}
+.review-overview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.review-overview-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.review-overview-summary,
+.scope-summary-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.review-overview-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.legend-dot--conflict {
+  background: var(--color-danger, #e11d48);
+}
+.legend-dot--supplement {
+  background: var(--color-warning, #d97706);
+}
+.legend-dot--unreviewed {
+  background: var(--color-text-muted, #6b7684);
+}
+.legend-dot--normal {
+  background: var(--color-brand, #3182f6);
+}
+.review-overview-bars {
+  display: grid;
+  gap: 10px;
+}
+.review-overview-row {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.review-overview-row--active {
+  border-color: var(--color-brand);
+}
+.review-overview-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.review-overview-row-top > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.review-overview-bar-track {
+  display: flex;
+  height: 10px;
+  background: #e5e8eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.review-overview-bar-conflict {
+  background: var(--color-danger, #e11d48);
+  height: 100%;
+}
+.review-overview-bar-supplement {
+  background: var(--color-warning, #d97706);
+  height: 100%;
+}
+.review-overview-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.review-overview-table-wrap {
+  overflow-x: auto;
+}
+.review-overview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.review-overview-table th,
+.review-overview-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+.priority-issues,
+.issue-groups-list,
+.structured-review-stages,
+.revision-options-list,
+.comparison-group {
+  display: grid;
+  gap: 8px;
+}
+.priority-issue-item,
+.issue-group-item,
+.review-stage-block,
+.revision-option-card,
+.comparison-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+.issue-group-candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.timeline-flow-lanes {
+  display: grid;
+  gap: 10px;
+}
+.timeline-flow-lane {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.timeline-flow-lane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.timeline-flow-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.timeline-flow-chip {
+  text-align: left;
+  background: #f2f4f6;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: grid;
+  gap: 2px;
+  height: auto;
+}
+.timeline-flow-chip--normal {
+  border-left: 4px solid var(--color-brand);
+}
+.timeline-flow-chip--reversed {
+  border-left: 4px solid var(--color-warning);
+  background: #fffbeb;
+}
+.timeline-flow-chip--unresolved {
+  border-left: 4px dashed var(--color-text-muted);
+}
+.timeline-chip-order {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
 }
