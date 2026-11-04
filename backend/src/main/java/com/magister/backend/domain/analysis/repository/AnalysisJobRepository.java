@@ -39,6 +39,18 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
             AnalysisJobStatus status,
             Pageable pageable);
 
+    /** 회차별 최신 성공 작업 집계를 위해 완료된 작업 요약만 최신순으로 조회한다. */
+    @Query(
+            """
+            select j.id as id, j.chapterKey as chapterKey, j.chapterTitle as chapterTitle,
+              j.status as status, j.createdAt as createdAt, j.updatedAt as updatedAt, j.policyVersion as policyVersion
+            from AnalysisJob j
+            where j.work.id = :workId and j.work.owner.id = :ownerId and j.status = :status
+            order by j.createdAt desc, j.id desc
+            """)
+    List<AnalysisJobSummaryView> findAllByStatusOrderByLatest(
+            Long workId, Long ownerId, AnalysisJobStatus status);
+
     /** 같은 작품의 멱등 키를 조회한다. 요청 본문 일치는 서비스가 검사한다. */
     Optional<AnalysisJob> findByWork_IdAndRequestId(Long workId, String requestId);
 

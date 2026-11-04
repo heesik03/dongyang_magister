@@ -10,10 +10,16 @@ import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisSourceResponse;
+import com.magister.backend.domain.analysis.dto.ReviewComparisonResponse;
+import com.magister.backend.domain.analysis.dto.ReviewComparisonResponse.ComparedCandidate;
+import com.magister.backend.domain.analysis.dto.WorkReviewOverviewResponse;
+import com.magister.backend.domain.analysis.dto.WorkReviewOverviewResponse.ChapterReviewSummary;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
+import com.magister.backend.domain.analysis.entity.ReviewCandidate;
 import com.magister.backend.domain.analysis.repository.AnalysisJobSummaryView;
 import com.magister.backend.domain.analysis.repository.AnalysisJobView;
+import com.magister.backend.domain.chapter.entity.Chapter;
 import com.magister.backend.domain.decision.dto.DecisionReference;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.AnalysisData;
@@ -169,5 +175,167 @@ public class AnalysisConverter {
                 reviews,
                 Instant.now().toString(),
                 objectMapper.writeValueAsString(input.settings()));
+    }
+
+    public ChapterReviewSummary toUnanalyzedChapterSummary(Chapter chapter) {
+        return new ChapterReviewSummary(
+                chapter.getChapterKey(),
+                chapter.getChapterNo(),
+                chapter.getTitle(),
+                chapter.getRevision(),
+                "UNANALYZED",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0);
+    }
+
+    public ChapterReviewSummary toAnalyzedChapterSummary(
+            Chapter chapter,
+            String analysisStatus,
+            AnalysisJobSummaryView latestJob,
+            Long analyzedRevision,
+            int settingCount,
+            int previousChapterCount,
+            int analysisRunCount,
+            int totalCandidateCount,
+            int conflictCount,
+            int supplementCount,
+            int unreviewedCount,
+            int acceptedCount,
+            int holdCount,
+            int intendedCount) {
+        return new ChapterReviewSummary(
+                chapter.getChapterKey(),
+                chapter.getChapterNo(),
+                chapter.getTitle(),
+                chapter.getRevision(),
+                analysisStatus,
+                latestJob.getId(),
+                analyzedRevision,
+                latestJob.getUpdatedAt(),
+                settingCount,
+                previousChapterCount,
+                analysisRunCount,
+                totalCandidateCount,
+                conflictCount,
+                supplementCount,
+                unreviewedCount,
+                acceptedCount,
+                holdCount,
+                intendedCount);
+    }
+
+    public WorkReviewOverviewResponse toWorkReviewOverview(
+            Long workId,
+            int totalChapters,
+            int analyzedChapters,
+            int currentRevisionChapters,
+            int outdatedRevisionChapters,
+            int unanalyzedChapters,
+            int totalConflictCount,
+            int totalSupplementCount,
+            int totalUnreviewedCount,
+            List<ChapterReviewSummary> chapters) {
+        return new WorkReviewOverviewResponse(
+                workId,
+                totalChapters,
+                analyzedChapters,
+                currentRevisionChapters,
+                outdatedRevisionChapters,
+                unanalyzedChapters,
+                totalConflictCount,
+                totalSupplementCount,
+                totalUnreviewedCount,
+                "각 회차의 가장 최근에 완료(SUCCEEDED)된 분석 1건만 집계하며, 동일 회차의 이전 재분석 이력은 중복 합산하지 않습니다.",
+                chapters);
+    }
+
+    public ReviewComparisonResponse toEmptyComparison(
+            AnalysisJob currentJob, long currentRevision) {
+        return new ReviewComparisonResponse(
+                currentJob.getId(),
+                null,
+                false,
+                currentJob.getChapterKey(),
+                currentJob.getChapterTitle(),
+                currentRevision,
+                null,
+                currentJob.getUpdatedAt(),
+                null,
+                false,
+                false,
+                "같은 회차의 이전 완료 분석 이력이 없어 비교 대상을 찾지 못했습니다.",
+                "이번 분석 결과에서 다시 나오지 않은 후보는 자동 해결로 간주되지 않습니다.",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+    }
+
+    public ComparedCandidate toComparedCandidate(
+            String category,
+            ReviewCandidate primary,
+            ReviewCandidate matchedPrevious,
+            List<String> sourceTitles,
+            String comparisonNote) {
+        return new ComparedCandidate(
+                category,
+                primary.getId(),
+                matchedPrevious == null ? null : matchedPrevious.getId(),
+                primary.getType(),
+                primary.getQuote(),
+                primary.getStartOffset(),
+                primary.getEndOffset(),
+                matchedPrevious == null ? null : matchedPrevious.getStartOffset(),
+                matchedPrevious == null ? null : matchedPrevious.getEndOffset(),
+                primary.getReason(),
+                primary.getSuggestion(),
+                sourceTitles,
+                comparisonNote);
+    }
+
+    public ReviewComparisonResponse toComparisonResponse(
+            AnalysisJob currentJob,
+            AnalysisJob baseJob,
+            long currentRevision,
+            Long baseRevision,
+            boolean scopeChanged,
+            boolean manuscriptModified,
+            List<ComparedCandidate> retained,
+            List<ComparedCandidate> added,
+            List<ComparedCandidate> notReappeared,
+            List<ComparedCandidate> incomparable) {
+        String scopeNote =
+                scopeChanged
+                        ? "이전 분석과 이번 분석 사이에 선택된 설정·이전 회차 또는 검토 유형이 변경되었습니다. 범위 변경에 따른 항목은 '비교 불가'로 분리했습니다."
+                        : "이전 분석과 동일한 설정·이전 회차·검토 유형 범위에서 비교했습니다.";
+        return new ReviewComparisonResponse(
+                currentJob.getId(),
+                baseJob.getId(),
+                true,
+                currentJob.getChapterKey(),
+                currentJob.getChapterTitle(),
+                currentRevision,
+                baseRevision,
+                currentJob.getUpdatedAt(),
+                baseJob.getUpdatedAt(),
+                scopeChanged,
+                manuscriptModified,
+                scopeNote,
+                "이번 결과에서 다시 나오지 않은 후보는 자동 해결로 간주하지 않습니다. 실제 원고 수정 내용과 설정 근거를 직접 확인해 주세요.",
+                retained,
+                added,
+                notReappeared,
+                incomparable);
     }
 }

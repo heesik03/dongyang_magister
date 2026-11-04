@@ -18,7 +18,37 @@ public record AnalysisOutput(@NotNull @Size(max = 100) List<@NotNull @Valid Cand
             @NotNull @Min(1) Integer endOffset,
             @NotNull @Size(min = 1, max = 10) List<@NotNull @Valid Evidence> evidences,
             @NotBlank @Size(max = 4000) String reason,
-            @NotBlank @Size(max = 4000) String suggestion) {}
+            @NotBlank @Size(max = 4000) String suggestion,
+            @Size(max = 128) String issueGroupKey,
+            @Size(max = 200) String issueGroupTitle,
+            @Size(max = 4000) String confirmedFact,
+            @Size(max = 4000) String interpretation,
+            @Size(max = 4000) String missingInfo,
+            @Size(max = 5) List<@NotNull @Valid RevisionOption> options) {
+        public Candidate(
+                String type,
+                String quote,
+                Integer startOffset,
+                Integer endOffset,
+                List<Evidence> evidences,
+                String reason,
+                String suggestion) {
+            this(
+                    type,
+                    quote,
+                    startOffset,
+                    endOffset,
+                    evidences,
+                    reason,
+                    suggestion,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+        }
+    }
 
     public record Evidence(
             @NotNull @Pattern(regexp = "SETTING|PREVIOUS") String sourceType,
@@ -27,4 +57,10 @@ public record AnalysisOutput(@NotNull @Size(max = 100) List<@NotNull @Valid Cand
             @NotNull @Min(0) Integer startOffset,
             @NotNull @Min(1) Integer endOffset,
             @NotBlank @Size(max = 4000) String explanation) {}
+
+    public record RevisionOption(
+            @NotBlank @Size(max = 200) String title,
+            @NotBlank @Size(max = 2000) String direction,
+            @NotBlank @Size(max = 2000) String premise,
+            @Size(max = 2000) String rationale) {}
 }
