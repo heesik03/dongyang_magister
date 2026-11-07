@@ -72,6 +72,9 @@ export interface ReviewSource {
   content: string
   revision: number
 }
+export const REVIEW_FILTERS = ['전체', '설정 충돌 후보', '설명 보완', '미검토', '처리됨'] as const
+export type ReviewFilter = (typeof REVIEW_FILTERS)[number]
+
 export interface ChapterReviewSummary {
   chapterId: string
   chapterNo: number

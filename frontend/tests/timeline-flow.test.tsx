@@ -321,7 +321,7 @@ test('서술 회차 순서와 이야기 시간순 비교 흐름도에서 역순 
   )
 
   expect(screen.getByText('회차 서술 순서 ↔ 이야기 시간순 비교')).toBeTruthy()
-  expect(screen.getAllByText(/역순·회상 서술/).length).toBeGreaterThan(0)
+  expect(screen.getAllByText(/서술 순서 역전/).length).toBeGreaterThan(0)
 
   fireEvent.click(screen.getByRole('button', { name: '대조 목록 표' }))
   expect(screen.getByText('서술 회차 순서와 이야기 시간순 대조 표')).toBeTruthy()

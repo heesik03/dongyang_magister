@@ -57,7 +57,8 @@ public interface AnalysisControllerDocs {
             summary = "원고 수정 전후 검토 결과 비교",
             description =
                     "같은 회차의 이전 완료 분석과 현재 완료 분석을 비교하여 유지된 쟁점·새 후보·이번 결과에서 다시 나오지 않은 후보·비교 불가 항목을"
-                        + " 반환합니다. 다시 나오지 않은 후보는 자동 해결로 간주하지 않습니다.")
+                        + " 반환합니다. 다시 나오지 않은 후보는 자동 해결로 간주하지 않습니다. "
+                        + "비교 대상은 같은 회차의 완료 분석이며, 현재 분석 미완료는 409, 잘못된 기준 작업은 400으로 응답합니다.")
     ApiResult<ReviewComparisonResponse> compare(
             LoginUser user,
             @Positive Long workId,

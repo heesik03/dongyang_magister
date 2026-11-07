@@ -4,7 +4,12 @@ import { DecisionEditor } from './DecisionEditor'
 import { Icon } from '../../shared/Icon'
 import { ReviewOverviewModal } from './ReviewOverviewModal'
 import { ReviewComparisonSection } from './ReviewComparisonSection'
-import type { ReviewReport, SourceLocation } from './reviewClient'
+import {
+  REVIEW_FILTERS,
+  type ReviewFilter,
+  type ReviewReport,
+  type SourceLocation,
+} from './reviewClient'
 import type { InputSnapshot } from '../analysis/analysisClient'
 
 export function ReviewPanel({
@@ -12,6 +17,7 @@ export function ReviewPanel({
   jobId,
   currentChapterId,
   onSelectChapter,
+  initialFilter = '전체',
   onOpenLedger,
   analysis,
   stale,
@@ -30,7 +36,8 @@ export function ReviewPanel({
   work: Work
   jobId?: string
   currentChapterId?: string
-  onSelectChapter?: (chapterId: string) => void
+  onSelectChapter?: (chapterId: string, jobId?: string, filter?: ReviewFilter) => void
+  initialFilter?: ReviewFilter
   analysis?: Analysis
   stale: boolean
   analyzing: boolean
@@ -45,7 +52,8 @@ export function ReviewPanel({
   onDecisionSaved?: () => void
 }) {
   const [selectedId, setSelectedId] = useState('')
-  const [filter, setFilter] = useState('전체')
+  const [chosenFilter, setFilter] = useState<ReviewFilter | null>(null)
+  const filter = chosenFilter ?? initialFilter
   const [editing, setEditing] = useState<{ id: string; status: Decision } | null>(null)
   const [showOverview, setShowOverview] = useState(false)
   const [showComparison, setShowComparison] = useState(false)
@@ -57,11 +65,12 @@ export function ReviewPanel({
         const saved = report?.decisions?.[review.id]
         return saved ? { ...review, decision: saved.status, note: saved.reason } : review
       })
-      .filter(
-        (review) =>
-          filter === '전체' ||
-          (filter === '미검토' ? review.decision === '미검토' : review.decision !== '미검토'),
-      ) || []
+      .filter((review) => {
+        if (filter === '전체') return true
+        if (filter === '미검토') return review.decision === '미검토'
+        if (filter === '처리됨') return review.decision !== '미검토'
+        return review.type === filter
+      }) || []
   const selected = filtered.find((review) => review.id === selectedId) || filtered[0]
   const linked = report?.reviews.find((review) => review.id === selected?.id)
   const editingReview = report?.reviews.find((review) => review.id === editing?.id)
@@ -122,14 +131,17 @@ export function ReviewPanel({
         <ReviewOverviewModal
           workId={work.id}
           currentChapterId={currentChapterId ?? analysis?.chapterId}
-          onSelectChapter={(chapterId) => {
-            onSelectChapter?.(chapterId)
+          onSelectChapter={(chapterId, selectedJobId, nextFilter) => {
+            setFilter(null)
+            setSelectedId('')
+            setShowOverview(false)
+            onSelectChapter?.(chapterId, selectedJobId, nextFilter)
           }}
           onClose={() => setShowOverview(false)}
         />
       )}
 
-      {showComparison && jobId && work.source === 'server' && (
+      {showComparison && jobId && analysis && !analyzing && work.source === 'server' && (
         <ReviewComparisonSection
           workId={work.id}
           jobId={jobId}
@@ -142,6 +154,16 @@ export function ReviewPanel({
       )}
 
       {report && !report.legacy && <button onClick={onDecisionSaved}>판단 상태 새로 확인</button>}
+      {report && !report.legacy && !report.summary && (
+        <p role="status" className="notice">
+          종합 요약을 불러오지 못했습니다. 개별 검토 결과는 계속 확인할 수 있습니다.
+          {retryReport && (
+            <button type="button" onClick={retryReport}>
+              요약 다시 조회
+            </button>
+          )}
+        </p>
+      )}
       {reportLoading && <p role="status">검토 근거를 불러오고 있습니다.</p>}
       {reportError && (
         <div role="alert">
@@ -320,7 +342,7 @@ export function ReviewPanel({
             </p>
           )}
           <div className="filter-tabs review-filters">
-            {['전체', '미검토', '처리됨'].map((item) => (
+            {REVIEW_FILTERS.map((item) => (
               <button
                 key={item}
                 onClick={() => setFilter(item)}

@@ -1,7 +1,6 @@
 package com.magister.backend.domain.analysis.service;
 
 import com.magister.backend.domain.analysis.converter.AnalysisConverter;
-import com.magister.backend.domain.analysis.converter.ReviewConverter;
 import com.magister.backend.domain.analysis.dto.ReviewComparisonResponse;
 import com.magister.backend.domain.analysis.dto.ReviewComparisonResponse.ComparedCandidate;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
@@ -9,8 +8,8 @@ import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
 import com.magister.backend.domain.analysis.entity.ReviewCandidate;
 import com.magister.backend.domain.analysis.entity.ReviewEvidence;
+import com.magister.backend.domain.analysis.error.AnalysisErrorCode;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
-import com.magister.backend.domain.analysis.repository.AnalysisJobSummaryView;
 import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
 import com.magister.backend.domain.analysis.repository.ReviewCandidateRepository;
 import com.magister.backend.domain.analysis.repository.ReviewEvidenceRepository;
@@ -19,6 +18,7 @@ import com.magister.backend.global.error.exception.CustomException;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,7 +41,6 @@ public class ReviewComparisonService {
     private final AnalysisSourceRepository sourceRepository;
     private final ReviewCandidateRepository candidateRepository;
     private final ReviewEvidenceRepository evidenceRepository;
-    private final ReviewConverter reviewConverter;
     private final AnalysisConverter analysisConverter;
     private final ObjectMapper objectMapper;
 
@@ -56,6 +55,10 @@ public class ReviewComparisonService {
                 jobRepository
                         .findOwned(jobId, workId, ownerId)
                         .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+
+        if (currentJob.getStatus() != AnalysisJobStatus.SUCCEEDED) {
+            throw new CustomException(AnalysisErrorCode.COMPARISON_NOT_READY);
+        }
 
         Optional<AnalysisJob> baseJobOptional =
                 resolveBaseJob(ownerId, workId, currentJob, baseJobId);
@@ -74,22 +77,22 @@ public class ReviewComparisonService {
         AnalysisSource baseTarget = findTargetSource(baseSources);
         Long baseRevision = baseTarget == null ? null : baseTarget.getRevision();
 
-        Set<String> currentScopeKeys = collectScopeSourceKeys(currentSources);
-        Set<String> baseScopeKeys = collectScopeSourceKeys(baseSources);
+        if (currentTarget == null || baseTarget == null) {
+            throw new CustomException(AnalysisErrorCode.SNAPSHOT_UNAVAILABLE);
+        }
+        Map<String, SourceVersion> currentScope = collectScopeSources(currentSources);
+        Map<String, SourceVersion> baseScope = collectScopeSources(baseSources);
         boolean currentConsistency = readBooleanFlag(currentJob.getInput(), "consistency", true);
         boolean currentMotivation = readBooleanFlag(currentJob.getInput(), "motivation", true);
         boolean baseConsistency = readBooleanFlag(baseJob.getInput(), "consistency", true);
         boolean baseMotivation = readBooleanFlag(baseJob.getInput(), "motivation", true);
 
         boolean scopeChanged =
-                !currentScopeKeys.equals(baseScopeKeys)
+                !currentScope.equals(baseScope)
                         || currentConsistency != baseConsistency
                         || currentMotivation != baseMotivation;
         boolean manuscriptModified =
-                currentTarget == null
-                        || baseTarget == null
-                        || !Objects.equals(
-                                currentTarget.getContentHash(), baseTarget.getContentHash());
+                !Objects.equals(currentTarget.getContentHash(), baseTarget.getContentHash());
 
         List<ReviewCandidate> currentCandidates =
                 candidateRepository.findAllByJob_IdOrderByIdAsc(currentJob.getId());
@@ -112,13 +115,10 @@ public class ReviewComparisonService {
             boolean typeDisabledNow =
                     (baseCandidate.getType().equals("설정 충돌 후보") && !currentConsistency)
                             || (baseCandidate.getType().equals("설명 보완") && !currentMotivation);
-            boolean evidenceMissingNow =
-                    evidences.stream()
-                            .anyMatch(
-                                    evidence ->
-                                            !currentScopeKeys.contains(
-                                                    evidenceKey(evidence)));
-            if (typeDisabledNow || evidenceMissingNow) {
+            boolean ambiguousQuote = manuscriptModified
+                    && (hasRepeatedQuote(baseTarget.getContent(), baseCandidate.getQuote())
+                            || hasRepeatedQuote(currentTarget.getContent(), baseCandidate.getQuote()));
+            if (typeDisabledNow || !hasUnchangedEvidence(evidences, currentScope) || ambiguousQuote) {
                 incomparableBaseIds.add(baseCandidate.getId());
                 incomparable.add(
                         analysisConverter.toComparedCandidate(
@@ -126,7 +126,7 @@ public class ReviewComparisonService {
                                 baseCandidate,
                                 null,
                                 sourceTitles(evidences),
-                                "이번 분석에서 해당 근거 자료 또는 검토 유형이 선택 범위에서 제외되어 비교할 수 없습니다."));
+                                "근거 자료·검토 유형이 달라졌거나 같은 원고 인용이 여러 위치에 있어 비교할 수 없습니다."));
             }
         }
 
@@ -137,13 +137,10 @@ public class ReviewComparisonService {
             boolean typeDisabledBefore =
                     (currentCandidate.getType().equals("설정 충돌 후보") && !baseConsistency)
                             || (currentCandidate.getType().equals("설명 보완") && !baseMotivation);
-            boolean evidenceAddedNow =
-                    evidences.stream()
-                            .anyMatch(
-                                    evidence ->
-                                            !baseScopeKeys.contains(
-                                                    evidenceKey(evidence)));
-            if (typeDisabledBefore || evidenceAddedNow) {
+            boolean ambiguousQuote = manuscriptModified
+                    && (hasRepeatedQuote(baseTarget.getContent(), currentCandidate.getQuote())
+                            || hasRepeatedQuote(currentTarget.getContent(), currentCandidate.getQuote()));
+            if (typeDisabledBefore || !hasUnchangedEvidence(evidences, baseScope) || ambiguousQuote) {
                 incomparableCurrentIds.add(currentCandidate.getId());
                 incomparable.add(
                         analysisConverter.toComparedCandidate(
@@ -151,12 +148,11 @@ public class ReviewComparisonService {
                                 currentCandidate,
                                 null,
                                 sourceTitles(evidences),
-                                "이전 분석 범위에 포함되지 않았던 설정·이전 회차 또는 검토 유형에서 검출되어 직접 비교할 수 없습니다."));
+                                "근거 자료·검토 유형이 달라졌거나 같은 원고 인용이 여러 위치에 있어 비교할 수 없습니다."));
             }
         }
 
         Set<String> matchedBaseIds = new HashSet<>();
-        String currentContent = currentTarget == null ? "" : currentTarget.getContent();
 
         for (ReviewCandidate currentCandidate : currentCandidates) {
             if (incomparableCurrentIds.contains(currentCandidate.getId())) {
@@ -164,8 +160,7 @@ public class ReviewComparisonService {
             }
             List<ReviewEvidence> currentEvidences =
                     currentEvidencesByReview.getOrDefault(currentCandidate.getId(), List.of());
-            String currentGroupKey =
-                    reviewConverter.resolveGroupKey(currentCandidate, currentEvidences);
+            Set<EvidenceSpan> currentEvidenceSpans = evidenceSpans(currentEvidences);
 
             ReviewCandidate matchedBase = null;
             for (ReviewCandidate baseCandidate : baseCandidates) {
@@ -175,17 +170,11 @@ public class ReviewComparisonService {
                 }
                 List<ReviewEvidence> baseEvidences =
                         baseEvidencesByReview.getOrDefault(baseCandidate.getId(), List.of());
-                String baseGroupKey =
-                        reviewConverter.resolveGroupKey(baseCandidate, baseEvidences);
-                boolean sameGroup = currentGroupKey.equals(baseGroupKey);
-                boolean sameTypeAndEvidence =
-                        currentCandidate.getType().equals(baseCandidate.getType())
-                                && sharesEvidence(currentEvidences, baseEvidences);
-                boolean sameQuote =
-                        currentCandidate.getQuote().equals(baseCandidate.getQuote());
-                if ((sameGroup && sameQuote)
-                        || (sameTypeAndEvidence && sameQuote)
-                        || (sameGroup && currentCandidate.getReason().equals(baseCandidate.getReason()))) {
+                boolean sameLocation = manuscriptModified
+                        || currentCandidate.getStartOffset() == baseCandidate.getStartOffset();
+                if (sameLocation && currentCandidate.getType().equals(baseCandidate.getType())
+                        && currentCandidate.getQuote().equals(baseCandidate.getQuote())
+                        && currentEvidenceSpans.equals(evidenceSpans(baseEvidences))) {
                     matchedBase = baseCandidate;
                     break;
                 }
@@ -220,23 +209,13 @@ public class ReviewComparisonService {
             }
             List<ReviewEvidence> baseEvidences =
                     baseEvidencesByReview.getOrDefault(baseCandidate.getId(), List.of());
-            if (manuscriptModified && isAmbiguousMovedQuote(currentContent, baseCandidate)) {
-                incomparable.add(
-                        analysisConverter.toComparedCandidate(
-                                "INCOMPARABLE",
-                                baseCandidate,
-                                null,
-                                sourceTitles(baseEvidences),
-                                "원고 편집으로 동일 인용문이 다른 위치에 복수로 존재하거나 이동해 자동 비교할 수 없습니다."));
-            } else {
-                notReappeared.add(
-                        analysisConverter.toComparedCandidate(
-                                "NOT_REAPPEARED",
-                                baseCandidate,
-                                null,
-                                sourceTitles(baseEvidences),
-                                "이번 분석 결과에서 다시 나오지 않은 후보입니다. 자동 해결로 확정되지 않으므로 원고 수정 내용과 근거를 직접 확인해 주세요."));
-            }
+            notReappeared.add(
+                    analysisConverter.toComparedCandidate(
+                            "NOT_REAPPEARED",
+                            baseCandidate,
+                            null,
+                            sourceTitles(baseEvidences),
+                            "이번 분석 결과에서 다시 나오지 않은 후보입니다. 원고 수정 내용과 근거를 직접 확인해 주세요."));
         }
 
         return analysisConverter.toComparisonResponse(
@@ -255,32 +234,22 @@ public class ReviewComparisonService {
     private Optional<AnalysisJob> resolveBaseJob(
             Long ownerId, Long workId, AnalysisJob currentJob, String baseJobId) {
         if (baseJobId != null && !baseJobId.isBlank()) {
-            return jobRepository
-                    .findOwned(baseJobId, workId, ownerId)
+            return Optional.of(jobRepository.findOwned(baseJobId, workId, ownerId)
                     .filter(job -> job.getStatus() == AnalysisJobStatus.SUCCEEDED)
-                    .filter(job -> !job.getId().equals(currentJob.getId()));
+                    .filter(job -> currentJob.getChapterKey() != null
+                            && currentJob.getChapterKey().equals(job.getChapterKey()))
+                    .filter(job -> job.getCreatedAt().isBefore(currentJob.getCreatedAt())
+                            || (job.getCreatedAt().equals(currentJob.getCreatedAt())
+                                    && job.getId().compareTo(currentJob.getId()) < 0))
+                    .orElseThrow(() -> new CustomException(AnalysisErrorCode.COMPARISON_INVALID_BASE)));
         }
         if (currentJob.getChapterKey() == null) {
             return Optional.empty();
         }
-        List<AnalysisJobSummaryView> succeeded =
-                jobRepository.findAllByStatusOrderByLatest(
-                        workId, ownerId, AnalysisJobStatus.SUCCEEDED);
-        boolean seenCurrent = false;
-        for (AnalysisJobSummaryView view : succeeded) {
-            if (!currentJob.getChapterKey().equals(view.getChapterKey())) {
-                continue;
-            }
-            if (view.getId().equals(currentJob.getId())) {
-                seenCurrent = true;
-                continue;
-            }
-            if (seenCurrent
-                    || view.getCreatedAt().isBefore(currentJob.getCreatedAt())) {
-                return jobRepository.findOwned(view.getId(), workId, ownerId);
-            }
-        }
-        return Optional.empty();
+        return jobRepository.findEarlierCompleted(
+                        workId, currentJob.getChapterKey(), AnalysisJobStatus.SUCCEEDED,
+                        currentJob.getCreatedAt(), currentJob.getId(), PageRequest.of(0, 1))
+                .stream().findFirst();
     }
 
     private AnalysisSource findTargetSource(List<AnalysisSource> sources) {
@@ -292,11 +261,26 @@ public class ReviewComparisonService {
         return null;
     }
 
-    private Set<String> collectScopeSourceKeys(List<AnalysisSource> sources) {
+    private Map<String, SourceVersion> collectScopeSources(List<AnalysisSource> sources) {
         return sources.stream()
                 .filter(source -> !source.getType().equals("TARGET"))
-                .map(source -> source.getType() + ":" + source.getSourceKey())
-                .collect(Collectors.toSet());
+                .collect(Collectors.toMap(this::sourceKey, this::sourceVersion));
+    }
+
+    private String sourceKey(AnalysisSource source) {
+        return source.getType() + ":" + source.getSourceKey();
+    }
+
+    private SourceVersion sourceVersion(AnalysisSource source) {
+        return new SourceVersion(source.getRevision(), source.getContentHash());
+    }
+
+    private boolean hasUnchangedEvidence(
+            List<ReviewEvidence> evidences, Map<String, SourceVersion> otherScope) {
+        return !evidences.isEmpty() && evidences.stream().allMatch(evidence -> {
+            AnalysisSource source = evidence.getSource();
+            return sourceVersion(source).equals(otherScope.get(sourceKey(source)));
+        });
     }
 
     private Map<String, List<ReviewEvidence>> loadEvidencesByReview(
@@ -309,20 +293,16 @@ public class ReviewComparisonService {
                 .collect(Collectors.groupingBy(item -> item.getReview().getId()));
     }
 
-    private String evidenceKey(ReviewEvidence evidence) {
-        return evidence.getSource().getType() + ":" + evidence.getSource().getSourceKey();
+    private Set<EvidenceSpan> evidenceSpans(List<ReviewEvidence> evidences) {
+        return evidences.stream()
+                .map(evidence -> new EvidenceSpan(sourceKey(evidence.getSource()),
+                        evidence.getStartOffset(), evidence.getEndOffset(), evidence.getQuote()))
+                .collect(Collectors.toSet());
     }
 
-    private boolean sharesEvidence(List<ReviewEvidence> first, List<ReviewEvidence> second) {
-        Set<String> firstKeys =
-                first.stream().map(this::evidenceKey).collect(Collectors.toSet());
-        for (ReviewEvidence evidence : second) {
-            if (firstKeys.contains(evidenceKey(evidence))) {
-                return true;
-            }
-        }
-        return false;
-    }
+    private record SourceVersion(long revision, String contentHash) {}
+
+    private record EvidenceSpan(String sourceKey, int startOffset, int endOffset, String quote) {}
 
     private List<String> sourceTitles(List<ReviewEvidence> evidences) {
         return evidences.stream()
@@ -331,17 +311,9 @@ public class ReviewComparisonService {
                 .toList();
     }
 
-    private boolean isAmbiguousMovedQuote(String currentContent, ReviewCandidate baseCandidate) {
-        String quote = baseCandidate.getQuote();
-        if (quote == null || quote.isBlank() || currentContent == null) {
-            return false;
-        }
-        int firstIndex = currentContent.indexOf(quote);
-        if (firstIndex < 0) {
-            return false;
-        }
-        int secondIndex = currentContent.indexOf(quote, firstIndex + 1);
-        return secondIndex >= 0 && firstIndex != baseCandidate.getStartOffset();
+    private boolean hasRepeatedQuote(String content, String quote) {
+        int first = content.indexOf(quote);
+        return first >= 0 && content.indexOf(quote, first + 1) >= 0;
     }
 
     private boolean readBooleanFlag(String rawInput, String fieldName, boolean defaultValue) {

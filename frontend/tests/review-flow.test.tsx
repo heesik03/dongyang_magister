@@ -371,6 +371,12 @@ test('4단계 구조화 검토, 범위 요약, 회차별 검토 현황, 수정 �
   ).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: '목록 표' }))
   expect(screen.getByText('회차별 검토 후보 및 판단 집계 표')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: '2화 설정 충돌 후보 1건' }))
+  expect(
+    screen
+      .getByRole('button', { name: '설정 충돌 후보', exact: true })
+      .getAttribute('aria-pressed'),
+  ).toBe('true')
 
   // 수정 전·후 비교 확인
   fireEvent.click(screen.getByRole('button', { name: '수정 전·후 비교' }))

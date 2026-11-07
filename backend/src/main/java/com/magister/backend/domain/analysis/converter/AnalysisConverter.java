@@ -18,8 +18,8 @@ import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
 import com.magister.backend.domain.analysis.entity.ReviewCandidate;
 import com.magister.backend.domain.analysis.repository.AnalysisJobSummaryView;
+import com.magister.backend.domain.analysis.repository.WorkReviewOverviewRepository.ChapterCounts;
 import com.magister.backend.domain.analysis.repository.AnalysisJobView;
-import com.magister.backend.domain.chapter.entity.Chapter;
 import com.magister.backend.domain.decision.dto.DecisionReference;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.AnalysisData;
@@ -177,86 +177,47 @@ public class AnalysisConverter {
                 objectMapper.writeValueAsString(input.settings()));
     }
 
-    public ChapterReviewSummary toUnanalyzedChapterSummary(Chapter chapter) {
+    public ChapterReviewSummary toChapterReviewSummary(ChapterCounts counts) {
+        String status;
+        if (counts.jobId() == null) {
+            status = "UNANALYZED";
+        } else if (counts.analyzedRevision() != null
+                && counts.analyzedRevision() == counts.currentRevision()) {
+            status = "CURRENT_REVISION";
+        } else {
+            status = "OUTDATED_REVISION";
+        }
         return new ChapterReviewSummary(
-                chapter.getChapterKey(),
-                chapter.getChapterNo(),
-                chapter.getTitle(),
-                chapter.getRevision(),
-                "UNANALYZED",
-                null,
-                null,
-                null,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0);
-    }
-
-    public ChapterReviewSummary toAnalyzedChapterSummary(
-            Chapter chapter,
-            String analysisStatus,
-            AnalysisJobSummaryView latestJob,
-            Long analyzedRevision,
-            int settingCount,
-            int previousChapterCount,
-            int analysisRunCount,
-            int totalCandidateCount,
-            int conflictCount,
-            int supplementCount,
-            int unreviewedCount,
-            int acceptedCount,
-            int holdCount,
-            int intendedCount) {
-        return new ChapterReviewSummary(
-                chapter.getChapterKey(),
-                chapter.getChapterNo(),
-                chapter.getTitle(),
-                chapter.getRevision(),
-                analysisStatus,
-                latestJob.getId(),
-                analyzedRevision,
-                latestJob.getUpdatedAt(),
-                settingCount,
-                previousChapterCount,
-                analysisRunCount,
-                totalCandidateCount,
-                conflictCount,
-                supplementCount,
-                unreviewedCount,
-                acceptedCount,
-                holdCount,
-                intendedCount);
+                counts.chapterId(), counts.chapterNo(), counts.title(), counts.currentRevision(),
+                status, counts.jobId(), counts.analyzedRevision(), counts.analyzedAt(),
+                counts.settingCount(), counts.previousChapterCount(), counts.analysisRunCount(),
+                counts.totalCandidateCount(), counts.conflictCount(), counts.supplementCount(),
+                counts.unreviewedCount(), counts.acceptedCount(), counts.holdCount(),
+                counts.intendedCount());
     }
 
     public WorkReviewOverviewResponse toWorkReviewOverview(
-            Long workId,
-            int totalChapters,
-            int analyzedChapters,
-            int currentRevisionChapters,
-            int outdatedRevisionChapters,
-            int unanalyzedChapters,
-            int totalConflictCount,
-            int totalSupplementCount,
-            int totalUnreviewedCount,
-            List<ChapterReviewSummary> chapters) {
+            Long workId, List<ChapterReviewSummary> chapters) {
+        int analyzed = 0;
+        int current = 0;
+        int conflicts = 0;
+        int supplements = 0;
+        int unreviewed = 0;
+        for (ChapterReviewSummary chapter : chapters) {
+            if (chapter.latestJobId() != null) {
+                analyzed++;
+            }
+            if (chapter.analysisStatus().equals("CURRENT_REVISION")) {
+                current++;
+            }
+            conflicts += chapter.conflictCount();
+            supplements += chapter.supplementCount();
+            unreviewed += chapter.unreviewedCount();
+        }
         return new WorkReviewOverviewResponse(
-                workId,
-                totalChapters,
-                analyzedChapters,
-                currentRevisionChapters,
-                outdatedRevisionChapters,
-                unanalyzedChapters,
-                totalConflictCount,
-                totalSupplementCount,
-                totalUnreviewedCount,
-                "각 회차의 가장 최근에 완료(SUCCEEDED)된 분석 1건만 집계하며, 동일 회차의 이전 재분석 이력은 중복 합산하지 않습니다.",
+                workId, chapters.size(), analyzed, current, analyzed - current, chapters.size() - analyzed,
+                conflicts, supplements, unreviewed,
+                "각 회차의 최신 완료 분석을 한 건씩 집계합니다. 최신 원고와 수정 전 원고의 후보 건수는 화면에서 구분합니다.",
                 chapters);
     }
 
@@ -317,7 +278,7 @@ public class AnalysisConverter {
             List<ComparedCandidate> incomparable) {
         String scopeNote =
                 scopeChanged
-                        ? "이전 분석과 이번 분석 사이에 선택된 설정·이전 회차 또는 검토 유형이 변경되었습니다. 범위 변경에 따른 항목은 '비교 불가'로 분리했습니다."
+                        ? "이전 분석과 이번 분석 사이에 선택한 근거 자료·자료 버전 또는 검토 유형이 변경되었습니다. 범위 변경에 따른 항목은 '비교 불가'로 분리했습니다."
                         : "이전 분석과 동일한 설정·이전 회차·검토 유형 범위에서 비교했습니다.";
         return new ReviewComparisonResponse(
                 currentJob.getId(),

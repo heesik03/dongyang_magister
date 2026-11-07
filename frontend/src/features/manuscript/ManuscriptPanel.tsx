@@ -6,7 +6,13 @@ import { useWorksStore } from '../works/useWorksStore'
 import { ReviewPanel } from '../review/ReviewPanel'
 import { DecisionLedger } from '../review/DecisionLedger'
 import { useReviewReport } from '../review/useReviewReport'
-import { reviewClient, type ReviewSource, type SourceLocation } from '../review/reviewClient'
+import {
+  REVIEW_FILTERS,
+  reviewClient,
+  type ReviewFilter,
+  type ReviewSource,
+  type SourceLocation,
+} from '../review/reviewClient'
 import { ReviewSourceDialog } from '../review/ReviewSourceDialog'
 import { analysisClient, type Preview, type Snapshot } from '../analysis/analysisClient'
 import { settingsChanged, inputChanged } from '../analysis/analysisState'
@@ -31,7 +37,9 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const chapter =
     work.chapters.find((item) => item.id === params.get('chapter')) ||
     work.chapters[work.chapters.length - 1]
-  const jobs = useAnalysisJobs(work.id, chapter?.id, work.source === 'server')
+  const overviewJobId = params.get('reviewJob') ?? undefined
+  const overviewFilter = REVIEW_FILTERS.find((filter) => filter === params.get('reviewFilter'))
+  const jobs = useAnalysisJobs(work.id, chapter?.id, work.source === 'server', overviewJobId)
   const reportState = useReviewReport(work.id, jobs.job?.id, jobs.job?.status === 'SUCCEEDED')
   const [openedSource, setOpenedSource] = useState<{
     source: ReviewSource
@@ -142,8 +150,10 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     setCreating(false)
     setHighlight('')
   }
-  function changeChapter(id: string) {
-    setParams({ chapter: id })
+  function changeChapter(id: string, jobId?: string, filter?: ReviewFilter) {
+    setParams(
+      jobId ? { chapter: id, reviewJob: jobId, reviewFilter: filter ?? '전체' } : { chapter: id },
+    )
     setHighlight('')
     setError('')
   }
@@ -658,6 +668,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           jobId={jobs.job?.status === 'SUCCEEDED' ? jobs.job.id : undefined}
           currentChapterId={chapter?.id}
           onSelectChapter={changeChapter}
+          initialFilter={overviewJobId === jobs.job?.id ? overviewFilter : undefined}
           analysis={analysis}
           report={reportState.report}
           input={snapshot?.input}

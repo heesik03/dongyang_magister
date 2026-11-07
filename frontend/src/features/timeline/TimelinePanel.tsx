@@ -68,35 +68,22 @@ export function TimelinePanel({ work }: { work: Work }) {
     displayed.filter((event) => !event.time || event.timeStatus === 'UNRESOLVED'),
   )
 
-  // 서술 회차 순서와 이야기 사건 순서(sequence)를 대조하여 회상·역순 배치를 탐지한다.
+  // 회차 필터를 바꿔도 전체 작품의 시간순과 역전 여부는 유지한다.
   const chapterIndexMap = new Map(work.chapters.map((chapter, index) => [chapter.id, index]))
-  const knownOrderMap = new Map(known.map((event, index) => [event.id, index + 1]))
+  const allKnown = orderedEvents(
+    work.events.filter((event) => event.time && event.timeStatus !== 'UNRESOLVED'),
+  )
+  const knownOrderMap = new Map(allKnown.map((event, index) => [event.id, index + 1]))
   const reversedEventIds = new Set<string>()
-  let maxSeenSequence = -1
+  let maxEarlierSequence = -1
   for (const chapter of work.chapters) {
-    const chapterConfirmedEvents = known.filter((event) => event.chapterId === chapter.id)
-    for (const event of chapterConfirmedEvents) {
-      const seq = event.sequence ?? 0
-      if (seq < maxSeenSequence) {
-        reversedEventIds.add(event.id)
-      }
-      if (seq > maxSeenSequence) {
-        maxSeenSequence = seq
-      }
+    let maxChapterSequence = maxEarlierSequence
+    for (const event of allKnown) {
+      if (event.chapterId !== chapter.id || event.sequence == null) continue
+      if (event.sequence < maxEarlierSequence) reversedEventIds.add(event.id)
+      maxChapterSequence = Math.max(maxChapterSequence, event.sequence)
     }
-  }
-  // 반대로 이야기 시간순에서는 앞인데 뒤쪽 회차에서 서술된 경우도 함께 표시한다.
-  let maxSeenChapterIndex = -1
-  for (const event of known) {
-    const chIdx = chapterIndexMap.get(event.chapterId) ?? -1
-    if (chIdx >= 0) {
-      if (chIdx < maxSeenChapterIndex) {
-        reversedEventIds.add(event.id)
-      }
-      if (chIdx > maxSeenChapterIndex) {
-        maxSeenChapterIndex = chIdx
-      }
-    }
+    maxEarlierSequence = maxChapterSequence
   }
 
   function move(event: StoryEvent, direction: number) {
@@ -118,7 +105,7 @@ export function TimelinePanel({ work }: { work: Work }) {
           <strong>{String(index + 1).padStart(2, '0')}</strong>
           <span>{event.time || '시점 미상'}</span>
           <span className="small muted">사건 순서 {index + 1}</span>
-          {isReversed && <span className="badge warning">역순·회상 서술</span>}
+          {isReversed && <span className="badge warning">서술 순서 역전</span>}
           <button onClick={() => move(event, -1)} aria-label={`${event.title} 앞 순서로`}>
             ↑
           </button>
@@ -217,12 +204,11 @@ export function TimelinePanel({ work }: { work: Work }) {
             <>
               <div className="review-overview-legend" aria-label="사건 흐름 범례">
                 <span>
-                  <i className="legend-dot legend-dot--normal" aria-hidden="true" /> 정순 서술 (회차
-                  순서 = 사건 시간순)
+                  <i className="legend-dot legend-dot--normal" aria-hidden="true" /> 시간순 배치
                 </span>
                 <span>
-                  <i className="legend-dot legend-dot--supplement" aria-hidden="true" /> 역순·회상
-                  서술 (회차 순서 ≠ 사건 시간순)
+                  <i className="legend-dot legend-dot--supplement" aria-hidden="true" /> 서술 순서
+                  역전 (앞 회차보다 이른 사건)
                 </span>
                 <span>
                   <i className="legend-dot legend-dot--unreviewed" aria-hidden="true" /> 시점 미확정
@@ -271,7 +257,7 @@ export function TimelinePanel({ work }: { work: Work }) {
                                   <strong>{event.title}</strong>
                                   <span className="small muted">
                                     {event.time || '시점 미상'}
-                                    {isReversed ? ' · 역순/회상' : ''}
+                                    {isReversed ? ' · 서술 순서 역전' : ''}
                                   </span>
                                 </button>
                               )
@@ -321,8 +307,8 @@ export function TimelinePanel({ work }: { work: Work }) {
                               {isUnresolved
                                 ? '시점 미확정'
                                 : isReversed
-                                  ? '역순·회상 서술'
-                                  : '정순 서술'}
+                                  ? '서술 순서 역전'
+                                  : '시간순 배치'}
                             </td>
                           </tr>
                         )

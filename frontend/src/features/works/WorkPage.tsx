@@ -213,7 +213,9 @@ export function WorkPage() {
               (searchParams.get('newChapter') ||
                 searchParams.get('chapter') ||
                 work.chapters.at(-1)?.id ||
-                '')
+                '') +
+              ':' +
+              (searchParams.get('reviewJob') ?? '')
             }
             work={work}
           />

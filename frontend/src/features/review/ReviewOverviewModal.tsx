@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import { reviewClient, type ChapterReviewSummary, type WorkReviewOverview } from './reviewClient'
+import {
+  reviewClient,
+  type ChapterReviewSummary,
+  type ReviewFilter,
+  type WorkReviewOverview,
+} from './reviewClient'
 
 const STATUS_LABELS: Record<ChapterReviewSummary['analysisStatus'], string> = {
   CURRENT: '최신 원고 분석됨',
@@ -15,7 +20,7 @@ export function ReviewOverviewModal({
 }: {
   workId: string
   currentChapterId?: string
-  onSelectChapter?: (chapterId: string) => void
+  onSelectChapter?: (chapterId: string, jobId?: string, filter?: ReviewFilter) => void
   onClose: () => void
 }) {
   const [reloadKey, setReloadKey] = useState(0)
@@ -25,6 +30,25 @@ export function ReviewOverviewModal({
     error: string
   } | null>(null)
   const [viewMode, setViewMode] = useState<'visual' | 'table'>('visual')
+  function openChapter(chapter: ChapterReviewSummary, filter: ReviewFilter = '전체') {
+    onSelectChapter?.(chapter.chapterId, chapter.latestJobId ?? undefined, filter)
+  }
+
+  function countLink(chapter: ChapterReviewSummary, filter: ReviewFilter, count: number) {
+    const label = filter + ' ' + count + '건'
+    if (!chapter.latestJobId || !onSelectChapter) return <span>{label}</span>
+    return (
+      <button
+        type="button"
+        className="text-button"
+        aria-label={chapter.chapterTitle + ' ' + label}
+        onClick={() => openChapter(chapter, filter)}
+      >
+        {label}
+      </button>
+    )
+  }
+
   const requestKey = `${workId}:${reloadKey}`
 
   useEffect(() => {
@@ -117,9 +141,20 @@ export function ReviewOverviewModal({
               수정 전 원고 기준 {overview.outdatedRevisionChapters}회차
             </span>
             <span className="badge">미분석 {overview.unanalyzedChapters}회차</span>
-            <span className="badge danger">설정 충돌 후보 {overview.totalConflictCount}건</span>
-            <span className="badge warning">설명 보완 {overview.totalSupplementCount}건</span>
-            <span className="badge">미검토 {overview.totalUnreviewedCount}건</span>
+            {(['CURRENT', 'OUTDATED'] as const).map((status) => {
+              const chapters = overview.chapters.filter(
+                (chapter) => chapter.analysisStatus === status,
+              )
+              if (!chapters.length) return null
+              return (
+                <span className="badge" key={status}>
+                  {STATUS_LABELS[status]} · 충돌{' '}
+                  {chapters.reduce((sum, chapter) => sum + chapter.conflictCount, 0)}건 · 보완{' '}
+                  {chapters.reduce((sum, chapter) => sum + chapter.supplementCount, 0)}건 · 미검토{' '}
+                  {chapters.reduce((sum, chapter) => sum + chapter.unreviewedCount, 0)}건
+                </span>
+              )
+            })}
           </div>
 
           <p className="small muted">{overview.aggregationBasisNote}</p>
@@ -178,7 +213,7 @@ export function ReviewOverviewModal({
                         <button
                           type="button"
                           className="text-button"
-                          onClick={() => onSelectChapter(chapter.chapterId)}
+                          onClick={() => openChapter(chapter)}
                         >
                           {isSelected ? '현재 회차' : `${chapter.chapterTitle} 열기 →`}
                         </button>
@@ -202,9 +237,9 @@ export function ReviewOverviewModal({
                           />
                         </div>
                         <div className="review-overview-counts small">
-                          <span>설정 충돌 후보 {chapter.conflictCount}건</span>
-                          <span>설명 보완 {chapter.supplementCount}건</span>
-                          <strong>미검토 {chapter.unreviewedCount}건</strong>
+                          {countLink(chapter, '설정 충돌 후보', chapter.conflictCount)}
+                          {countLink(chapter, '설명 보완', chapter.supplementCount)}
+                          {countLink(chapter, '미검토', chapter.unreviewedCount)}
                           <span>
                             처리됨 (수용 {chapter.acceptedCount} · 보류 {chapter.holdCount} · 의도된
                             설정 {chapter.intendedCount})
@@ -248,9 +283,9 @@ export function ReviewOverviewModal({
                           ? ` (v${chapter.analyzedRevision}/현재 v${chapter.currentRevision})`
                           : ` (현재 v${chapter.currentRevision})`}
                       </td>
-                      <td>{chapter.conflictCount}건</td>
-                      <td>{chapter.supplementCount}건</td>
-                      <td>{chapter.unreviewedCount}건</td>
+                      <td>{countLink(chapter, '설정 충돌 후보', chapter.conflictCount)}</td>
+                      <td>{countLink(chapter, '설명 보완', chapter.supplementCount)}</td>
+                      <td>{countLink(chapter, '미검토', chapter.unreviewedCount)}</td>
                       <td>
                         {chapter.acceptedCount} / {chapter.holdCount} / {chapter.intendedCount}
                       </td>
@@ -259,7 +294,7 @@ export function ReviewOverviewModal({
                           <button
                             type="button"
                             className="text-button"
-                            onClick={() => onSelectChapter(chapter.chapterId)}
+                            onClick={() => openChapter(chapter)}
                           >
                             이동
                           </button>

@@ -285,6 +285,18 @@ class ReviewContentEnhancementTests {
     }
 
     @Test
+    void queuedAnalysisCannotBeCompared() throws Exception {
+        AnalysisJob queued = new AnalysisJob("queued-comparison", work, "queued-req", "{}", "{}");
+        queued.recordConfirmation(chapter1, "v1", "gemini");
+        jobRepository.saveAndFlush(queued);
+
+        mockMvc.perform(get("/api/work/" + work.getId() + "/analysis/" + queued.getId() + "/compare")
+                        .with(authentication(ownerAuth)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("COMPARISON_NOT_READY"));
+    }
+
+    @Test
     void reviewReportReturnsScopeSummaryStructuredFourStepsAndRevisionComparison()
             throws Exception {
         AnalysisJob baseJob =
@@ -475,5 +487,16 @@ class ReviewContentEnhancementTests {
                                 .value("base-cand-1"))
                 .andExpect(jsonPath("$.data.notReappeared[0].candidateId").value("base-cand-2"))
                 .andExpect(jsonPath("$.data.incomparable[0].candidateId").value("curr-cand-2"));
+
+        // 동일 설정 ID의 다른 버전을 참조하는 작업으로 바꾸면 예전 근거와 직접 비교할 수 없다.
+        jdbcTemplate.update(
+                "UPDATE analysis_sources SET source_revision = 2 WHERE id = ?",
+                currentSetting1.getId());
+        mockMvc.perform(get("/api/work/" + work.getId() + "/analysis/" + currentJob.getId() + "/compare")
+                        .param("baseJobId", baseJob.getId())
+                        .with(authentication(ownerAuth)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.retained").isEmpty())
+                .andExpect(jsonPath("$.data.incomparable.length()").value(4));
     }
 }

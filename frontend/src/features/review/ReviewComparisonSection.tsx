@@ -109,6 +109,7 @@ export function ReviewComparisonSection({
             <>
               <div className="comparison-meta small">
                 <span>
+                  {!comparison.manuscriptModified && '같은 원고 내용의 재분석 · '}
                   이전 분석 원고 버전 {comparison.baseChapterRevision ?? '-'} → 현재 분석 원고 버전{' '}
                   {comparison.currentChapterRevision}
                 </span>
