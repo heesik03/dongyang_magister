@@ -12,7 +12,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 검증한 분석 결과의 원문 위치를 수정 없이 보존한다. */
+/** 검증한 분석 결과의 원문 위치와 4단계 구조화 검토 설명을 수정 없이 보존한다. */
 @Entity
 @Table(name = "review_candidates")
 @Getter
@@ -48,6 +48,24 @@ public class ReviewCandidate {
     @Column(nullable = false, columnDefinition = "LONGTEXT", updatable = false)
     private String suggestion;
 
+    @Column(name = "issue_group_key", length = 128, updatable = false)
+    private String issueGroupKey;
+
+    @Column(name = "issue_group_title", length = 200, updatable = false)
+    private String issueGroupTitle;
+
+    @Column(name = "confirmed_fact", columnDefinition = "LONGTEXT", updatable = false)
+    private String confirmedFact;
+
+    @Column(name = "interpretation_text", columnDefinition = "LONGTEXT", updatable = false)
+    private String interpretation;
+
+    @Column(name = "missing_info_text", columnDefinition = "LONGTEXT", updatable = false)
+    private String missingInfo;
+
+    @Column(name = "options_json", columnDefinition = "LONGTEXT", updatable = false)
+    private String optionsJson;
+
     public ReviewCandidate(
             String id,
             AnalysisJob job,
@@ -58,6 +76,40 @@ public class ReviewCandidate {
             int endOffset,
             String reason,
             String suggestion) {
+        this(
+                id,
+                job,
+                targetSource,
+                type,
+                quote,
+                startOffset,
+                endOffset,
+                reason,
+                suggestion,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    public ReviewCandidate(
+            String id,
+            AnalysisJob job,
+            AnalysisSource targetSource,
+            String type,
+            String quote,
+            int startOffset,
+            int endOffset,
+            String reason,
+            String suggestion,
+            String issueGroupKey,
+            String issueGroupTitle,
+            String confirmedFact,
+            String interpretation,
+            String missingInfo,
+            String optionsJson) {
         this.id = id;
         this.job = job;
         this.targetSource = targetSource;
@@ -67,5 +119,11 @@ public class ReviewCandidate {
         this.endOffset = endOffset;
         this.reason = reason;
         this.suggestion = suggestion;
+        this.issueGroupKey = issueGroupKey;
+        this.issueGroupTitle = issueGroupTitle;
+        this.confirmedFact = confirmedFact;
+        this.interpretation = interpretation;
+        this.missingInfo = missingInfo;
+        this.optionsJson = optionsJson;
     }
 }

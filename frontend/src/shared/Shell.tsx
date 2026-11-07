@@ -25,6 +25,7 @@ function ShellContent() {
   const storageError = useWorksStore((state) => state.storageError)
   const retrySave = useWorksStore((state) => state.retrySave)
   const match = useMatch('/works/:workId/:tab')
+  const isMyPage = Boolean(useMatch('/mypage'))
   const [params] = useSearchParams()
   const current = cachedWorks.find((work) => work.id === match?.params.workId)
   const selectedChapter = params.get('chapter') || current?.chapters.at(-1)?.id
@@ -164,12 +165,19 @@ function ShellContent() {
               작은 일관성에서 시작됩니다.
             </p>
           )}
-          <div className="profile">
-            <span className="avatar">{user?.name.slice(0, 1)}</span>
-            <div>
-              <strong>{user?.name} 작가님</strong>
-              <span className="small muted">개인 창작 공간</span>
-            </div>
+          <div className={'profile ' + (isMyPage ? 'profile-active' : '')}>
+            <NavLink
+              to="/mypage"
+              className="profile-link"
+              aria-label="마이페이지 이동"
+              onClick={() => setDrawer(false)}
+            >
+              <span className="avatar">{user?.name.slice(0, 1)}</span>
+              <div>
+                <strong>{user?.name} 작가님</strong>
+                <span className="small muted">마이페이지 · 개인 창작 공간</span>
+              </div>
+            </NavLink>
             <button className="icon-button" aria-label="로그아웃" onClick={() => void leave()}>
               <Icon name="logout" />
             </button>
@@ -179,9 +187,19 @@ function ShellContent() {
       <div className="main-area">
         <header className="topbar">
           <div className="topbar-left">
-            <NavLink to="/">작품 보관함</NavLink>
-            <Icon name="chevron" />
-            <strong>{current?.title || '나의 작업 공간'}</strong>
+            {isMyPage ? (
+              <>
+                <span className="muted">내 계정</span>
+                <Icon name="chevron" />
+                <strong>마이페이지</strong>
+              </>
+            ) : (
+              <>
+                <NavLink to="/">작품 보관함</NavLink>
+                <Icon name="chevron" />
+                <strong>{current?.title || '나의 작업 공간'}</strong>
+              </>
+            )}
           </div>
           <span className="demo-tag">개인 작업 공간</span>
         </header>
@@ -207,7 +225,12 @@ function ShellContent() {
       </div>
       {drawer && (
         <Dialog title="작품 탐색" onClose={() => setDrawer(false)}>
-          <nav className="drawer-nav">{navigation()}</nav>
+          <nav className="drawer-nav">
+            {navigation()}
+            <NavLink to="/mypage" className="nav-item" onClick={() => setDrawer(false)}>
+              마이페이지
+            </NavLink>
+          </nav>
         </Dialog>
       )}
     </div>

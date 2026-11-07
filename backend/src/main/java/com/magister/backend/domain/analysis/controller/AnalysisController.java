@@ -7,12 +7,16 @@ import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisSourceResponse;
+import com.magister.backend.domain.analysis.dto.ReviewComparisonResponse;
 import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
+import com.magister.backend.domain.analysis.dto.WorkReviewOverviewResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
 import com.magister.backend.domain.analysis.service.AnalysisSnapshotService;
+import com.magister.backend.domain.analysis.service.ReviewComparisonService;
 import com.magister.backend.domain.analysis.service.ReviewResultService;
+import com.magister.backend.domain.analysis.service.WorkReviewOverviewService;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.pagination.OffsetPageRequest;
 import com.magister.backend.global.pagination.OffsetPageResponse;
@@ -40,6 +44,15 @@ public class AnalysisController implements AnalysisControllerDocs {
     private final AnalysisPreviewService previewService;
     private final AnalysisSnapshotService snapshotService;
     private final ReviewResultService reviewResultService;
+    private final WorkReviewOverviewService overviewService;
+    private final ReviewComparisonService comparisonService;
+
+    @Override
+    @GetMapping("/overview")
+    public ApiResult<WorkReviewOverviewResponse> overview(
+            @AuthenticationPrincipal LoginUser user, @PathVariable Long workId) {
+        return ApiResult.success(overviewService.getOverview(user.id(), workId));
+    }
 
     @Override
     @GetMapping("/{id}/review")
@@ -51,6 +64,16 @@ public class AnalysisController implements AnalysisControllerDocs {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResult.success(
                 reviewResultService.list(user.id(), workId, id, OffsetPageRequest.of(page, size)));
+    }
+
+    @Override
+    @GetMapping("/{id}/compare")
+    public ApiResult<ReviewComparisonResponse> compare(
+            @AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId,
+            @PathVariable String id,
+            @RequestParam(required = false) String baseJobId) {
+        return ApiResult.success(comparisonService.compare(user.id(), workId, id, baseJobId));
     }
 
     @Override

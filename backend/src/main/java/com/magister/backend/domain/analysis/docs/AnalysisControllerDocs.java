@@ -6,7 +6,9 @@ import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisSourceResponse;
+import com.magister.backend.domain.analysis.dto.ReviewComparisonResponse;
 import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
+import com.magister.backend.domain.analysis.dto.WorkReviewOverviewResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.pagination.OffsetPageResponse;
@@ -33,16 +35,35 @@ import org.springframework.http.ResponseEntity;
 @SecurityRequirement(name = "session")
 public interface AnalysisControllerDocs {
     @Operation(
+            summary = "작품 회차별 검토 현황 집계",
+            description =
+                    "각 회차의 가장 최근 성공(SUCCEEDED) 분석 1건만 기준으로 설정 충돌 후보·설명 보완·미검토 분포를 반환합니다."
+                        + " 미분석·최신 원고·수정 전 원고 상태를 구분하며 중복 재분석 이력을 합산하지 않습니다.")
+    ApiResult<WorkReviewOverviewResponse> overview(LoginUser user, @Positive Long workId);
+
+    @Operation(
             summary = "근거가 연결된 검토 후보",
             description =
-                    "본인 작업만 조회. 후보·다중 근거·UTF-16 위치와 legacy/stale 반환. page=0,size=20(최대100)."
-                        + " 200/400/401/404/409. 과거 결과의 없는 위치는 추정하지 않습니다.")
+                    "본인 작업만 조회. 후보·다중 근거·UTF-16 위치·4단계 구조화 설명·선택지·범위 종합 요약과 legacy/stale 반환."
+                        + " page=0,size=20(최대100). 200/400/401/404/409. 과거 결과의 없는 위치는 추정하지 않습니다.")
     ApiResult<ReviewReportResponse> reviews(
             LoginUser user,
             @Positive Long workId,
             @NotBlank @Size(max = 36) String id,
             @Min(0) int page,
             @Min(1) @Max(100) int size);
+
+    @Operation(
+            summary = "원고 수정 전후 검토 결과 비교",
+            description =
+                    "같은 회차의 이전 완료 분석과 현재 완료 분석을 비교하여 유지된 쟁점·새 후보·이번 결과에서 다시 나오지 않은 후보·비교 불가 항목을"
+                        + " 반환합니다. 다시 나오지 않은 후보는 자동 해결로 간주하지 않습니다. "
+                        + "비교 대상은 같은 회차의 완료 분석이며, 현재 분석 미완료는 409, 잘못된 기준 작업은 400으로 응답합니다.")
+    ApiResult<ReviewComparisonResponse> compare(
+            LoginUser user,
+            @Positive Long workId,
+            @NotBlank @Size(max = 36) String id,
+            @Size(max = 36) String baseJobId);
 
     @Operation(
             summary = "분석 당시 근거 원문",

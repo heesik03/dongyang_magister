@@ -9,15 +9,22 @@ import java.util.List;
 public final class AccountPrincipal extends User {
     private final Long userId;
     private final String displayName;
+    private final long securityVersion;
 
-    public AccountPrincipal(Long userId, String email, String displayName, String passwordHash) {
+    public AccountPrincipal(
+            Long userId, String email, String displayName, String passwordHash, long securityVersion) {
         super(email, passwordHash, List.of(new SimpleGrantedAuthority("ROLE_USER")));
         this.userId = userId;
         this.displayName = displayName;
+        this.securityVersion = securityVersion;
     }
 
     public Long userId() {
         return userId;
+    }
+
+    public long securityVersion() {
+        return securityVersion;
     }
 
     public String displayName() {

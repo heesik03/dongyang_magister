@@ -39,6 +39,9 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Column(name = "security_version", nullable = false)
+    private long securityVersion;
+
     @OneToMany(mappedBy = "owner", fetch = FetchType.LAZY)
     private List<Work> works = new ArrayList<>();
 
@@ -50,5 +53,6 @@ public class User {
         this.email = email;
         this.name = name;
         this.passwordHash = passwordHash;
+        this.securityVersion = 0L;
     }
 }

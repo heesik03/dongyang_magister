@@ -32,7 +32,7 @@ class SessionAuthenticationServiceTests {
     void sessionStoresOnlyPublicIdentityFromAuthenticationResult() {
         AuthenticationManager manager = mock(AuthenticationManager.class);
         AccountPrincipal account =
-                new AccountPrincipal(42L, "writer@example.com", "author", "private-hash");
+                new AccountPrincipal(42L, "writer@example.com", "author", "private-hash", 3L);
         when(manager.authenticate(any()))
                 .thenReturn(
                         UsernamePasswordAuthenticationToken.authenticated(

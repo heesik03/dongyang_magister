@@ -16,7 +16,8 @@ final class GeminiAnalysisConfig {
                       "type":"OBJECT","required":["reviews"],"properties":{
                         "reviews":{"type":"ARRAY","items":{
                           "type":"OBJECT",
-                          "required":["type","quote","startOffset","endOffset","evidences","reason","suggestion"],
+                          "required":["type","quote","startOffset","endOffset","evidences","reason","suggestion",
+                            "issueGroupKey","issueGroupTitle","confirmedFact","interpretation","missingInfo","options"],
                           "properties":{
                             "type":{"type":"STRING","enum":["설정 충돌 후보","설명 보완"]},
                             "quote":{"type":"STRING"},
@@ -35,7 +36,22 @@ final class GeminiAnalysisConfig {
                               }
                             }},
                             "reason":{"type":"STRING"},
-                            "suggestion":{"type":"STRING"}
+                            "suggestion":{"type":"STRING"},
+                            "issueGroupKey":{"type":"STRING"},
+                            "issueGroupTitle":{"type":"STRING"},
+                            "confirmedFact":{"type":"STRING"},
+                            "interpretation":{"type":"STRING"},
+                            "missingInfo":{"type":"STRING"},
+                            "options":{"type":"ARRAY","minItems":2,"maxItems":5,"items":{
+                              "type":"OBJECT",
+                              "required":["title","direction","premise","rationale"],
+                              "properties":{
+                                "title":{"type":"STRING"},
+                                "direction":{"type":"STRING"},
+                                "premise":{"type":"STRING"},
+                                "rationale":{"type":"STRING"}
+                              }
+                            }}
                           }
                         }}
                       }

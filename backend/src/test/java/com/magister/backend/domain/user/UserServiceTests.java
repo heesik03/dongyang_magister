@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.entity.User;
+import com.magister.backend.domain.user.repository.UserActivityRepository;
 import com.magister.backend.domain.user.repository.UserConstraintTranslator;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.service.UserService;
@@ -45,7 +46,7 @@ class UserServiceTests {
         UserRepository repository = mock(UserRepository.class);
         Pbkdf2PasswordEncoder encoder = Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8();
         when(repository.saveAndFlush(any(User.class))).thenAnswer(call -> call.getArgument(0));
-        new UserService(repository, encoder)
+        new UserService(repository, encoder, mock(UserActivityRepository.class))
                 .signup(new SignupRequest("Writer@Example.com", "작가", "Password1!"));
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(repository).saveAndFlush(captor.capture());
@@ -59,7 +60,8 @@ class UserServiceTests {
         UserRepository repository = mock(UserRepository.class);
         when(repository.existsByEmail("writer@example.com")).thenReturn(true);
         UserService service =
-                new UserService(repository, Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8());
+                new UserService(repository, Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8(),
+                        mock(UserActivityRepository.class));
         assertThatThrownBy(
                         () ->
                                 service.signup(
@@ -76,7 +78,8 @@ class UserServiceTests {
         when(repository.saveAndFlush(any(User.class)))
                 .thenThrow(new DataIntegrityViolationException("Data too long for column 'name'"));
         UserService service =
-                new UserService(repository, Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8());
+                new UserService(repository, Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8(),
+                        mock(UserActivityRepository.class));
 
         assertThatThrownBy(
                         () ->

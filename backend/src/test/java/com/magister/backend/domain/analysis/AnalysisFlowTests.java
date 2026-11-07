@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
+import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
@@ -141,6 +142,22 @@ class AnalysisFlowTests {
         "reason":"계기 확인","suggestion":"설명 보완"}]}
         """
                 .formatted(settingId);
+    }
+
+    @Test
+    void equivalentActiveRequestAndItsReplayReuseOneJob() {
+        AnalysisRequest firstRequest = confirmed();
+        AnalysisRequest secondRequest = confirmed();
+        String jobId = jobService.create(ownerId, workId, firstRequest).id();
+
+        assertThat(jobService.create(ownerId, workId, secondRequest).id()).isEqualTo(jobId);
+        when(geminiClient.generateAnalysis(anyString())).thenReturn("{\"reviews\":[]}");
+        worker.execute(jobId);
+        assertThat(jobRepository.findById(jobId).orElseThrow().getStatus())
+                .isEqualTo(AnalysisJobStatus.SUCCEEDED);
+
+        assertThat(jobService.create(ownerId, workId, secondRequest).id()).isEqualTo(jobId);
+        assertThat(jobService.create(ownerId, workId, confirmed()).id()).isNotEqualTo(jobId);
     }
 
     @Test

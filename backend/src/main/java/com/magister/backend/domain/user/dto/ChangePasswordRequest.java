@@ -1,0 +1,15 @@
+package com.magister.backend.domain.user.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
+public record ChangePasswordRequest(
+        @NotBlank @Size(max = 128) String currentPassword,
+        @NotBlank
+                @Size(min = 8, max = 128)
+                @Pattern(
+                        regexp = "^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[^\\p{L}\\p{N}\\s])\\S+$",
+                        message = "비밀번호는 영문·숫자·특수문자를 포함하고 공백 없이 입력해 주세요.")
+                String newPassword,
+        @NotBlank @Size(max = 128) String confirmPassword) {}

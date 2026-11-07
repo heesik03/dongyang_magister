@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { analysisClient, isActiveJob, type Job, type JobSummary } from './analysisClient'
 
 // 호출 화면은 작품·회차를 key로 상태를 분리한다. 화면 이동 시 조회만 멈추고 서버 작업은 유지한다.
-export function useAnalysisJobs(workId: string, chapterId: string | undefined, enabled: boolean) {
+export function useAnalysisJobs(
+  workId: string,
+  chapterId: string | undefined,
+  enabled: boolean,
+  initialJobId?: string,
+) {
   const [listState, setListState] = useState<{
     key: string
     items: JobSummary[]
@@ -12,7 +17,7 @@ export function useAnalysisJobs(workId: string, chapterId: string | undefined, e
   const [storedJob, setJob] = useState<Job | null>(null)
   const [page, setPage] = useState(0)
   const [pollError, setPollError] = useState('')
-  const [selection, setSelection] = useState<string | null>(null)
+  const [selection, setSelection] = useState<string | null>(initialJobId ?? null)
   const [refreshKey, setRefreshKey] = useState(0)
   const context = workId + ':' + chapterId
   const listKey = context + ':' + page + ':' + refreshKey
@@ -32,7 +37,8 @@ export function useAnalysisJobs(workId: string, chapterId: string | undefined, e
           error: '',
         })
         setSelection((previous) =>
-          previous && result.items.some((item) => item.id === previous)
+          previous &&
+          (previous === initialJobId || result.items.some((item) => item.id === previous))
             ? previous
             : (result.items[0]?.id ?? previous ?? null),
         )
@@ -47,7 +53,7 @@ export function useAnalysisJobs(workId: string, chapterId: string | undefined, e
           })
       })
     return () => controller.abort()
-  }, [workId, chapterId, enabled, page, listKey])
+  }, [workId, chapterId, enabled, page, listKey, initialJobId])
   useEffect(() => {
     if (!enabled || !selection) return
     const selectedId = selection
@@ -107,6 +113,7 @@ export function useAnalysisJobs(workId: string, chapterId: string | undefined, e
     select,
     changePage: (page: number) => {
       setPollError('')
+      setSelection(null)
       setPage(page)
     },
     accept,

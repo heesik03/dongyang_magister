@@ -9,6 +9,8 @@ import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.repository.AnalysisAdmissionRepository;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
+import com.magister.backend.domain.analysis.repository.AnalysisRequestAliasRepository;
+import com.magister.backend.domain.analysis.repository.AnalysisRequestAliasRepository.RequestAlias;
 import com.magister.backend.domain.analysis.service.support.AnalysisInputFactory;
 import com.magister.backend.domain.chapter.repository.ChapterRepository;
 import com.magister.backend.domain.decision.service.DecisionReferenceService;
@@ -49,6 +51,7 @@ public class AnalysisJobService {
     private final AnalysisAdmissionRepository admissionRepository;
     private final EventExtractionRepository eventExtractionRepository;
     private final AnalysisJobRepository analysisJobRepository;
+    private final AnalysisRequestAliasRepository analysisRequestAliasRepository;
     private final WorkAccessService workAccessService;
     private final WorkspaceSnapshotService snapshotService;
     private final AnalysisInputFactory inputFactory;
@@ -91,6 +94,33 @@ public class AnalysisJobService {
             return converter.toResponse(existingJob.get());
         }
 
+        Optional<RequestAlias> existingAlias =
+                analysisRequestAliasRepository.find(workId, request.requestId());
+        if (existingAlias.isPresent()) {
+            RequestAlias alias = existingAlias.get();
+            if (!objectMapper.readValue(alias.requestBody(), AnalysisRequest.class).equals(request)) {
+                invalid();
+            }
+            return converter.toResponse(
+                    analysisJobRepository.findOwned(alias.jobId(), workId, ownerId).orElseThrow());
+        }
+
+        // 이미 소유권과 잠금을 확인한 Work를 재사용한다. 저장 후 원고가 바뀌어도 이번 입력은 고정된다.
+        WorkspaceResponse workspace = snapshotService.getForOwnedWork(work);
+        AnalysisInput input = inputFactory.create(workId, request, workspace);
+        String snapshot = previewService.verify(ownerId, workId, request, input);
+
+        for (AnalysisJob activeJob :
+                analysisJobRepository.findByWork_IdAndStatusIn(workId, ACTIVE_STATUSES)) {
+            if (activeJob.getInput().equals(snapshot)
+                    && AnalysisPreviewService.POLICY_VERSION.equals(activeJob.getPolicyVersion())
+                    && geminiProperties.model().equals(activeJob.getProviderModel())) {
+                analysisRequestAliasRepository.save(
+                        workId, request.requestId(), requestBody, activeJob.getId());
+                return converter.toResponse(activeJob);
+            }
+        }
+
         // 이 검사는 공통 접수 잠금을 보유한 상태에서만 원자적인 예약 의미를 가진다.
         if (analysisJobRepository.countByWork_Owner_IdAndStatusIn(ownerId, ACTIVE_STATUSES)
                                 + eventExtractionRepository.countByWork_Owner_IdAndStatusIn(
@@ -102,11 +132,6 @@ public class AnalysisJobService {
                         >= executionProperties.getMaxActiveJobs()) {
             throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
         }
-
-        // 이미 소유권과 잠금을 확인한 Work를 재사용한다. 저장 후 원고가 바뀌어도 이번 입력은 고정된다.
-        WorkspaceResponse workspace = snapshotService.getForOwnedWork(work);
-        AnalysisInput input = inputFactory.create(workId, request, workspace);
-        String snapshot = previewService.verify(ownerId, workId, request, input);
 
         // 실행 프로세스가 사라지면 heartbeat가 끊겨 이 lease를 기준으로 미완료 작업을 복구한다.
         AnalysisJob job =

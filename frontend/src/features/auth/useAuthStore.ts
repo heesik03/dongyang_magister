@@ -10,6 +10,7 @@ interface AuthState {
   initialize: (signal?: AbortSignal) => Promise<void>
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  updateUser: (user: User) => void
   retry: () => void
   expire: () => void
 }
@@ -47,6 +48,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       set({ error: '로그아웃하지 못했습니다. 다시 시도해 주세요.' })
     }
+  },
+  updateUser(user) {
+    set({ user, loading: false, error: '' })
   },
   retry() {
     void get().initialize()

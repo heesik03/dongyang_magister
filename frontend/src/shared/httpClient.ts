@@ -47,7 +47,7 @@ interface RequestOptions {
   responseType?: 'blob'
 }
 async function send(
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   options: RequestOptions,
   data?: object,
@@ -130,7 +130,7 @@ async function getCsrfToken(
   }
 }
 async function sendWithCsrf(
-  method: 'POST' | 'PUT' | 'DELETE',
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   data?: object,
   options: RequestOptions = {},
@@ -156,6 +156,9 @@ export const httpClient = {
   },
   get(path: string, options: RequestOptions = {}): Promise<unknown> {
     return send('GET', path, options)
+  },
+  patch(path: string, data: object, options: RequestOptions = {}): Promise<unknown> {
+    return sendWithCsrf('PATCH', path, data, options)
   },
   post(path: string, data?: object, options: RequestOptions = {}): Promise<unknown> {
     return sendWithCsrf('POST', path, data, options)
