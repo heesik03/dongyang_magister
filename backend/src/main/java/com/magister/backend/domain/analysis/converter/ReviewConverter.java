@@ -18,9 +18,6 @@ import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -102,134 +99,34 @@ public class ReviewConverter {
     /**
      * 선택된 분석 범위의 출처·후보·근거만을 바탕으로 범위 종합 요약을 계산한다. 계산 중 오류가 발생해도 개별 후보 조회가 중단되지 않도록 null을 반환한다.
      */
-    public ScopeSummary buildScopeSummary(
-            List<AnalysisSource> sources,
-            List<ReviewCandidate> allCandidates,
-            List<ReviewEvidence> allEvidences,
-            Map<String, DecisionResponse> decisions) {
-        try {
-            int settingCount =
-                    (int)
-                            sources.stream()
-                                    .filter(source -> source.getType().equals("SETTING"))
-                                    .count();
-            int previousChapterCount =
-                    (int)
-                            sources.stream()
-                                    .filter(source -> source.getType().equals("PREVIOUS"))
-                                    .count();
-            String scopeNotice =
-                    "선택한 분석 범위(대상 회차 1건, 확정 설정 "
-                            + settingCount
-                            + "건, 이전 회차 "
-                            + previousChapterCount
-                            + "건)만 근거로 평가했으며, 선택하지 않은 설정·회차는 평가하지 않았습니다.";
+    public ScopeSummary toScopeSummary(
+            String scopeNotice, int settingCount, int previousChapterCount, int totalCandidates,
+            int conflictCount, int supplementCount, int unreviewedCount, int issueGroupCount,
+            List<PriorityIssue> priorityItems) {
+        return new ScopeSummary(scopeNotice, settingCount, previousChapterCount, totalCandidates,
+                conflictCount, supplementCount, unreviewedCount, issueGroupCount, priorityItems);
+    }
 
-            Map<String, List<ReviewEvidence>> evidencesByReview =
-                    allEvidences.stream()
-                            .collect(Collectors.groupingBy(item -> item.getReview().getId()));
-
-            int conflictCount = 0;
-            int supplementCount = 0;
-            int unreviewedCount = 0;
-            Map<String, List<ReviewCandidate>> grouped = new LinkedHashMap<>();
-
-            for (ReviewCandidate candidate : allCandidates) {
-                if (candidate.getType().equals("설정 충돌 후보")) {
-                    conflictCount++;
-                } else {
-                    supplementCount++;
-                }
-                DecisionResponse decision = decisions.get(candidate.getId());
-                if (decision == null || decision.status().equals("미검토")) {
-                    unreviewedCount++;
-                }
-                List<ReviewEvidence> candidateEvidences =
-                        evidencesByReview.getOrDefault(candidate.getId(), List.of());
-                String key = resolveGroupKey(candidate, candidateEvidences);
-                grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(candidate);
-            }
-
-            List<PriorityIssue> priorityItems =
-                    grouped.entrySet().stream()
-                            .map(
-                                    entry -> {
-                                        List<ReviewCandidate> items = entry.getValue();
-                                        ReviewCandidate primary = items.get(0);
-                                        List<ReviewEvidence> primaryEvidences =
-                                                evidencesByReview.getOrDefault(
-                                                        primary.getId(), List.of());
-                                        List<String> sourceTitles =
-                                                items.stream()
-                                                        .flatMap(
-                                                                item ->
-                                                                        evidencesByReview
-                                                                                .getOrDefault(
-                                                                                        item
-                                                                                                .getId(),
-                                                                                        List.of())
-                                                                                .stream())
-                                                        .map(
-                                                                evidence ->
-                                                                        evidence.getSource()
-                                                                                .getTitle())
-                                                        .distinct()
-                                                        .toList();
-                                        List<String> candidateIds =
-                                                items.stream()
-                                                        .map(ReviewCandidate::getId)
-                                                        .toList();
-                                        return new PriorityIssue(
-                                                entry.getKey(),
-                                                resolveGroupTitle(primary, primaryEvidences),
-                                                primary.getType(),
-                                                primary.getReason(),
-                                                candidateIds,
-                                                sourceTitles);
-                                    })
-                            .sorted(
-                                    Comparator.comparingInt(
-                                                    (PriorityIssue issue) ->
-                                                            issue.type().equals("설정 충돌 후보") ? 0 : 1)
-                                            .thenComparing(
-                                                    issue -> -issue.candidateIds().size()))
-                            .limit(5)
-                            .toList();
-
-            return new ScopeSummary(
-                    scopeNotice,
-                    settingCount,
-                    previousChapterCount,
-                    allCandidates.size(),
-                    conflictCount,
-                    supplementCount,
-                    unreviewedCount,
-                    grouped.size(),
-                    priorityItems);
-        } catch (RuntimeException ignored) {
-            return null;
-        }
+    public PriorityIssue toPriorityIssue(
+            String key, String title, String type, String summary, List<String> candidateIds,
+            List<String> sourceTitles) {
+        return new PriorityIssue(key, title, type, summary, candidateIds, sourceTitles);
     }
 
     public String resolveGroupKey(
             ReviewCandidate candidate, List<ReviewEvidence> candidateEvidences) {
-        if (candidate.getIssueGroupKey() != null && !candidate.getIssueGroupKey().isBlank()) {
-            return candidate.getIssueGroupKey();
+        String providerKey = candidate.getIssueGroupKey();
+        if (providerKey == null || providerKey.isBlank() || candidateEvidences.isEmpty()) {
+            return "candidate:" + candidate.getId();
         }
-        String evidenceSignature =
-                candidateEvidences.stream()
-                        .map(
-                                evidence ->
-                                        evidence.getSource().getType()
-                                                + ":"
-                                                + evidence.getSource().getSourceKey())
-                        .distinct()
-                        .sorted()
-                        .collect(Collectors.joining("+"));
-        if (evidenceSignature.isEmpty()) {
-            return candidate.getType() + ":candidate:" + candidate.getId();
-        }
-        return candidate.getType() + ":" + evidenceSignature;
+        // 공급자 그룹 키가 같아도 원고 줄과 근거 인용 범위가 다르면 별개의 쟁점이다.
+        String target = candidate.getTargetSource().getContent();
+        int lineStart = target.lastIndexOf('\n', candidate.getStartOffset() - 1) + 1;
+        String evidenceSignature = candidateEvidences.stream()
+                .map(evidence -> evidence.getSource().getId()
+                        + ":" + evidence.getStartOffset() + ":" + evidence.getEndOffset())
+                .distinct().sorted().collect(Collectors.joining(","));
+        return candidate.getType() + ":" + lineStart + ":" + evidenceSignature + ":" + providerKey;
     }
 
     public String resolveGroupTitle(
@@ -250,8 +147,10 @@ public class ReviewConverter {
 
     private String resolveConfirmedFact(
             ReviewCandidate candidate, List<ReviewEvidence> candidateEvidences) {
-        if (candidate.getConfirmedFact() != null && !candidate.getConfirmedFact().isBlank()) {
-            return candidate.getConfirmedFact();
+        String claimedFact = candidate.getConfirmedFact();
+        if (claimedFact != null && (claimedFact.equals(candidate.getQuote())
+                || candidateEvidences.stream().anyMatch(evidence -> claimedFact.equals(evidence.getQuote())))) {
+            return claimedFact;
         }
         String evidenceSummary =
                 candidateEvidences.stream()

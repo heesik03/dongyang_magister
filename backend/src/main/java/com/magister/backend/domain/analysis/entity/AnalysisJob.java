@@ -52,9 +52,6 @@ public class AnalysisJob {
     @Column(name = "result_json", columnDefinition = "LONGTEXT")
     private String result;
 
-    @Column(name = "summary_json", columnDefinition = "LONGTEXT")
-    private String summaryJson;
-
     @Column(name = "error_message", length = 500)
     private String error;
 
@@ -96,10 +93,6 @@ public class AnalysisJob {
 
     public void recordEvidenceResult() {
         resultFormatVersion = 1;
-    }
-
-    public void recordSummary(String summaryJson) {
-        this.summaryJson = summaryJson;
     }
 
     public void recordConfirmation(Chapter chapter, String policyVersion, String model) {

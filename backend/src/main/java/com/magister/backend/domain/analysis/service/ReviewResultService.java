@@ -21,6 +21,7 @@ import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.pagination.OffsetPageRequest;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -37,6 +38,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReviewResultService {
     private final AnalysisJobRepository jobRepository;
     private final AnalysisSourceRepository sourceRepository;
@@ -44,6 +46,7 @@ public class ReviewResultService {
     private final ReviewEvidenceRepository evidenceRepository;
     private final AnalysisSnapshotService snapshotService;
     private final ReviewConverter reviewConverter;
+    private final ReviewSummaryService reviewSummaryService;
     private final DecisionService decisionService;
     private final ObjectMapper objectMapper;
 
@@ -63,7 +66,8 @@ public class ReviewResultService {
                         .orElseThrow();
         for (int index = 0; index < validated.candidates().size(); index++) {
             Candidate candidate = validated.candidates().get(index);
-            String optionsJson = serializeOptions(candidate);
+            String optionsJson = candidate.options() == null
+                    ? null : objectMapper.writeValueAsString(candidate.options());
             ReviewCandidate saved =
                     candidateRepository.save(
                             new ReviewCandidate(
@@ -119,7 +123,8 @@ public class ReviewResultService {
         Map<String, DecisionResponse> pageDecisions =
                 decisionService.summaries(workId, candidates.getContent(), evidences);
 
-        ScopeSummary summary = buildSafeSummary(workId, jobId);
+        ScopeSummary summary = job.getResultFormatVersion() == 0
+                ? null : buildSafeSummary(workId, jobId, candidates, evidences, pageDecisions);
 
         return reviewConverter.toReport(
                 candidates,
@@ -130,32 +135,27 @@ public class ReviewResultService {
                 summary);
     }
 
-    private ScopeSummary buildSafeSummary(Long workId, String jobId) {
+    private ScopeSummary buildSafeSummary(
+            Long workId, String jobId, Page<ReviewCandidate> candidates,
+            List<ReviewEvidence> evidences, Map<String, DecisionResponse> decisions) {
         try {
-            List<AnalysisSource> allSources = sourceRepository.findByJob_IdOrderByIdAsc(jobId);
-            List<ReviewCandidate> allCandidates =
-                    candidateRepository.findAllByJob_IdOrderByIdAsc(jobId);
-            List<ReviewEvidence> allEvidences =
-                    allCandidates.isEmpty()
-                            ? List.of()
-                            : evidenceRepository.findForReviews(
-                                    allCandidates.stream().map(ReviewCandidate::getId).toList());
-            Map<String, DecisionResponse> allDecisions =
-                    decisionService.summaries(workId, allCandidates, allEvidences);
-            return reviewConverter.buildScopeSummary(
-                    allSources, allCandidates, allEvidences, allDecisions);
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-    }
+            List<String> sourceTypes = sourceRepository.findSourceTypes(jobId);
+            if (candidates.getTotalElements() == candidates.getNumberOfElements()) {
+                return reviewSummaryService.buildScopeSummary(
+                        sourceTypes, candidates.getContent(), evidences, decisions);
+            }
 
-    private String serializeOptions(Candidate candidate) {
-        if (candidate.options() == null || candidate.options().isEmpty()) {
-            return null;
-        }
-        try {
-            return objectMapper.writeValueAsString(candidate.options());
-        } catch (RuntimeException ignored) {
+            List<ReviewCandidate> allCandidates = candidateRepository.findAllByJob_IdOrderByIdAsc(jobId);
+            List<ReviewEvidence> allEvidences = allCandidates.isEmpty() ? List.of()
+                    : evidenceRepository.findForReviews(
+                            allCandidates.stream().map(ReviewCandidate::getId).toList());
+            return reviewSummaryService.buildScopeSummary(
+                    sourceTypes, allCandidates, allEvidences,
+                    decisionService.summaries(workId, allCandidates, allEvidences));
+        } catch (RuntimeException failure) {
+            // 원고나 공급자 응답이 들어 있을 수 있는 예외 메시지는 기록하지 않는다.
+            log.warn("Review summary unavailable: jobId={}, type={}",
+                    jobId, failure.getClass().getSimpleName());
             return null;
         }
     }

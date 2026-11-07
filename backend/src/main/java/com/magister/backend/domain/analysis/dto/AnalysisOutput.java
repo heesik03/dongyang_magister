@@ -1,6 +1,7 @@
 package com.magister.backend.domain.analysis.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -24,7 +25,22 @@ public record AnalysisOutput(@NotNull @Size(max = 100) List<@NotNull @Valid Cand
             @Size(max = 4000) String confirmedFact,
             @Size(max = 4000) String interpretation,
             @Size(max = 4000) String missingInfo,
-            @Size(max = 5) List<@NotNull @Valid RevisionOption> options) {
+            @Size(min = 2, max = 5) List<@NotNull @Valid RevisionOption> options) {
+        /** 기존 형식은 읽되 새 형식의 부분 응답을 사실·선택지로 노출하지 않는다. */
+        @AssertTrue
+        public boolean isStructuredContentComplete() {
+            if (issueGroupKey == null && issueGroupTitle == null && confirmedFact == null
+                    && interpretation == null && missingInfo == null && options == null) {
+                return true;
+            }
+            return hasText(issueGroupKey) && hasText(issueGroupTitle) && hasText(confirmedFact)
+                    && hasText(interpretation) && hasText(missingInfo) && options != null;
+        }
+
+        private static boolean hasText(String value) {
+            return value != null && !value.isBlank();
+        }
+
         public Candidate(
                 String type,
                 String quote,
@@ -62,5 +78,5 @@ public record AnalysisOutput(@NotNull @Size(max = 100) List<@NotNull @Valid Cand
             @NotBlank @Size(max = 200) String title,
             @NotBlank @Size(max = 2000) String direction,
             @NotBlank @Size(max = 2000) String premise,
-            @Size(max = 2000) String rationale) {}
+            @NotBlank @Size(max = 2000) String rationale) {}
 }

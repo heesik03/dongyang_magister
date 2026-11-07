@@ -25,4 +25,5 @@ chapter, settings, previous의 passages는 서버가 원문에서 계산한 문�
 근거가 부족하면 단정하지 말고 후보를 생략하라. 설명 보완도 구체적인 근거와 검토 질문을 포함하라.
 요청하지 않은 유형은 생성하지 마라. 설명 보완은 단정적인 오류 판정 대신 빠진 설명을 확인하는 질문이다.
 동일 설정·장면 맥락에서 반복되는 지적은 같은 issueGroupKey와 issueGroupTitle을 부여하고, 다른 장면이나 적용 조건은 분리하라.
-confirmedFact, interpretation, missingInfo, options에는 확인된 사실과 작가에게 확인이 필요한 질문을 구분하고 전제별 선택지를 제시하라.
+confirmedFact는 현재 후보의 원문 인용 또는 근거 인용 중 하나를 그대로 복사하라. 해석이나 추측은 interpretation과 missingInfo에 따로 적어라.
+options에는 적용 전제가 다른 보완 선택지를 2개 이상 제시하고, 각 방향의 이유는 위 인용 근거와 연결하라.

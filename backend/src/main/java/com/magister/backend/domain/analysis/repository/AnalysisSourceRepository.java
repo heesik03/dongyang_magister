@@ -20,4 +20,7 @@ public interface AnalysisSourceRepository extends JpaRepository<AnalysisSource, 
             "select s from AnalysisSource s where s.id=:id and s.job.id=:jobId and"
                     + " s.job.work.id=:workId and s.job.work.owner.id=:ownerId")
     Optional<AnalysisSource> findOwnedSource(Long id, String jobId, Long workId, Long ownerId);
+    /** 요약의 분석 범위를 계산할 때 스냅샷 본문을 조회하지 않는다. */
+    @Query("select s.type from AnalysisSource s where s.job.id = :jobId")
+    List<String> findSourceTypes(String jobId);
 }
