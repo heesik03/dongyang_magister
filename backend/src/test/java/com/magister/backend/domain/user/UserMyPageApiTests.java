@@ -151,6 +151,34 @@ class UserMyPageApiTests {
     }
 
     @Test
+    void switchingAccountInTheSameSessionIsIsolatedFromThePreviousAccount() throws Exception {
+        createUser("first@example.com", "첫 작가", "Password1!");
+        createUser("second@example.com", "둘째 작가", "Password1!");
+        MockHttpSession sharedBrowser = loginSession("first@example.com", "Password1!");
+        MockHttpSession otherBrowser = loginSession("first@example.com", "Password1!");
+
+        mvc.perform(post("/api/user/login")
+                        .session(sharedBrowser)
+                        .header("X-CSRF-TOKEN", fetchCsrfToken(sharedBrowser))
+                        .contentType("application/json")
+                        .content("""
+                                {"email":"second@example.com","password":"Password1!"}
+                                """))
+                .andExpect(status().isOk());
+
+        mvc.perform(patch("/api/user/me/profile")
+                        .session(otherBrowser)
+                        .header("X-CSRF-TOKEN", fetchCsrfToken(otherBrowser))
+                        .contentType("application/json")
+                        .content("{\"name\":\"변경한 필명\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/user/me").session(sharedBrowser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("second@example.com"))
+                .andExpect(jsonPath("$.data.name").value("둘째 작가"));
+    }
+
+    @Test
     void aggregatesActivityFromLatestRevisionLatestSucceededAnalysisOnly() throws Exception {
         User writer = createUser("activity@example.com", "작가", "Password1!");
         Work work =
@@ -333,8 +361,8 @@ class UserMyPageApiTests {
                 .andExpect(status().isOk());
 
         assertThat(session1.isInvalid()).isTrue();
-        assertThat(session2.isInvalid()).isTrue();
         mvc.perform(get("/api/user/me").session(session2)).andExpect(status().isUnauthorized());
+        assertThat(session2.isInvalid()).isTrue();
 
         MockHttpSession reloginSession = loginSession("pwd@example.com", "NewPass12!");
         mvc.perform(get("/api/user/me").session(reloginSession)).andExpect(status().isOk());
@@ -393,6 +421,7 @@ class UserMyPageApiTests {
                 .andExpect(status().isOk());
 
         assertThat(session1.isInvalid()).isTrue();
+        mvc.perform(get("/api/user/me").session(session2)).andExpect(status().isUnauthorized());
         assertThat(session2.isInvalid()).isTrue();
         assertThat(userRepository.existsById(writer.getId())).isFalse();
         assertThat(workRepository.findById(work.getId())).isEmpty();

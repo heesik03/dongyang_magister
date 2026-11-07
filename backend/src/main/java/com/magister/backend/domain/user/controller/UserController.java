@@ -21,7 +21,8 @@ import com.magister.backend.global.response.ApiResult;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -35,26 +36,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.net.URI;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/user")
 public class UserController implements UserControllerDocs {
     private final UserService userService;
     private final SessionAuthenticationService sessionAuthenticationService;
     private final UserWithdrawalService userWithdrawalService;
-
-    @Autowired
-    public UserController(
-            UserService userService,
-            SessionAuthenticationService sessionAuthenticationService,
-            UserWithdrawalService userWithdrawalService) {
-        this.userService = userService;
-        this.sessionAuthenticationService = sessionAuthenticationService;
-        this.userWithdrawalService = userWithdrawalService;
-    }
-
-    public UserController(
-            UserService userService, SessionAuthenticationService sessionAuthenticationService) {
-        this(userService, sessionAuthenticationService, null);
-    }
 
     @Override
     @PostMapping("/email/check")
@@ -101,12 +88,8 @@ public class UserController implements UserControllerDocs {
     @PatchMapping("/me/profile")
     public ApiResult<UserResponse> updateProfile(
             @AuthenticationPrincipal LoginUser user,
-            @RequestBody UpdateProfileRequest input,
-            HttpServletRequest request,
-            HttpServletResponse response) {
-        LoginUser updated = userService.updateProfile(user.id(), input);
-        sessionAuthenticationService.updateSessionPrincipal(updated, request, response);
-        return ApiResult.success(UserConverter.toResponse(updated));
+            @RequestBody UpdateProfileRequest input) {
+        return ApiResult.success(userService.updateProfile(user.id(), input));
     }
 
     @Override
@@ -117,7 +100,7 @@ public class UserController implements UserControllerDocs {
             HttpServletRequest request,
             HttpServletResponse response) {
         userService.changePassword(user.id(), input);
-        sessionAuthenticationService.invalidateAllSessions(user.id(), request, response);
+        sessionAuthenticationService.invalidateSession(request, response);
         return ApiResult.success(null);
     }
 
@@ -129,7 +112,7 @@ public class UserController implements UserControllerDocs {
             HttpServletRequest request,
             HttpServletResponse response) {
         userWithdrawalService.withdraw(user.id(), input);
-        sessionAuthenticationService.invalidateAllSessions(user.id(), request, response);
+        sessionAuthenticationService.invalidateSession(request, response);
         return ApiResult.success(null);
     }
 }

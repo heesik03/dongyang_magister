@@ -1,6 +1,9 @@
 package com.magister.backend.global.config;
 
+import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.security.AuthRequestLimiter;
+import com.magister.backend.domain.user.security.SessionAccountFilter;
+import com.magister.backend.domain.user.security.SessionAuthenticationService;
 import com.magister.backend.global.security.AuthRateLimitFilter;
 import com.magister.backend.global.security.SecurityResponseHandler;
 
@@ -19,6 +22,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
@@ -98,7 +102,9 @@ public class SecurityConfig {
             HttpSecurity http,
             SecurityResponseHandler securityResponseHandler,
             HttpSessionSecurityContextRepository securityContextRepository,
-            HttpSessionCsrfTokenRepository csrfTokenRepository)
+            HttpSessionCsrfTokenRepository csrfTokenRepository,
+            UserRepository userRepository,
+            SessionAuthenticationService sessionAuthenticationService)
             throws Exception {
         // CSRF 기본값 유지: /api/user/csrf에서 마스킹된 토큰을 받아 헤더로 전달한다.
         // 저장소를 로그인 처리와 공유해 요청 사이에서 동일한 세션 인증을 복원한다.
@@ -106,6 +112,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository))
                 .securityContext(
                         context -> context.securityContextRepository(securityContextRepository))
+                .addFilterBefore(
+                        new SessionAccountFilter(userRepository, sessionAuthenticationService),
+                        AuthorizationFilter.class)
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(
                         auth ->

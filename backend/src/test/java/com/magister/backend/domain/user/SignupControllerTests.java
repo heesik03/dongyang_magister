@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.magister.backend.domain.user.controller.UserController;
+import com.magister.backend.domain.user.security.SessionAuthenticationService;
+import com.magister.backend.domain.user.service.UserWithdrawalService;
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.dto.UserResponse;
 import com.magister.backend.domain.user.service.UserService;
@@ -23,7 +25,8 @@ class SignupControllerTests {
     void rejectsPasswordsWithoutAllRequiredCharacterGroups() throws Exception {
         UserService service = mock(UserService.class);
         MockMvc mvc =
-                MockMvcBuilders.standaloneSetup(new UserController(service, null))
+                MockMvcBuilders.standaloneSetup(new UserController(service,
+                        mock(SessionAuthenticationService.class), mock(UserWithdrawalService.class)))
                         .setControllerAdvice(new GlobalExceptionHandler())
                         .build();
         for (String password :
@@ -45,7 +48,8 @@ class SignupControllerTests {
         UserService service = mock(UserService.class);
         when(service.signup(any())).thenReturn(new UserResponse(1L, "writer@example.com", "작가"));
         MockMvc mvc =
-                MockMvcBuilders.standaloneSetup(new UserController(service, null))
+                MockMvcBuilders.standaloneSetup(new UserController(service,
+                        mock(SessionAuthenticationService.class), mock(UserWithdrawalService.class)))
                         .setControllerAdvice(new GlobalExceptionHandler())
                         .build();
 

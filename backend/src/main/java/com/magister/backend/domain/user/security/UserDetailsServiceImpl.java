@@ -26,6 +26,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                         .findByEmail(EmailNormalizer.normalize(email))
                         .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
         return new AccountPrincipal(
-                user.getId(), user.getEmail(), user.getName(), user.getPasswordHash());
+                user.getId(), user.getEmail(), user.getName(), user.getPasswordHash(), user.getSecurityVersion());
     }
 }

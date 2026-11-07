@@ -49,15 +49,6 @@ public class User {
         work.assignOwner(this);
     }
 
-    public void updateName(String name) {
-        this.name = name;
-    }
-
-    public void changePassword(String passwordHash) {
-        this.passwordHash = passwordHash;
-        this.securityVersion++;
-    }
-
     public User(String email, String name, String passwordHash) {
         this.email = email;
         this.name = name;

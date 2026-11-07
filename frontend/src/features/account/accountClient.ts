@@ -50,15 +50,32 @@ function parseActivity(raw: unknown): UserActivity {
   }
 }
 
-/** 탈퇴 완료 시 브라우저에 남아 있는 해당 계정의 임시 초안·복구 정보·판단 초안을 모두 제거한다. */
+export const ACCOUNT_WITHDRAWN_STORAGE_PREFIX = 'magister.account-withdrawn:'
+
+/** 서버 탈퇴 성공 후 열려 있는 같은 출처의 탭에 정리 신호를 전달한다. */
+export function notifyAccountWithdrawal(email: string): void {
+  try {
+    const key = ACCOUNT_WITHDRAWN_STORAGE_PREFIX + email
+    localStorage.setItem(key, crypto.randomUUID())
+    localStorage.removeItem(key)
+  } catch {
+    // 저장소에 접근할 수 없어도 현재 탭의 탈퇴 처리는 계속한다.
+  }
+}
+
+/** 이 탭의 해당 계정 초안과 복구 자료를 정리한다. */
 export function purgeAccountBrowserStorage(email: string): void {
-  useWorksStore.getState().reset()
+  if (useWorksStore.getState().account === email) useWorksStore.getState().reset()
   try {
     localStorage.removeItem('magister.works.v1:' + email)
     localStorage.removeItem('magister.drafts.v1:' + email)
     localStorage.removeItem('magister.work-deleted:' + email)
     localStorage.removeItem('magister.chapter-saved:' + email)
     localStorage.removeItem('magister.workspace-saved:' + email)
+  } catch {
+    // 세션 저장소는 로컬 저장소와 별개로 정리를 시도한다.
+  }
+  try {
     const recoveryPrefix = 'magister.recovery:' + email + ':'
     const decisionPrefix = 'magister.decision-draft.v1:' + encodeURIComponent(email) + ':'
     const sessionKeys = Array.from({ length: sessionStorage.length }, (_, index) =>

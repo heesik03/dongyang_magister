@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { MyPage } from '../src/features/account/MyPage'
-import { accountClient } from '../src/features/account/accountClient'
+import {
+  ACCOUNT_WITHDRAWN_STORAGE_PREFIX,
+  accountClient,
+} from '../src/features/account/accountClient'
+import { AuthProvider } from '../src/features/auth/AuthProvider'
 import { useAuthStore } from '../src/features/auth/useAuthStore'
 import { useWorksStore } from '../src/features/works/useWorksStore'
 import { ApiError } from '../src/shared/httpClient'
@@ -214,4 +218,33 @@ test('회원 탈퇴 모달에서 비밀번호와 동의 확인 후 브라우저 
       'magister.decision-draft.v1:' + encodeURIComponent('writer@example.com') + ':10:cand-1',
     ),
   ).toBeNull()
+})
+
+test('다른 탭에서 탈퇴가 완료되면 이 탭의 복구본과 인증 상태를 정리한다', () => {
+  const { initialize } = useAuthStore.getState()
+  useAuthStore.setState({ initialize: vi.fn().mockResolvedValue(undefined) })
+  const recoveryKey = 'magister.recovery:' + initialUser.email + ':10'
+  const otherRecoveryKey = 'magister.recovery:other@example.com:20'
+  sessionStorage.setItem(recoveryKey, '{"chapters":[]}')
+  sessionStorage.setItem(otherRecoveryKey, '{"chapters":[]}')
+  try {
+    render(
+      <AuthProvider>
+        <div />
+      </AuthProvider>,
+    )
+    act(() =>
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: ACCOUNT_WITHDRAWN_STORAGE_PREFIX + initialUser.email,
+          newValue: 'withdrawal-event',
+        }),
+      ),
+    )
+    expect(useAuthStore.getState().user).toBeNull()
+    expect(sessionStorage.getItem(recoveryKey)).toBeNull()
+    expect(sessionStorage.getItem(otherRecoveryKey)).not.toBeNull()
+  } finally {
+    useAuthStore.setState({ initialize })
+  }
 })

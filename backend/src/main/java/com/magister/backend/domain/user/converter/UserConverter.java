@@ -28,10 +28,6 @@ public final class UserConverter {
         return new LoginUser(account.userId(), account.getUsername(), account.displayName());
     }
 
-    public static LoginUser toLoginUser(User user) {
-        return new LoginUser(user.getId(), user.getEmail(), user.getName());
-    }
-
     public static EmailCheckResponse toEmailCheckResponse(boolean available) {
         return new EmailCheckResponse(available);
     }

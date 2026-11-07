@@ -365,9 +365,7 @@ public interface UserControllerDocs {
     })
     ApiResult<UserResponse> updateProfile(
             LoginUser user,
-            @Valid UpdateProfileRequest input,
-            HttpServletRequest request,
-            HttpServletResponse response);
+            @Valid UpdateProfileRequest input);
 
     @SecurityRequirement(name = "session")
     @Operation(
@@ -381,7 +379,8 @@ public interface UserControllerDocs {
                     **도메인 정책**
 
                     - 새 비밀번호는 공백 없이 영문·숫자·특수문자를 포함한 8~128자여야 하며 확인 입력과 일치해야 합니다.
-                    - 변경 성공 시 해당 계정의 모든 세션을 즉시 무효화하므로 새 비밀번호로 다시 로그인해야 합니다.
+                    - 변경 성공 시 기존 세션으로는 더 이상 인증할 수 없습니다. 새 비밀번호로 다시 로그인해야 합니다.
+                    - 동시에 접수한 다른 요청이 먼저 비밀번호를 변경했다면 409로 응답합니다.
                     """)
     @ApiResponses({
         @ApiResponse(

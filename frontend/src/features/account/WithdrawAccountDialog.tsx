@@ -5,7 +5,12 @@ import { PasswordInput } from '../auth/PasswordInput'
 import { useAuthStore } from '../auth/useAuthStore'
 import type { User } from '../auth/authTypes'
 import { useWorksStore } from '../works/useWorksStore'
-import { accountClient, purgeAccountBrowserStorage, type UserActivity } from './accountClient'
+import {
+  accountClient,
+  notifyAccountWithdrawal,
+  purgeAccountBrowserStorage,
+  type UserActivity,
+} from './accountClient'
 
 interface WithdrawAccountDialogProps {
   user: User
@@ -36,6 +41,7 @@ export function WithdrawAccountDialog({ user, activity, onClose }: WithdrawAccou
         agreed,
       })
       purgeAccountBrowserStorage(user.email)
+      notifyAccountWithdrawal(user.email)
       useAuthStore.getState().expire()
       onClose()
       navigate('/login', { replace: true })
