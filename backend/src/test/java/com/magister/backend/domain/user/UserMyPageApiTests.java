@@ -40,6 +40,9 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import tools.jackson.databind.ObjectMapper;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @ActiveProfiles("test")
@@ -63,6 +66,9 @@ class UserMyPageApiTests {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("DELETE FROM scene_image_jobs");
+        jdbcTemplate.update("DELETE FROM scene_boards");
+        jdbcTemplate.update("DELETE FROM ai_usage_buckets");
         jdbcTemplate.update("DELETE FROM review_decisions");
         jdbcTemplate.update("DELETE FROM review_candidates");
         jdbcTemplate.update("DELETE FROM analysis_sources");
@@ -157,20 +163,23 @@ class UserMyPageApiTests {
         MockHttpSession sharedBrowser = loginSession("first@example.com", "Password1!");
         MockHttpSession otherBrowser = loginSession("first@example.com", "Password1!");
 
-        mvc.perform(post("/api/user/login")
-                        .session(sharedBrowser)
-                        .header("X-CSRF-TOKEN", fetchCsrfToken(sharedBrowser))
-                        .contentType("application/json")
-                        .content("""
-                                {"email":"second@example.com","password":"Password1!"}
-                                """))
+        mvc.perform(
+                        post("/api/user/login")
+                                .session(sharedBrowser)
+                                .header("X-CSRF-TOKEN", fetchCsrfToken(sharedBrowser))
+                                .contentType("application/json")
+                                .content(
+                                        """
+                                        {"email":"second@example.com","password":"Password1!"}
+                                        """))
                 .andExpect(status().isOk());
 
-        mvc.perform(patch("/api/user/me/profile")
-                        .session(otherBrowser)
-                        .header("X-CSRF-TOKEN", fetchCsrfToken(otherBrowser))
-                        .contentType("application/json")
-                        .content("{\"name\":\"변경한 필명\"}"))
+        mvc.perform(
+                        patch("/api/user/me/profile")
+                                .session(otherBrowser)
+                                .header("X-CSRF-TOKEN", fetchCsrfToken(otherBrowser))
+                                .contentType("application/json")
+                                .content("{\"name\":\"변경한 필명\"}"))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/user/me").session(sharedBrowser))
                 .andExpect(status().isOk())
@@ -387,6 +396,28 @@ class UserMyPageApiTests {
         runningJob.start();
         jobRepository.saveAndFlush(runningJob);
 
+        Timestamp now = Timestamp.from(Instant.now());
+        jdbcTemplate.update(
+                """
+                INSERT INTO ai_usage_buckets(user_id, feature, period_start, used_count)
+                VALUES (?, 'SCENE_ANALYSIS', ?, 1)
+                """,
+                writer.getId(),
+                LocalDate.now());
+        jdbcTemplate.update(
+                """
+                INSERT INTO scene_boards(id, work_id, chapter_key, request_id, selection_json, snapshot_json, status, created_at)
+                VALUES ('board-withdraw', ?, 'ch-1', 'req-board', '{}', '{}', 'SUCCEEDED', ?)
+                """,
+                work.getId(),
+                now);
+        jdbcTemplate.update(
+                """
+                INSERT INTO scene_image_jobs(id, board_id, request_id, input_json, status, created_at)
+                VALUES ('img-withdraw', 'board-withdraw', 'req-img', '{}', 'QUEUED', ?)
+                """,
+                now);
+
         MockHttpSession session1 = loginSession("withdraw@example.com", "Password1!");
         MockHttpSession session2 = loginSession("withdraw@example.com", "Password1!");
         String token = fetchCsrfToken(session1);
@@ -426,5 +457,21 @@ class UserMyPageApiTests {
         assertThat(userRepository.existsById(writer.getId())).isFalse();
         assertThat(workRepository.findById(work.getId())).isEmpty();
         assertThat(jobRepository.findById("job-running")).isEmpty();
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM ai_usage_buckets WHERE user_id=?",
+                                Long.class,
+                                writer.getId()))
+                .isZero();
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM scene_boards WHERE id='board-withdraw'",
+                                Long.class))
+                .isZero();
+        assertThat(
+                        jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM scene_image_jobs WHERE id='img-withdraw'",
+                                Long.class))
+                .isZero();
     }
 }

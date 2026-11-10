@@ -4,6 +4,9 @@ import com.google.genai.Models;
 import com.google.genai.errors.ApiException;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
+import com.google.genai.types.GenerateImagesConfig;
+import com.google.genai.types.GeneratedImage;
+import com.google.genai.types.Image;
 import com.magister.backend.global.error.code.GeminiErrorCode;
 import com.magister.backend.global.error.exception.GeminiApiException;
 
@@ -39,6 +42,46 @@ public class GeminiClient {
     /** 사건 추출 전용 JSON 계약을 사용하며 기존 설정 검토의 응답 스키마는 유지한다. */
     public String generateEvents(String prompt) {
         return generateText(prompt, GeminiEventConfig.create());
+    }
+
+    /** 장면 분석은 별도 JSON 출력을 사용한다. */
+    public String generateScene(String prompt) {
+        return generateText(prompt, GeminiSceneConfig.create());
+    }
+
+    /** 이미지 한 장만 요청하며 공급자 호출 재시도 정책은 공통 SDK 설정을 따른다. */
+    public byte[] generateSceneImage(String model, String prompt) {
+        if (model == null || model.isBlank() || prompt == null || prompt.isBlank()) {
+            throw new IllegalArgumentException("model and prompt must not be blank");
+        }
+        try {
+            return models.generateImages(
+                            model,
+                            prompt,
+                            GenerateImagesConfig.builder()
+                                    .numberOfImages(1)
+                                    .outputMimeType("image/png")
+                                    .build())
+                    .generatedImages()
+                    .stream()
+                    .flatMap(images -> images.stream())
+                    .findFirst()
+                    .flatMap(GeneratedImage::image)
+                    .flatMap(Image::imageBytes)
+                    .orElseThrow(() -> new GeminiApiException(GeminiErrorCode.INVALID_RESPONSE));
+        } catch (ApiException exception) {
+            throw new GeminiApiException(mapStatus(exception.code()));
+        } catch (RuntimeException exception) {
+            for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+                if (cause instanceof InterruptedIOException) {
+                    throw new GeminiApiException(GeminiErrorCode.TIMEOUT);
+                }
+                if (cause instanceof IOException) {
+                    throw new GeminiApiException(GeminiErrorCode.UNAVAILABLE);
+                }
+            }
+            throw exception;
+        }
     }
 
     private String generateText(String prompt, GenerateContentConfig config) {

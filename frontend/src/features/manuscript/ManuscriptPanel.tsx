@@ -23,6 +23,7 @@ import { ApiError } from '../../shared/httpClient'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 import { ManuscriptTransfer } from './ManuscriptTransfer'
+import { SceneBoardFlow } from '../scene/SceneBoardFlow'
 
 export function ManuscriptPanel({ work }: { work: Work }) {
   const updateWork = useWorksStore((state) => state.updateWork)
@@ -430,6 +431,14 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           </span>
         </div>
         <div className="toolbar-actions">
+          {work.source === 'server' && chapter && (
+            <SceneBoardFlow
+              key={work.id + ':' + chapter.id}
+              work={work}
+              chapter={chapter}
+              editor={editor}
+            />
+          )}
           {work.source === 'server' && (
             <ManuscriptTransfer work={work} chapter={chapter} onImported={changeChapter} />
           )}
