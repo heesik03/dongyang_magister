@@ -143,6 +143,10 @@ export function SceneBoardFlow({
       setTab('analysis')
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : '장면 분석을 접수하지 못했습니다.')
+      if (failure instanceof ApiError && failure.status === 409) {
+        setPreview(null)
+        setConsent(false)
+      }
       if (failure instanceof ApiError && failure.status === 429) {
         await sceneBoardClient
           .usage()
@@ -338,8 +342,8 @@ export function SceneBoardFlow({
                         {board.result.facts.length === 0 && (
                           <p>인용을 확인할 수 있는 사실이 없습니다.</p>
                         )}
-                        {board.result.facts.map((fact, index) => (
-                          <details key={fact.start + ':' + index}>
+                        {board.result.facts.map((fact) => (
+                          <details key={fact.start + ':' + fact.end}>
                             <summary>{fact.description}</summary>
                             <blockquote>{fact.quote}</blockquote>
                             <p>
@@ -393,8 +397,8 @@ function ResultList({ title, values }: { title: string; values: string[] }) {
       <h4>{title}</h4>
       {values.length ? (
         <ul>
-          {values.map((value, index) => (
-            <li key={index}>{value}</li>
+          {values.map((value) => (
+            <li key={`${title}:${value}`}>{value}</li>
           ))}
         </ul>
       ) : (

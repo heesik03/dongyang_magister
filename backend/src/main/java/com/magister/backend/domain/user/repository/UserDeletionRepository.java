@@ -39,8 +39,9 @@ public class UserDeletionRepository {
                 ownerId);
     }
 
-    /** 소유 작품과 하위 자료가 모두 제거된 뒤 사용자 계정을 삭제한다. */
+    /** 소유 작품과 하위 자료가 모두 제거된 뒤 AI 사용량 버킷과 사용자 계정을 삭제한다. */
     public void deleteUser(Long userId) {
+        jdbcTemplate.update("DELETE FROM ai_usage_buckets WHERE user_id = ?", userId);
         jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
     }
 }

@@ -1,38 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, httpClient } from '../../shared/httpClient'
-import { readInteger, readRecord, readString } from '../../shared/responseReader'
-import { sceneBoardClient } from './sceneBoardClient'
-
-type Input = { kind: 'LOCATION' | 'PROP'; confirmed: string; direction: string }
-
-function readJob(raw: unknown) {
-  const job = readRecord(raw)
-  const input = readRecord(job.input)
-  return {
-    id: readString(job, 'id'),
-    status: readString(job, 'status'),
-    revision: readInteger(job, 'revision', 1),
-    kind: readString(input, 'kind'),
-    confirmed: readString(input, 'confirmed'),
-    direction: readString(input, 'direction'),
-  }
-}
+import { ApiError } from '../../shared/httpClient'
+import {
+  sceneBoardClient,
+  type SceneImageInput,
+  type SceneImageJob,
+  type SceneImagePreview,
+} from './sceneBoardClient'
 
 export function SceneImagePanel({ workId, boardId }: { workId: string; boardId: string }) {
-  const path =
-    '/work/' +
-    encodeURIComponent(workId) +
-    '/scene-board/' +
-    encodeURIComponent(boardId) +
-    '/images'
-  const [input, setInput] = useState<Input>({ kind: 'LOCATION', confirmed: '', direction: '' })
-  const [preview, setPreview] = useState<{ input: Input; token: string; revision: number } | null>(
-    null,
-  )
+  const [input, setInput] = useState<SceneImageInput>({
+    kind: 'LOCATION',
+    confirmed: '',
+    direction: '',
+  })
+  const [preview, setPreview] = useState<SceneImagePreview | null>(null)
   const [quota, setQuota] = useState<Awaited<ReturnType<typeof sceneBoardClient.usage>> | null>(
     null,
   )
-  const [jobs, setJobs] = useState<ReturnType<typeof readJob>[]>([])
+  const [jobs, setJobs] = useState<SceneImageJob[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [image, setImage] = useState<{ id: string; url: string } | null>(null)
   const [consent, setConsent] = useState(false)
@@ -46,40 +31,56 @@ export function SceneImagePanel({ workId, boardId }: { workId: string; boardId: 
 
   useEffect(() => {
     const controller = new AbortController()
-    let timer: number | undefined
-    async function load() {
-      try {
-        const result = await httpClient.get(path, { signal: controller.signal })
-        if (!Array.isArray(result)) throw new Error('시안 이력 응답이 올바르지 않습니다.')
-        if (!controller.signal.aborted) {
-          setJobs(result.map(readJob))
-          if (active) timer = window.setTimeout(() => void load(), 3000)
-        }
-      } catch (failure) {
+    void sceneBoardClient
+      .listImages(workId, boardId, controller.signal)
+      .then((nextJobs) => {
+        if (!controller.signal.aborted) setJobs(nextJobs)
+      })
+      .catch((failure) => {
         if (!controller.signal.aborted)
           setError(failure instanceof Error ? failure.message : '시안 이력을 불러오지 못했습니다.')
-      }
+      })
+    return () => controller.abort()
+  }, [workId, boardId, refresh])
+
+  useEffect(() => {
+    if (!active || error) return
+    const controller = new AbortController()
+    let timer: number
+    function poll() {
+      timer = window.setTimeout(() => {
+        void sceneBoardClient
+          .listImages(workId, boardId, controller.signal)
+          .then((nextJobs) => {
+            if (controller.signal.aborted) return
+            setJobs(nextJobs)
+            if (nextJobs.some((job) => job.status === 'QUEUED' || job.status === 'RUNNING')) {
+              poll()
+            }
+          })
+          .catch((failure) => {
+            if (!controller.signal.aborted)
+              setError(
+                failure instanceof Error ? failure.message : '시안 이력을 불러오지 못했습니다.',
+              )
+          })
+      }, 3000)
     }
-    void load()
+    poll()
     return () => {
       controller.abort()
       window.clearTimeout(timer)
     }
-  }, [path, active, refresh])
+  }, [workId, boardId, active, error])
 
   useEffect(() => {
     if (!imageId) return
     const controller = new AbortController()
     let url: string | undefined
-    void httpClient
-      .get(path + '/' + encodeURIComponent(imageId) + '/content', {
-        responseType: 'blob',
-        signal: controller.signal,
-      })
+    void sceneBoardClient
+      .imageContent(workId, boardId, imageId, controller.signal)
       .then((file) => {
         if (controller.signal.aborted) return
-        if (!(file instanceof Blob) || file.type !== 'image/png')
-          throw new Error('이미지 응답 형식이 올바르지 않습니다.')
         url = URL.createObjectURL(file)
         setImage({ id: imageId, url })
       })
@@ -90,29 +91,17 @@ export function SceneImagePanel({ workId, boardId }: { workId: string; boardId: 
       controller.abort()
       if (url) URL.revokeObjectURL(url)
     }
-  }, [path, imageId])
+  }, [workId, boardId, imageId])
 
   async function prepare() {
     setBusy(true)
     setError('')
     try {
-      const [response, usage] = await Promise.all([
-        httpClient.post(path + '/preview', input),
+      const [nextPreview, usage] = await Promise.all([
+        sceneBoardClient.previewImage(workId, boardId, input),
         sceneBoardClient.usage('SCENE_IMAGE'),
       ])
-      const raw = readRecord(response)
-      const confirmed = readRecord(raw.input)
-      if (
-        confirmed.kind !== input.kind ||
-        confirmed.confirmed !== input.confirmed ||
-        confirmed.direction !== input.direction
-      )
-        throw new Error('전송할 이미지 설명이 변경되었습니다.')
-      setPreview({
-        input,
-        token: readString(raw, 'token'),
-        revision: readInteger(raw, 'revision', 1),
-      })
+      setPreview(nextPreview)
       setQuota(usage)
       setConsent(false)
       requestId.current = crypto.randomUUID()
@@ -130,20 +119,22 @@ export function SceneImagePanel({ workId, boardId }: { workId: string; boardId: 
     setBusy(true)
     setError('')
     try {
-      const job = readJob(
-        await httpClient.post(path, {
-          input: preview.input,
-          token: preview.token,
-          requestId: requestId.current,
-          consent: true,
-        }),
+      const job = await sceneBoardClient.createImage(
+        workId,
+        boardId,
+        preview.input,
+        preview.token,
+        requestId.current,
       )
       setJobs((previous) => [job, ...previous.filter((item) => item.id !== job.id)])
       setSelectedId(job.id)
       setPreview(null)
-      setRefresh((value) => value + 1)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : '이미지 생성 요청에 실패했습니다.')
+      if (failure instanceof ApiError && failure.status === 409) {
+        setPreview(null)
+        setConsent(false)
+      }
       if (failure instanceof ApiError && failure.status === 429) {
         await sceneBoardClient
           .usage('SCENE_IMAGE')

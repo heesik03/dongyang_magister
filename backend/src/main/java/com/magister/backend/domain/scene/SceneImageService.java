@@ -29,21 +29,29 @@ import java.util.UUID;
 class SceneImageService {
     private final SceneBoardService sceneBoardService;
     private final WorkAccessService workAccessService;
-    private final SceneImageRepository repository;
-    private final AiQuotaService quota;
-    private final AnalysisPreviewToken tokens;
-    private final ObjectMapper mapper;
+    private final SceneImageRepository sceneImageRepository;
+    private final SceneBoardConverter sceneBoardConverter;
+    private final AiQuotaService aiQuotaService;
+    private final AnalysisPreviewToken analysisPreviewToken;
+    private final ObjectMapper objectMapper;
     private final String model;
 
-    SceneImageService(SceneBoardService sceneBoardService, WorkAccessService workAccessService,
-            SceneImageRepository repository, AiQuotaService quota, AnalysisPreviewToken tokens,
-            ObjectMapper mapper, @Value("${scene-board.image-model:}") String model) {
+    SceneImageService(
+            SceneBoardService sceneBoardService,
+            WorkAccessService workAccessService,
+            SceneImageRepository sceneImageRepository,
+            SceneBoardConverter sceneBoardConverter,
+            AiQuotaService aiQuotaService,
+            AnalysisPreviewToken analysisPreviewToken,
+            ObjectMapper objectMapper,
+            @Value("${scene-board.image-model:}") String model) {
         this.sceneBoardService = sceneBoardService;
         this.workAccessService = workAccessService;
-        this.repository = repository;
-        this.quota = quota;
-        this.tokens = tokens;
-        this.mapper = mapper;
+        this.sceneImageRepository = sceneImageRepository;
+        this.sceneBoardConverter = sceneBoardConverter;
+        this.aiQuotaService = aiQuotaService;
+        this.analysisPreviewToken = analysisPreviewToken;
+        this.objectMapper = objectMapper;
         this.model = model.strip();
     }
 
@@ -52,8 +60,12 @@ class SceneImageService {
     public Preview preview(long userId, long workId, String boardId, Input input) {
         Board board = sceneBoardService.get(userId, workId, boardId);
         ensureReady(board);
-        String token = tokens.issue(payload(userId, workId, board, input), Instant.now().plusSeconds(600));
-        return new Preview(input, token, revision(board));
+
+        String token =
+                analysisPreviewToken.issue(
+                        payload(userId, workId, board, input), Instant.now().plusSeconds(600));
+
+        return sceneBoardConverter.toImagePreview(input, token, revision(board));
     }
 
     /** 같은 키의 재전송을 구분한 후 이미지 작업과 한도 차감을 한 번에 저장한다. */
@@ -64,52 +76,66 @@ class SceneImageService {
         if (!request.consent()) {
             throw new CustomException(CommonErrorCode.INVALID_REQUEST);
         }
-        String input = mapper.writeValueAsString(request.input());
-        Optional<StoredImage> previous = repository.findRequest(boardId, request.requestId());
+
+        String input = objectMapper.writeValueAsString(request.input());
+        Optional<StoredImage> previous =
+                sceneImageRepository.findRequest(boardId, request.requestId());
         if (previous.isPresent()) {
             StoredImage image = previous.get();
             if (!image.input().equals(input)) {
                 throw new CustomException(WorkErrorCode.VERSION_CONFLICT);
             }
-            return toJob(image, board);
+            return sceneBoardConverter.toImageJob(image, board);
         }
+
         ensureReady(board);
-        tokens.verify(request.token(), payload(userId, workId, board, request.input()));
-        quota.charge(userId, Feature.SCENE_IMAGE);
+        analysisPreviewToken.verify(
+                request.token(), payload(userId, workId, board, request.input()));
+
+        aiQuotaService.charge(userId, Feature.SCENE_IMAGE);
         StoredImage image = new StoredImage(UUID.randomUUID().toString(), input, "QUEUED");
-        repository.insert(boardId, request.requestId(), image);
-        return toJob(image, board);
+        sceneImageRepository.insert(boardId, request.requestId(), image);
+
+        return sceneBoardConverter.toImageJob(image, board);
     }
 
     /** 작품 소유자가 생성한 시안의 메타데이터를 페이지 단위로 조회한다. */
     @Transactional(readOnly = true)
     public List<Job> list(long userId, long workId, String boardId, int page) {
         Board board = sceneBoardService.get(userId, workId, boardId);
-        return repository.list(boardId, page).stream().map(image -> toJob(image, board)).toList();
+
+        return sceneImageRepository.list(boardId, page).stream()
+                .map(image -> sceneBoardConverter.toImageJob(image, board))
+                .toList();
     }
 
     /** 작품과 보드에 소속된 개별 작업만 조회한다. */
     @Transactional(readOnly = true)
     public Job get(long userId, long workId, String boardId, String id) {
         Board board = sceneBoardService.get(userId, workId, boardId);
-        return repository.find(boardId, id).map(image -> toJob(image, board))
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+
+        return sceneImageRepository
+                .find(boardId, id)
+                .map(image -> sceneBoardConverter.toImageJob(image, board))
+                .orElseThrow(() -> new CustomException(SceneErrorCode.SCENE_IMAGE_NOT_FOUND));
     }
 
     /** 비공개 결과 바이트는 인증된 작품 소유자에게만 전달한다. */
     @Transactional(readOnly = true)
     public byte[] content(long userId, long workId, String boardId, String id) {
         sceneBoardService.get(userId, workId, boardId);
-        return repository.content(boardId, id)
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+
+        return sceneImageRepository
+                .content(boardId, id)
+                .orElseThrow(() -> new CustomException(SceneErrorCode.SCENE_IMAGE_NOT_FOUND));
     }
 
     private void ensureReady(Board board) {
         if (model.isEmpty()) {
-            throw new CustomException(new SceneImageUnavailable());
+            throw new CustomException(SceneErrorCode.SCENE_IMAGE_UNAVAILABLE);
         }
         if (!"SUCCEEDED".equals(board.status())) {
-            throw new CustomException(WorkErrorCode.VERSION_CONFLICT);
+            throw new CustomException(SceneErrorCode.SCENE_BOARD_NOT_READY);
         }
     }
 
@@ -118,11 +144,17 @@ class SceneImageService {
     }
 
     private String payload(long userId, long workId, Board board, Input input) {
-        return "scene-image|" + userId + "|" + workId + "|" + board.id() + "|" + revision(board)
-                + "|" + model + "|" + mapper.writeValueAsString(input);
-    }
-
-    private Job toJob(StoredImage image, Board board) {
-        return new Job(image.id(), image.status(), mapper.readValue(image.input(), Input.class), revision(board));
+        return "scene-image|"
+                + userId
+                + "|"
+                + workId
+                + "|"
+                + board.id()
+                + "|"
+                + revision(board)
+                + "|"
+                + model
+                + "|"
+                + objectMapper.writeValueAsString(input);
     }
 }

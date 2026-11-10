@@ -33,15 +33,26 @@ public class AiQuotaService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void charge(long userId, Feature feature) {
         Period period = AiQuotaPolicy.periodAt(Instant.now());
-        jdbcTemplate.update("""
+        jdbcTemplate.update(
+                """
                 INSERT INTO ai_usage_buckets(user_id, feature, period_start, used_count)
                 VALUES (?, ?, ?, 0)
                 ON DUPLICATE KEY UPDATE used_count = used_count
-                """, userId, feature.name(), period.start());
-        int updated = jdbcTemplate.update("""
-                UPDATE ai_usage_buckets SET used_count = used_count + 1
-                WHERE user_id = ? AND feature = ? AND period_start = ? AND used_count < ?
-                """, userId, feature.name(), period.start(), limit(feature));
+                """,
+                userId,
+                feature.name(),
+                period.start());
+
+        int updated =
+                jdbcTemplate.update(
+                        """
+                        UPDATE ai_usage_buckets SET used_count = used_count + 1
+                        WHERE user_id = ? AND feature = ? AND period_start = ? AND used_count < ?
+                        """,
+                        userId,
+                        feature.name(),
+                        period.start(),
+                        limit(feature));
         if (updated == 0) {
             throw new AiQuotaExceededException(period.resetAt());
         }
@@ -51,11 +62,17 @@ public class AiQuotaService {
     @Transactional(readOnly = true)
     public Usage usage(long userId, Feature feature, Instant now) {
         Period period = AiQuotaPolicy.periodAt(now);
-        Integer used = jdbcTemplate.query("""
-                SELECT used_count FROM ai_usage_buckets
-                WHERE user_id = ? AND feature = ? AND period_start = ?
-                """, result -> result.next() ? result.getInt(1) : 0,
-                userId, feature.name(), period.start());
+        Integer used =
+                jdbcTemplate.query(
+                        """
+                        SELECT used_count FROM ai_usage_buckets
+                        WHERE user_id = ? AND feature = ? AND period_start = ?
+                        """,
+                        result -> result.next() ? result.getInt(1) : 0,
+                        userId,
+                        feature.name(),
+                        period.start());
+
         return new Usage(feature, used == null ? 0 : used, limit(feature), period.resetAt());
     }
 

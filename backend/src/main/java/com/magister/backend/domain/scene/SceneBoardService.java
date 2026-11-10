@@ -9,7 +9,6 @@ import com.magister.backend.domain.scene.SceneBoardData.Board;
 import com.magister.backend.domain.scene.SceneBoardData.CreateRequest;
 import com.magister.backend.domain.scene.SceneBoardData.Preview;
 import com.magister.backend.domain.scene.SceneBoardData.Selection;
-import com.magister.backend.domain.scene.SceneBoardData.Setting;
 import com.magister.backend.domain.scene.SceneBoardData.Snapshot;
 import com.magister.backend.domain.scene.SceneBoardRepository.StoredBoard;
 import com.magister.backend.domain.setting.entity.SettingStatus;
@@ -28,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,9 +47,12 @@ class SceneBoardService {
     @Transactional(readOnly = true)
     public Preview preview(long userId, long workId, Selection selection) {
         workAccessService.requireOwned(userId, workId);
+
         Snapshot snapshot = snapshot(workId, selection);
-        String token = analysisPreviewToken.issue(tokenPayload(userId, workId, snapshot),
-                Instant.now().plusSeconds(600));
+        String token =
+                analysisPreviewToken.issue(
+                        tokenPayload(userId, workId, snapshot), Instant.now().plusSeconds(600));
+
         return sceneBoardConverter.toPreview(snapshot, token);
     }
 
@@ -62,8 +63,10 @@ class SceneBoardService {
         if (!request.consent()) {
             throw invalid();
         }
+
         String selectionJson = objectMapper.writeValueAsString(request.selection());
-        Optional<StoredBoard> existing = sceneBoardRepository.findRequest(workId, request.requestId());
+        Optional<StoredBoard> existing =
+                sceneBoardRepository.findRequest(workId, request.requestId());
         if (existing.isPresent()) {
             StoredBoard board = existing.get();
             if (!board.selection().equals(selectionJson)) {
@@ -74,10 +77,18 @@ class SceneBoardService {
 
         Snapshot snapshot = snapshot(workId, request.selection());
         analysisPreviewToken.verify(request.token(), tokenPayload(userId, workId, snapshot));
+
         aiQuotaService.charge(userId, Feature.SCENE_ANALYSIS);
-        StoredBoard board = new StoredBoard(UUID.randomUUID().toString(), selectionJson,
-                objectMapper.writeValueAsString(snapshot), "QUEUED", null);
-        sceneBoardRepository.insert(workId, request.selection().chapterId(), request.requestId(), board);
+        StoredBoard board =
+                new StoredBoard(
+                        UUID.randomUUID().toString(),
+                        selectionJson,
+                        objectMapper.writeValueAsString(snapshot),
+                        "QUEUED",
+                        null);
+        sceneBoardRepository.insert(
+                workId, request.selection().chapterId(), request.requestId(), board);
+
         return sceneBoardConverter.toBoard(board);
     }
 
@@ -85,53 +96,72 @@ class SceneBoardService {
     @Transactional(readOnly = true)
     public Board get(long userId, long workId, String id) {
         workAccessService.requireOwned(userId, workId);
-        return sceneBoardRepository.find(workId, id).map(sceneBoardConverter::toBoard)
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+
+        return sceneBoardRepository
+                .find(workId, id)
+                .map(sceneBoardConverter::toBoard)
+                .orElseThrow(() -> new CustomException(SceneErrorCode.SCENE_BOARD_NOT_FOUND));
     }
 
     /** 원고 본문을 제외한 회차별 보드 식별자를 최대 10개 반환한다. */
     @Transactional(readOnly = true)
     public List<String> list(long userId, long workId, String chapterId, int page) {
         workAccessService.requireOwned(userId, workId);
+
         return sceneBoardRepository.listIds(workId, chapterId, page);
     }
 
     private Snapshot snapshot(long workId, Selection selection) {
-        Chapter chapter = chapterRepository.findByWork_IdAndChapterKey(workId, selection.chapterId())
-                .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
+        Chapter chapter =
+                chapterRepository
+                        .findByWork_IdAndChapterKey(workId, selection.chapterId())
+                        .orElseThrow(() -> new CustomException(WorkErrorCode.WORK_NOT_FOUND));
         if (chapter.getRevision() != selection.revision()) {
             throw new CustomException(WorkErrorCode.VERSION_CONFLICT);
         }
-        if (selection.end() <= selection.start() || selection.end() > chapter.getContent().length()
+        if (selection.end() <= selection.start()
+                || selection.end() > chapter.getContent().length()
                 || selection.end() - selection.start() > 12_000
                 || splitsSurrogate(chapter.getContent(), selection.start())
                 || splitsSurrogate(chapter.getContent(), selection.end())) {
             throw invalid();
         }
+
         String text = chapter.getContent().substring(selection.start(), selection.end());
         if (text.isBlank()) {
             throw invalid();
         }
 
-        List<WorkSetting> settings = selection.settingIds().isEmpty() ? List.of()
-                : workSettingRepository.findAllByWork_IdAndIdIn(workId, selection.settingIds());
+        List<WorkSetting> settings =
+                selection.settingIds().isEmpty()
+                        ? List.of()
+                        : workSettingRepository.findAllByWork_IdAndIdIn(
+                                workId, selection.settingIds());
         if (settings.size() != selection.settingIds().size()
-                || settings.stream().anyMatch(setting -> setting.getStatus() != SettingStatus.CONFIRMED)
-                || settings.stream().mapToInt(setting -> setting.getContent().length()).sum() > 20_000) {
+                || settings.stream()
+                        .anyMatch(setting -> setting.getStatus() != SettingStatus.CONFIRMED)
+                || settings.stream().mapToInt(setting -> setting.getContent().length()).sum()
+                        > 20_000) {
             throw invalid();
         }
-        List<Setting> selected = settings.stream().sorted(Comparator.comparing(WorkSetting::getId))
-                .map(setting -> new Setting(setting.getId(), setting.getTitle(), setting.getContent())).toList();
-        return new Snapshot(selection, chapter.getTitle(), text, selected);
+
+        return sceneBoardConverter.toSnapshot(selection, chapter.getTitle(), text, settings);
     }
 
     private boolean splitsSurrogate(String text, int index) {
-        return index > 0 && index < text.length() && Character.isLowSurrogate(text.charAt(index))
+        return index > 0
+                && index < text.length()
+                && Character.isLowSurrogate(text.charAt(index))
                 && Character.isHighSurrogate(text.charAt(index - 1));
     }
 
     private String tokenPayload(long userId, long workId, Snapshot snapshot) {
-        return "scene-board|" + userId + "|" + workId + "|" + objectMapper.writeValueAsString(snapshot);
+        return "scene-board|"
+                + userId
+                + "|"
+                + workId
+                + "|"
+                + objectMapper.writeValueAsString(snapshot);
     }
 
     private CustomException invalid() {
