@@ -1,5 +1,6 @@
 package com.magister.backend.global.error;
 
+import com.magister.backend.domain.aiquota.AiQuotaExceededException;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.code.ErrorCode;
@@ -15,6 +16,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +29,7 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.List;
 
 @RestControllerAdvice
@@ -118,6 +121,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 error.getDefaultMessage() == null ? "올바르지 않은 값입니다." : error.getDefaultMessage();
         return new FieldErrorDetail(field, message);
     }
+
+    @ExceptionHandler(AiQuotaExceededException.class)
+    public ResponseEntity<Object> handleAiQuotaExceeded(
+            AiQuotaExceededException exception, WebRequest request) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RETRY_AFTER, Long.toString(
+                Math.max(1, exception.resetAt().getEpochSecond() - Instant.now().getEpochSecond())));
+        ApiResult<AiQuotaFailure> body = new ApiResult<>(false,
+                new FrameworkErrorCode(HttpStatus.TOO_MANY_REQUESTS), exception.getMessage(),
+                new AiQuotaFailure(exception.resetAt()), List.of());
+        return createResponseEntity(body, headers, HttpStatus.TOO_MANY_REQUESTS, request);
+    }
+
+    private record AiQuotaFailure(Instant resetAt) {}
 
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<Object> handleCustomException(
