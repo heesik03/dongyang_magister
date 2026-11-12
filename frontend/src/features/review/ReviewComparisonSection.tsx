@@ -51,28 +51,43 @@ export function ReviewComparisonSection({
 
   function renderCandidateCard(item: ComparedCandidate, allowJump: boolean) {
     return (
-      <div className="comparison-card" key={`${item.category}:${item.candidateId}`}>
-        <div className="row">
-          <span className={`badge ${item.type === '설정 충돌 후보' ? 'danger' : 'warning'}`}>
-            {item.type}
+      <details className="event-list-item" key={`${item.category}:${item.candidateId}`}>
+        <summary className="workspace-list-row">
+          <span>
+            {
+              {
+                RETAINED: '계속 나옴',
+                ADDED: '새로 나옴',
+                NOT_REAPPEARED: '이번에는 나오지 않음',
+                INCOMPARABLE: '비교할 수 없음',
+              }[item.category]
+            }
           </span>
-          {item.sourceTitles.length > 0 && (
-            <span className="small muted">근거: {item.sourceTitles.join(', ')}</span>
+          <strong>{item.quote}</strong>
+          <span>{item.comparisonNote || item.reason}</span>
+        </summary>
+        <div className="comparison-card">
+          <div className="row">
+            <span className={`badge ${item.type === '설정 충돌 후보' ? 'danger' : 'warning'}`}>
+              {item.type}
+            </span>
+            {item.sourceTitles.length > 0 && (
+              <span className="small muted">근거: {item.sourceTitles.join(', ')}</span>
+            )}
+          </div>
+          <p className="small">{item.reason}</p>
+          {item.suggestion && <p className="small muted">{item.suggestion}</p>}
+          {allowJump && onSelectCandidate && (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => onSelectCandidate(item.candidateId)}
+            >
+              현재 후보 상세 열기 →
+            </button>
           )}
         </div>
-        <blockquote>{item.quote}</blockquote>
-        <p className="small">{item.reason}</p>
-        <p className="small muted">{item.comparisonNote}</p>
-        {allowJump && onSelectCandidate && (
-          <button
-            type="button"
-            className="text-button"
-            onClick={() => onSelectCandidate(item.candidateId)}
-          >
-            현재 후보 상세 열기 →
-          </button>
-        )}
-      </div>
+      </details>
     )
   }
 
@@ -117,40 +132,25 @@ export function ReviewComparisonSection({
               </div>
               <p className="notice small">{comparison.scopeComparisonNote}</p>
 
-              <div className="comparison-group">
-                <h4>유지된 쟁점 ({comparison.retained.length}건)</h4>
-                {comparison.retained.length === 0 ? (
-                  <p className="small muted">이전 분석과 동일하게 유지된 쟁점이 없습니다.</p>
-                ) : (
-                  comparison.retained.map((item) => renderCandidateCard(item, true))
-                )}
-              </div>
-
-              <div className="comparison-group">
-                <h4>새 후보 ({comparison.added.length}건)</h4>
-                {comparison.added.length === 0 ? (
-                  <p className="small muted">이번 분석에서 새로 추가된 후보가 없습니다.</p>
-                ) : (
-                  comparison.added.map((item) => renderCandidateCard(item, true))
-                )}
-              </div>
-
-              <div className="comparison-group">
-                <h4>이번 결과에서 다시 나오지 않은 후보 ({comparison.notReappeared.length}건)</h4>
-                <p className="notice small">{comparison.resolutionCautionNote}</p>
-                {comparison.notReappeared.length === 0 ? (
-                  <p className="small muted">다시 나오지 않은 이전 후보가 없습니다.</p>
-                ) : (
-                  comparison.notReappeared.map((item) => renderCandidateCard(item, false))
-                )}
-              </div>
-
-              {comparison.incomparable.length > 0 && (
-                <div className="comparison-group">
-                  <h4>비교 불가 ({comparison.incomparable.length}건)</h4>
-                  {comparison.incomparable.map((item) => renderCandidateCard(item, false))}
+              <p className="notice small">{comparison.resolutionCautionNote}</p>
+              <div className="workspace-list comparison-list">
+                <div className="workspace-list-row workspace-list-header" aria-hidden="true">
+                  <span>변화</span>
+                  <span>검토 항목</span>
+                  <span>확인할 내용</span>
                 </div>
-              )}
+                {[
+                  ...comparison.retained,
+                  ...comparison.added,
+                  ...comparison.notReappeared,
+                  ...comparison.incomparable,
+                ].map((item) =>
+                  renderCandidateCard(
+                    item,
+                    item.category === 'RETAINED' || item.category === 'ADDED',
+                  ),
+                )}
+              </div>
             </>
           )}
         </>

@@ -165,7 +165,7 @@ beforeEach(() => {
 afterEach(cleanup)
 function show(current = work) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/?view=review']}>
       <ManuscriptPanel work={current} />
     </MemoryRouter>,
   )
@@ -183,8 +183,8 @@ test('반복 인용문의 두 번째 UTF-16 위치를 선택하고 다중 근거
   show()
   expect(screen.getByText('확정 능력과 비교')).toBeTruthy()
   expect(screen.getByText('이전 행동과 비교')).toBeTruthy()
-  fireEvent.click(screen.getByRole('button', { name: '원문으로 이동' }))
-  const editor = screen.getByRole('textbox', { name: '회차 원고' })
+  fireEvent.click(screen.getByRole('button', { name: '원고에서 확인' }))
+  const editor = await screen.findByRole('textbox', { name: '회차 원고' })
   await waitFor(() => {
     expect(editor).toHaveProperty('selectionStart', 11)
     expect(editor).toHaveProperty('selectionEnd', 16)
@@ -206,10 +206,13 @@ test('편집된 원고를 덮어쓰지 않고 분석 당시 스냅샷을 선택�
     chapters: [work.chapters[0], { ...work.chapters[1], content: '새 원고', revision: 2 }],
   }
   show(changed)
-  fireEvent.click(screen.getByRole('button', { name: '원문으로 이동' }))
+  fireEvent.click(screen.getByRole('button', { name: '원고에서 확인' }))
   const original = await screen.findByLabelText('분석 당시 원문')
   await waitFor(() => expect(original).toHaveProperty('selectionStart', 11))
-  expect(screen.getByRole('textbox', { name: '회차 원고' })).toHaveProperty('value', '새 원고')
+  expect(screen.getByLabelText('회차 원고', { selector: 'textarea' })).toHaveProperty(
+    'value',
+    '새 원고',
+  )
   expect(original).toHaveProperty('readOnly', true)
   expect(screen.getByText(/이전 결과입니다/)).toBeTruthy()
 })
@@ -245,19 +248,22 @@ test('잘못된 인용 위치와 원문 조회 실패를 빈 결과로 숨기지
     revision: 1,
   })
   show()
-  fireEvent.click(screen.getByRole('button', { name: '원문으로 이동' }))
+  fireEvent.click(screen.getByRole('button', { name: '원고에서 확인' }))
   await screen.findByText(/원문과 인용 위치가 일치하지 않습니다/)
   vi.mocked(reviewClient.source).mockRejectedValue(new Error('원문 조회 실패'))
-  fireEvent.click(screen.getByRole('button', { name: '원문으로 이동' }))
+  fireEvent.click(screen.getByRole('button', { name: '원고에서 확인' }))
   await screen.findByText('원문 조회 실패')
-  expect(screen.getByRole('textbox', { name: '회차 원고' })).toHaveProperty('value', content)
+  expect(screen.getByLabelText('회차 원고', { selector: 'textarea' })).toHaveProperty(
+    'value',
+    content,
+  )
 })
 
 test('위치 없는 과거 결과는 추정해서 이동하지 않는다', () => {
   fixture.report = { reviews: [], legacy: true, stale: false }
   show()
   expect(screen.getByText(/이전 형식의 결과/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: '원문으로 이동' })).toHaveProperty('disabled', true)
+  expect(screen.getByRole('button', { name: '원고에서 확인' })).toHaveProperty('disabled', true)
   expect(reviewClient.source).not.toHaveBeenCalled()
 })
 

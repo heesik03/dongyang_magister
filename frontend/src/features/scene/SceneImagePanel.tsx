@@ -148,139 +148,155 @@ export function SceneImagePanel({ workId, boardId }: { workId: string; boardId: 
 
   return (
     <section aria-label="콘셉트 이미지" className="scene-image-panel">
-      {error && (
-        <p role="alert">
-          {error}{' '}
-          <button
-            type="button"
-            onClick={() => {
-              setError('')
-              setRefresh((value) => value + 1)
-            }}
-          >
-            시안 이력 다시 확인
-          </button>
-        </p>
-      )}
-      {preview ? (
-        <>
-          <h4>이미지 생성기에 보낼 설명 · 원고 v{preview.revision}</h4>
-          <p>원고·설정에서 작가가 확인한 요소</p>
-          <blockquote>{preview.input.confirmed}</blockquote>
-          <p>작가가 추가한 연출</p>
-          <blockquote>{preview.input.direction || '없음'}</blockquote>
-          {quota && (
-            <p>
-              오늘 이미지 생성 {quota.remaining}회 남음 · 초기화{' '}
-              {new Date(quota.resetAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (KST)
-            </p>
-          )}
-          <label>
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(event) => setConsent(event.target.checked)}
-            />{' '}
-            표시된 설명의 외부 AI 전송에 동의합니다.
-          </label>
-          <div>
-            <button type="button" disabled={busy} onClick={() => setPreview(null)}>
-              돌아가기
-            </button>
+      <div className="scene-image-inputs">
+        {error && (
+          <p role="alert">
+            {error}{' '}
             <button
               type="button"
-              disabled={busy || !consent || quota?.remaining === 0}
-              onClick={() => void submit()}
+              onClick={() => {
+                setError('')
+                setRefresh((value) => value + 1)
+              }}
             >
-              동의하고 이미지 생성
+              시안 이력 다시 확인
             </button>
-          </div>
-        </>
-      ) : (
-        <fieldset disabled={busy}>
-          <legend>새 시안 만들기</legend>
-          <label>
-            이미지 유형
-            <select
-              value={input.kind}
-              onChange={(event) =>
-                setInput({ ...input, kind: event.target.value === 'PROP' ? 'PROP' : 'LOCATION' })
-              }
-            >
-              <option value="LOCATION">장소 전경</option>
-              <option value="PROP">소품 확대</option>
-            </select>
-          </label>
-          <label>
-            원고·설정에서 확인한 장소·시간·소품
-            <textarea
-              maxLength={500}
-              value={input.confirmed}
-              onChange={(event) => setInput({ ...input, confirmed: event.target.value })}
-            />
-          </label>
-          <label>
-            작가가 추가한 연출
-            <textarea
-              maxLength={500}
-              value={input.direction}
-              onChange={(event) => setInput({ ...input, direction: event.target.value })}
-            />
-          </label>
-          <button type="button" disabled={!input.confirmed.trim()} onClick={() => void prepare()}>
-            전송 설명 확인
-          </button>
-        </fieldset>
-      )}
-      {jobs.length > 0 && (
-        <label>
-          생성 시안
-          <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-            <option value="">시안 선택</option>
-            {jobs.map((job, index) => (
-              <option key={job.id} value={job.id}>
-                {job.kind === 'PROP' ? '소품 확대' : '장소 전경'} · v{job.revision} ·{' '}
-                {jobs.length - index}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {selected && (
-        <article>
-          <h4>생성 기준 · 원고 v{selected.revision}</h4>
-          <p>확인한 요소 · {selected.confirmed}</p>
-          <p>추가 연출 · {selected.direction || '없음'}</p>
-          {(selected.status === 'QUEUED' || selected.status === 'RUNNING') && (
-            <p role="status">이미지를 생성하고 있습니다.</p>
-          )}
-          {selected.status === 'FAILED' && (
-            <p role="alert">
-              이미지 생성에 실패했습니다.{' '}
+          </p>
+        )}
+        {preview ? (
+          <>
+            <h4>이미지 생성기에 보낼 설명 · 원고 v{preview.revision}</h4>
+            <p>원고·설정에서 작가가 확인한 요소</p>
+            <blockquote>{preview.input.confirmed}</blockquote>
+            <p>작가가 추가한 연출</p>
+            <blockquote>{preview.input.direction || '없음'}</blockquote>
+            <label>
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(event) => setConsent(event.target.checked)}
+              />{' '}
+              표시된 설명의 외부 AI 전송에 동의합니다.
+            </label>
+            <div>
+              <button type="button" disabled={busy} onClick={() => setPreview(null)}>
+                돌아가기
+              </button>
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => {
-                  setInput({
-                    kind: selected.kind === 'PROP' ? 'PROP' : 'LOCATION',
-                    confirmed: selected.confirmed,
-                    direction: selected.direction,
-                  })
-                  setPreview(null)
-                }}
+                disabled={busy || !consent || quota?.remaining === 0}
+                onClick={() => void submit()}
               >
-                설명 불러와 다시 요청
+                동의하고 이미지 생성
               </button>
+            </div>
+          </>
+        ) : (
+          <fieldset disabled={busy}>
+            <legend>새 시안 만들기</legend>
+            <label>
+              이미지 유형
+              <select
+                value={input.kind}
+                onChange={(event) =>
+                  setInput({ ...input, kind: event.target.value === 'PROP' ? 'PROP' : 'LOCATION' })
+                }
+              >
+                <option value="LOCATION">장소 전경</option>
+                <option value="PROP">소품 확대</option>
+              </select>
+            </label>
+            <label>
+              원고·설정에서 확인한 장소·시간·소품
+              <textarea
+                maxLength={500}
+                value={input.confirmed}
+                onChange={(event) => setInput({ ...input, confirmed: event.target.value })}
+              />
+            </label>
+            <label>
+              작가가 추가한 연출
+              <textarea
+                maxLength={500}
+                value={input.direction}
+                onChange={(event) => setInput({ ...input, direction: event.target.value })}
+              />
+            </label>
+            <button type="button" disabled={!input.confirmed.trim()} onClick={() => void prepare()}>
+              전송 설명 확인
+            </button>
+          </fieldset>
+        )}
+      </div>
+      <div className="scene-image-results">
+        {quota && (
+          <div
+            className={quota.remaining === 0 ? 'workspace-error-notice' : 'notice'}
+            role="status"
+          >
+            {quota.remaining === 0 && <h4>오늘은 이미지를 더 만들 수 없습니다.</h4>}
+            <p>
+              오늘 {quota.remaining}회 남음 · 초기화{' '}
+              {new Date(quota.resetAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (KST)
             </p>
-          )}
-          {imageId && image?.id === imageId && (
-            <img
-              src={image.url}
-              alt={selected.kind === 'PROP' ? '소품 콘셉트 시안' : '장소 콘셉트 시안'}
-            />
-          )}
-        </article>
-      )}
+          </div>
+        )}
+        {jobs.length === 0 && (
+          <div className="scene-image-empty">
+            <h4>아직 만든 이미지가 없습니다.</h4>
+            <p>생성한 이미지는 여기에 표시됩니다.</p>
+          </div>
+        )}
+        {jobs.length > 0 && (
+          <label>
+            생성 시안
+            <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+              <option value="">시안 선택</option>
+              {jobs.map((job, index) => (
+                <option key={job.id} value={job.id}>
+                  {job.kind === 'PROP' ? '소품 확대' : '장소 전경'} · v{job.revision} ·{' '}
+                  {jobs.length - index}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {selected && (
+          <article>
+            <h4>생성 기준 · 원고 v{selected.revision}</h4>
+            <p>확인한 요소 · {selected.confirmed}</p>
+            <p>추가 연출 · {selected.direction || '없음'}</p>
+            {(selected.status === 'QUEUED' || selected.status === 'RUNNING') && (
+              <p role="status">이미지를 생성하고 있습니다.</p>
+            )}
+            {selected.status === 'FAILED' && (
+              <p role="alert">
+                이미지 생성에 실패했습니다.{' '}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setInput({
+                      kind: selected.kind === 'PROP' ? 'PROP' : 'LOCATION',
+                      confirmed: selected.confirmed,
+                      direction: selected.direction,
+                    })
+                    setPreview(null)
+                  }}
+                >
+                  설명 불러와 다시 요청
+                </button>
+              </p>
+            )}
+            {imageId && image?.id === imageId && (
+              <img
+                src={image.url}
+                alt={selected.kind === 'PROP' ? '소품 콘셉트 시안' : '장소 콘셉트 시안'}
+              />
+            )}
+          </article>
+        )}
+      </div>
     </section>
   )
 }

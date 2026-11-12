@@ -110,7 +110,7 @@ test('수동 사건 등록은 반복된 두 번째 문장의 위치를 저장한
       <TimelinePanel work={work} />
     </MemoryRouter>,
   )
-  fireEvent.click(screen.getByRole('button', { name: '사건 추가', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: '직접 추가', exact: true }))
   fireEvent.change(screen.getByLabelText('사건명'), { target: { value: '두 번째 출발' } })
   fireEvent.change(screen.getByLabelText('근거 문장'), {
     target: { value: String(candidate.startOffset) },
@@ -169,7 +169,7 @@ test('전송할 원고를 확인하고 동의한 뒤에만 추출을 접수한�
     .spyOn(extractionClient, 'create')
     .mockResolvedValue({ ...job, status: 'QUEUED', candidates: [] })
   render(<ExtractionFlow work={work} />)
-  fireEvent.click(screen.getByRole('button', { name: '원고에서 사건 추출' }))
+  fireEvent.click(screen.getByRole('button', { name: '원고에서 사건 찾기' }))
   fireEvent.click(screen.getByRole('button', { name: '전송할 원고 확인' }))
   await screen.findByRole('dialog', { name: '사건 추출 전송 확인' })
   expect(create).not.toHaveBeenCalled()
@@ -222,7 +222,8 @@ test('확정 전에 후보를 저장하고 현재 Workspace 버전으로 확정�
   const confirm = vi.spyOn(extractionClient, 'confirm').mockResolvedValue(undefined)
   render(<ExtractionFlow work={work} />)
   fireEvent.click(await screen.findByRole('button', { name: '사건 후보 확인' }))
-  fireEvent.change(screen.getByLabelText('작가 선택'), { target: { value: 'INCLUDE' } })
+  fireEvent.click(screen.getByRole('checkbox', { name: candidate.title + ' 추가 선택' }))
+  expect(screen.getByLabelText('작가 선택')).toHaveProperty('value', 'INCLUDE')
   fireEvent.click(screen.getByRole('button', { name: '선택한 사건 확정' }))
   await waitFor(() => expect(confirm).toHaveBeenCalledOnce())
   expect(confirm.mock.calls[0][1].version).toBe(3)
@@ -321,6 +322,12 @@ test('서술 회차 순서와 이야기 시간순 비교 흐름도에서 역순 
   )
 
   expect(screen.getByText('회차 서술 순서 ↔ 이야기 시간순 비교')).toBeTruthy()
+  expect(document.querySelector('.timeline-rows summary strong')?.textContent).toBe(
+    '어린 시절의 서약',
+  )
+  fireEvent.click(screen.getByRole('button', { name: '회차에 나온 순서' }))
+  expect(document.querySelector('.timeline-rows summary strong')?.textContent).toBe('항구 도착')
+  fireEvent.click(screen.getByRole('button', { name: '흐름도 펼치기' }))
   expect(screen.getAllByText(/서술 순서 역전/).length).toBeGreaterThan(0)
 
   fireEvent.click(screen.getByRole('button', { name: '대조 목록 표' }))

@@ -13,7 +13,8 @@ export function TimelinePanel({ work }: { work: Work }) {
   const [editing, setEditing] = useState<StoryEvent | 'new' | null>(null)
   const [filterChapter, setFilterChapter] = useState('')
   const [chapterId, setChapterId] = useState(work.chapters[0]?.id || '')
-  const [flowOpen, setFlowOpen] = useState(true)
+  const [flowOpen, setFlowOpen] = useState(false)
+  const [sortOrder, setSortOrder] = useState<'story' | 'chapter'>('story')
   const [flowMode, setFlowMode] = useState<'matrix' | 'table'>('matrix')
   const draft = editing && editing !== 'new' ? editing : null
   const sourceChapter = work.chapters.find((chapter) => chapter.id === chapterId)
@@ -100,66 +101,95 @@ export function TimelinePanel({ work }: { work: Work }) {
     const location = eventLocation(event, chapter)
     const isReversed = reversedEventIds.has(event.id)
     return (
-      <article className="event-card" key={event.id}>
-        <div className="event-order">
-          <strong>{String(index + 1).padStart(2, '0')}</strong>
+      <details className="event-list-item" key={event.id}>
+        <summary className="workspace-list-row">
+          <span>{knownOrderMap.get(event.id) ?? '미정'}</span>
+          <strong>{event.title}</strong>
+          <span>{chapter?.title || '회차 미지정'}</span>
           <span>{event.time || '시점 미상'}</span>
-          <span className="small muted">사건 순서 {index + 1}</span>
-          {isReversed && <span className="badge warning">서술 순서 역전</span>}
-          <button onClick={() => move(event, -1)} aria-label={`${event.title} 앞 순서로`}>
-            ↑
-          </button>
-          <button onClick={() => move(event, 1)} aria-label={`${event.title} 뒤 순서로`}>
-            ↓
-          </button>
-        </div>
-        <div className="event-body">
-          <div className="row">
-            <h2>{event.title}</h2>
-            <button className="text-button" onClick={() => open(event)}>
-              사건 수정
+        </summary>
+        <article className="event-card">
+          <div className="event-order">
+            <strong>{String(index + 1).padStart(2, '0')}</strong>
+            <span>{event.time || '시점 미상'}</span>
+            <span className="small muted">사건 순서 {index + 1}</span>
+            {isReversed && <span className="badge warning">서술 순서 역전</span>}
+            <button onClick={() => move(event, -1)} aria-label={`${event.title} 앞 순서로`}>
+              ↑
+            </button>
+            <button onClick={() => move(event, 1)} aria-label={`${event.title} 뒤 순서로`}>
+              ↓
             </button>
           </div>
-          {event.description && <p>{event.description}</p>}
-          <p className="small muted">등장인물 · {event.characters || '미정'}</p>
-          {event.quote && <blockquote>{event.quote}</blockquote>}
-          <div className="row">
-            <strong className="event-source">근거 회차 · {chapter?.title || '회차 미지정'}</strong>
-            {location ? (
-              <Link
-                className="button"
-                to={`/works/${work.id}/manuscript?chapter=${encodeURIComponent(event.chapterId)}&quote=${encodeURIComponent(event.quote)}&start=${location.start}&end=${location.end}`}
-              >
-                원문으로 이동 <Icon name="arrow" />
-              </Link>
-            ) : (
-              <span className="badge warning">
-                {event.sourceRevision != null && event.sourceRevision !== chapter?.revision
-                  ? '근거 변경 · 재확인 필요'
-                  : '원문 위치 확인 필요'}
-              </span>
-            )}
-            {event.extractionId && <ExtractionSourceButton workId={work.id} event={event} />}
+          <div className="event-body">
+            <div className="row">
+              <h2>{event.title}</h2>
+              <button className="text-button" onClick={() => open(event)}>
+                사건 수정
+              </button>
+            </div>
+            {event.description && <p>{event.description}</p>}
+            <p className="small muted">등장인물 · {event.characters || '미정'}</p>
+            {event.quote && <blockquote>{event.quote}</blockquote>}
+            <div className="row">
+              <strong className="event-source">
+                근거 회차 · {chapter?.title || '회차 미지정'}
+              </strong>
+              {location ? (
+                <Link
+                  className="button"
+                  to={`/works/${work.id}/manuscript?chapter=${encodeURIComponent(event.chapterId)}&quote=${encodeURIComponent(event.quote)}&start=${location.start}&end=${location.end}`}
+                >
+                  원문으로 이동 <Icon name="arrow" />
+                </Link>
+              ) : (
+                <span className="badge warning">
+                  {event.sourceRevision != null && event.sourceRevision !== chapter?.revision
+                    ? '근거 변경 · 재확인 필요'
+                    : '원문 위치 확인 필요'}
+                </span>
+              )}
+              {event.extractionId && <ExtractionSourceButton workId={work.id} event={event} />}
+            </div>
           </div>
-        </div>
-      </article>
+        </article>
+      </details>
     )
   }
   return (
     <section className="timeline-panel">
       <div className="section-line">
         <div>
-          <h1>사건 타임라인</h1>
           <p className="small muted">
             등록한 사건을 시간순으로 살펴보고, 시점과 원문을 직접 정리하세요.
           </p>
         </div>
         <button className="primary" onClick={() => open('new')}>
           <Icon name="plus" />
-          사건 추가
+          직접 추가
         </button>
       </div>
-      <ExtractionFlow work={work} />
+      <div className="timeline-actions">
+        <div className="filter-tabs" role="group" aria-label="사건 순서 보기">
+          <button
+            type="button"
+            aria-pressed={sortOrder === 'story'}
+            className={sortOrder === 'story' ? 'selected' : ''}
+            onClick={() => setSortOrder('story')}
+          >
+            이야기 속 시간순
+          </button>
+          <button
+            type="button"
+            aria-pressed={sortOrder === 'chapter'}
+            className={sortOrder === 'chapter' ? 'selected' : ''}
+            onClick={() => setSortOrder('chapter')}
+          >
+            회차에 나온 순서
+          </button>
+        </div>
+        <ExtractionFlow work={work} />
+      </div>
 
       {work.events.length > 0 && (
         <section className="timeline-flow-comparison" aria-label="서술 순서와 사건 순서 비교">
@@ -333,21 +363,41 @@ export function TimelinePanel({ work }: { work: Work }) {
           ))}
         </select>
       </label>
-      <p className="notice small">
-        사건은 작가가 지정한 이야기 순서로 배치합니다. 회차의 서술 순서와 다를 수 있습니다. 기준이
-        불명확한 상대 시점·회상은 확인 전까지 시점 미상으로 남겨 주세요.
-      </p>
-      <div className="timeline-list">{known.map(renderEvent)}</div>
+      <details className="workspace-disclosure timeline-help">
+        <summary>두 가지 사건 순서의 차이</summary>
+        <p>예: 3화에서 회상한 어린 시절의 사건은 이야기 속에서는 1화의 사건보다 먼저 일어납니다.</p>
+      </details>
+      {known.length > 0 && (
+        <div className="workspace-list timeline-list timeline-rows">
+          <div className="workspace-list-row workspace-list-header" aria-hidden="true">
+            <span>일어난 순서</span>
+            <span>사건</span>
+            <span>나온 회차</span>
+            <span>시점</span>
+          </div>
+          {(sortOrder === 'story'
+            ? known
+            : [...known].sort(
+                (left, right) =>
+                  (chapterIndexMap.get(left.chapterId) ?? Infinity) -
+                    (chapterIndexMap.get(right.chapterId) ?? Infinity) ||
+                  (left.startOffset ?? Infinity) - (right.startOffset ?? Infinity),
+              )
+          ).map(renderEvent)}
+        </div>
+      )}
       {unknown.length > 0 && (
         <>
-          <h3 className="unknown-heading">시점 미상 · 작가의 확인이 필요한 사건</h3>
-          <div className="timeline-list">{unknown.map(renderEvent)}</div>
+          <h3 className="unknown-heading">시점을 정하지 않은 사건 {unknown.length}개</h3>
+          <div className="workspace-list timeline-list timeline-rows">
+            {unknown.map(renderEvent)}
+          </div>
         </>
       )}
       {!work.events.length && (
         <div className="empty">
           <Icon name="clock" />
-          <h3>아직 기록한 사건이 없어요</h3>
+          <h3>아직 등록한 사건이 없습니다</h3>
           <p>주요 사건을 추가하고 근거 문장과 연결해 보세요.</p>
         </div>
       )}

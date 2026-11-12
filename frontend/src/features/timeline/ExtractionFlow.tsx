@@ -253,7 +253,7 @@ export function ExtractionFlow({ work }: { work: Work }) {
             setError('')
           }}
         >
-          원고에서 사건 추출
+          원고에서 사건 찾기
         </button>
         {loading && <span role="status">추출 이력 조회 중…</span>}
         <button
@@ -353,7 +353,7 @@ export function ExtractionFlow({ work }: { work: Work }) {
           initialFocus="heading"
           title={
             mode === 'select'
-              ? '원고에서 사건 추출'
+              ? '원고에서 사건 찾기'
               : mode === 'preview'
                 ? '사건 추출 전송 확인'
                 : '사건 후보 확인'
@@ -364,6 +364,11 @@ export function ExtractionFlow({ work }: { work: Work }) {
           }}
         >
           <div className="stack" aria-busy={busy}>
+            <ol className="extraction-steps" aria-label="사건 찾기 단계">
+              <li aria-current={mode === 'select' ? 'step' : undefined}>회차 선택</li>
+              <li aria-current={mode === 'preview' ? 'step' : undefined}>전송 확인</li>
+              <li aria-current={mode === 'candidates' ? 'step' : undefined}>후보 선택</li>
+            </ol>
             {mode === 'select' && (
               <>
                 <p>추출할 회차를 선택하세요. 최대 10회차·본문 합계 20만 자입니다.</p>
@@ -463,7 +468,27 @@ export function ExtractionFlow({ work }: { work: Work }) {
                       ?.revision !== candidate.sourceRevision
                   return (
                     <article key={candidate.id} className="extraction-candidate stack">
-                      <h3>{candidate.title || '사건명 입력 필요'}</h3>
+                      <div className="workspace-list-row extraction-candidate-heading">
+                        <label className="extraction-check">
+                          <input
+                            type="checkbox"
+                            checked={candidate.decision === 'INCLUDE' || confirmed}
+                            disabled={busy || confirmed}
+                            onChange={(event) =>
+                              edit(candidate.id, {
+                                decision: event.target.checked ? 'INCLUDE' : 'HOLD',
+                              })
+                            }
+                          />
+                          <span className="sr-only">{candidate.title || '이 사건'} 추가 선택</span>
+                        </label>
+                        <strong>{candidate.title || '사건명 입력 필요'}</strong>
+                        <span>{candidate.time || '시점 미상'}</span>
+                        <span>
+                          {work.chapters.find((chapter) => chapter.id === candidate.chapterId)
+                            ?.title || '회차 미지정'}
+                        </span>
+                      </div>
                       {confirmed && (
                         <p className="notice">
                           이미 확정한 사건입니다. 변경은 타임라인의 사건 수정에서 적용해 주세요.

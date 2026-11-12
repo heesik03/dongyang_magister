@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useMatch, useSearchParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useMatch, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuthStore } from '../features/auth/useAuthStore'
 import { WorksProvider } from '../features/works/WorksProvider'
@@ -16,7 +16,6 @@ export function Shell() {
   )
 }
 function ShellContent() {
-  const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   const error = useAuthStore((state) => state.error)
   const cachedWorks = useWorksStore((state) => state.works)
@@ -28,7 +27,6 @@ function ShellContent() {
   const isMyPage = Boolean(useMatch('/mypage'))
   const [params] = useSearchParams()
   const current = cachedWorks.find((work) => work.id === match?.params.workId)
-  const selectedChapter = params.get('chapter') || current?.chapters.at(-1)?.id
   const works = cachedWorks.filter(
     (work) => work.source !== 'server' || shortcutIds.includes(work.id),
   )
@@ -46,69 +44,71 @@ function ShellContent() {
     }
     await logout()
   }
+  function workTab(tab: 'manuscript' | 'settings' | 'timeline', review = false) {
+    const query =
+      tab === 'manuscript' && match?.params.tab === 'manuscript'
+        ? new URLSearchParams(params)
+        : new URLSearchParams()
+    if (review) query.set('view', 'review')
+    else query.delete('view')
+    const search = query.toString()
+    return '/works/' + current?.id + '/' + tab + (search ? '?' + search : '')
+  }
   function navigation() {
     return (
       <>
         <NavLink to="/" end className="nav-item" onClick={() => setDrawer(false)}>
-          <Icon name="grid" />
-          작품 보관함
+          <Icon name="book" />내 작품
         </NavLink>
         {current ? (
           <>
             <div className="sidebar-current">
-              <span className="small muted">작업 중인 작품</span>
               <strong>{current.title}</strong>
-              <span className="small muted">
-                {current.genre} · {current.era || '시대 미정'}
-              </span>
             </div>
-            {(['manuscript', 'settings', 'timeline'] as const).map((tab) => (
-              <NavLink
-                className="nav-item"
-                key={tab}
-                to={'/works/' + current.id + '/' + tab}
-                onClick={() => setDrawer(false)}
-              >
-                <Icon
-                  name={tab === 'manuscript' ? 'file' : tab === 'settings' ? 'book' : 'clock'}
-                />
-                {tab === 'manuscript'
-                  ? '원고 · 검토'
-                  : tab === 'settings'
-                    ? '설정집'
-                    : '사건 타임라인'}
-              </NavLink>
-            ))}
-            <div className="sidebar-chapters">
-              <span className="small muted">회차 / {current.chapters.length}</span>
-              <nav aria-label="회차 탐색">
-                {current.chapters.map((chapter) => (
-                  <NavLink
-                    key={chapter.id}
-                    className={
-                      'nav-item ' + (selectedChapter === chapter.id ? 'chapter-active' : '')
-                    }
-                    to={
-                      '/works/' +
-                      current.id +
-                      '/manuscript?chapter=' +
-                      encodeURIComponent(chapter.id)
-                    }
-                    onClick={() => setDrawer(false)}
-                  >
-                    {chapter.title}
-                  </NavLink>
-                ))}
-              </nav>
-              <NavLink
-                className="nav-item add-chapter"
-                onClick={() => setDrawer(false)}
-                to={'/works/' + current.id + '/manuscript?newChapter=' + crypto.randomUUID()}
-              >
-                <Icon name="plus" />
-                회차 추가
-              </NavLink>
-            </div>
+            <Link
+              className={
+                'nav-item' +
+                (match?.params.tab === 'manuscript' && params.get('view') !== 'review'
+                  ? ' active'
+                  : '')
+              }
+              aria-current={
+                match?.params.tab === 'manuscript' && params.get('view') !== 'review'
+                  ? 'page'
+                  : undefined
+              }
+              to={workTab('manuscript')}
+              onClick={() => setDrawer(false)}
+            >
+              <Icon name="edit" />
+              원고 쓰기
+            </Link>
+            <Link
+              className={
+                'nav-item' +
+                (match?.params.tab === 'manuscript' && params.get('view') === 'review'
+                  ? ' active'
+                  : '')
+              }
+              aria-current={
+                match?.params.tab === 'manuscript' && params.get('view') === 'review'
+                  ? 'page'
+                  : undefined
+              }
+              to={workTab('manuscript', true)}
+              onClick={() => setDrawer(false)}
+            >
+              <Icon name="search" />
+              검토 결과
+            </Link>
+            <NavLink className="nav-item" to={workTab('settings')} onClick={() => setDrawer(false)}>
+              <Icon name="book" />
+              인물·세계관
+            </NavLink>
+            <NavLink className="nav-item" to={workTab('timeline')} onClick={() => setDrawer(false)}>
+              <Icon name="clock" />
+              사건 순서
+            </NavLink>
           </>
         ) : (
           <div className="sidebar-works">
@@ -133,7 +133,6 @@ function ShellContent() {
       <aside className={'sidebar ' + (collapsed ? 'sidebar-collapsed' : '')}>
         <div className="sidebar-header">
           <NavLink to="/" className="brand" aria-label="Magister 작품 보관함">
-            <Icon name="book" brand />
             Magister
           </NavLink>
           <button
@@ -154,17 +153,11 @@ function ShellContent() {
         >
           <Icon name="menu" />
         </button>
+        <p className="sidebar-caption">소설 원고와 설정 관리</p>
         <div className="sidebar-navigation" id="sidebar-navigation">
           {navigation()}
         </div>
         <div className="sidebar-bottom">
-          {!current && (
-            <p className="sidebar-note">
-              좋은 이야기는
-              <br />
-              작은 일관성에서 시작됩니다.
-            </p>
-          )}
           <div className={'profile ' + (isMyPage ? 'profile-active' : '')}>
             <NavLink
               to="/mypage"
@@ -172,11 +165,7 @@ function ShellContent() {
               aria-label="마이페이지 이동"
               onClick={() => setDrawer(false)}
             >
-              <span className="avatar">{user?.name.slice(0, 1)}</span>
-              <div>
-                <strong>{user?.name} 작가님</strong>
-                <span className="small muted">마이페이지 · 개인 창작 공간</span>
-              </div>
+              <Icon name="settings" />내 계정
             </NavLink>
             <button className="icon-button" aria-label="로그아웃" onClick={() => void leave()}>
               <Icon name="logout" />
@@ -195,13 +184,12 @@ function ShellContent() {
               </>
             ) : (
               <>
-                <NavLink to="/">작품 보관함</NavLink>
+                <NavLink to="/">내 작품</NavLink>
                 <Icon name="chevron" />
                 <strong>{current?.title || '나의 작업 공간'}</strong>
               </>
             )}
           </div>
-          <span className="demo-tag">개인 작업 공간</span>
         </header>
         {(error || logoutError) && (
           <div role="alert" className="storage-error">

@@ -25,6 +25,14 @@ import { Icon } from '../../shared/Icon'
 import { ManuscriptTransfer } from './ManuscriptTransfer'
 import { SceneBoardFlow } from '../scene/SceneBoardFlow'
 
+const reviewStatusLabels: Readonly<Record<string, string>> = {
+  QUEUED: '대기',
+  RUNNING: '검토 중',
+  SUCCEEDED: '완료',
+  FAILED: '실패',
+  CANCELLED: '취소',
+}
+
 export function ManuscriptPanel({ work }: { work: Work }) {
   const updateWork = useWorksStore((state) => state.updateWork)
   const flushWorkspace = useWorksStore((state) => state.flushWorkspace)
@@ -69,12 +77,23 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const [snapshotRefresh, setSnapshotRefresh] = useState(0)
   const analyzing = jobs.active
   const [error, setError] = useState('')
-  const [view, setView] = useState('원고')
-  const [fontSize, setFontSize] = useState(18)
+  const view = params.get('view') === 'review' ? '검토' : '원고'
+  function setView(next: '원고' | '검토') {
+    const query = new URLSearchParams(params)
+    if (next === '검토') query.set('view', 'review')
+    else query.delete('view')
+    setParams(query)
+  }
+  const [fontSize, setFontSize] = useState(20)
+  const [savedToast, setSavedToast] = useState(false)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(toastTimer.current), [])
   const [markdownPreview, setMarkdownPreview] = useState(false)
   const [highlight, setHighlight] = useState(params.get('quote') || '')
   const [lineHeight, setLineHeight] = useState(1.8)
   const editor = useRef<HTMLTextAreaElement>(null)
+  const pendingSourceFocus = useRef<SourceLocation | null>(null)
+  const [sourceFocusRequest, setSourceFocusRequest] = useState(0)
   const analysisRequest = useRef<AbortController | null>(null)
   const selectedJobId = jobs.job?.id,
     selectedJobStatus = jobs.job?.status
@@ -82,6 +101,16 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const snapshotError =
     sourceFailure && sourceFailure.id === selectedJobId ? sourceFailure.message : ''
   const latestWork = useRef(work)
+  useEffect(() => {
+    const location = pendingSourceFocus.current
+    const element = editor.current
+    if (view !== '원고' || markdownPreview || !location || !element) return
+    pendingSourceFocus.current = null
+    if (chapter?.content.slice(location.startOffset, location.endOffset) !== location.quote) return
+    element.focus()
+    element.setSelectionRange(location.startOffset, location.endOffset)
+    element.scrollIntoView({ block: 'center' })
+  }, [view, markdownPreview, sourceFocusRequest, chapter?.content])
   useEffect(() => {
     latestWork.current = work
   }, [work])
@@ -141,6 +170,23 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       settingsChanged(analysis, work.settings) ||
       (!!snapshot && (snapshot.stale || inputChanged(snapshot.input, work))) ||
       !!reportState.report?.stale)
+  async function saveManuscript() {
+    if (work.source !== 'server') {
+      retrySave()
+      return
+    }
+    await flushWorkspace(work.id)
+    const current = useWorksStore.getState()
+    if (
+      current.dirtyIds.includes(work.id) ||
+      current.workspaceErrors[work.id] ||
+      current.conflicts.includes(work.id)
+    )
+      return
+    clearTimeout(toastTimer.current)
+    setSavedToast(true)
+    toastTimer.current = setTimeout(() => setSavedToast(false), 3500)
+  }
   function createChapter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const title = String(new FormData(event.currentTarget).get('title')).trim()
@@ -153,7 +199,9 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   }
   function changeChapter(id: string, jobId?: string, filter?: ReviewFilter) {
     setParams(
-      jobId ? { chapter: id, reviewJob: jobId, reviewFilter: filter ?? '전체' } : { chapter: id },
+      jobId
+        ? { chapter: id, view: 'review', reviewJob: jobId, reviewFilter: filter ?? '전체' }
+        : { chapter: id, ...(view === '검토' ? { view: 'review' } : {}) },
     )
     setHighlight('')
     setError('')
@@ -334,19 +382,16 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       ) {
         setHighlight(location.quote)
         setMarkdownPreview(false)
-        setView('원고')
-        if (current.id !== chapter?.id) {
+        if (current.id === chapter?.id) {
+          pendingSourceFocus.current = location
+          setSourceFocusRequest((request) => request + 1)
+          setView('원고')
+        } else {
           setParams({
             chapter: current.id,
             quote: location.quote,
             start: String(location.startOffset),
             end: String(location.endOffset),
-          })
-        } else {
-          requestAnimationFrame(() => {
-            editor.current?.focus()
-            editor.current?.setSelectionRange(location.startOffset, location.endOffset)
-            editor.current?.scrollIntoView({ block: 'center', behavior: 'auto' })
           })
         }
       } else {
@@ -375,6 +420,18 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         <p className="error" role="alert">
           {jumpError.message}
         </p>
+      )}
+      {(saveError || conflict) && (
+        <div className="workspace-error-notice" role="alert">
+          <h3>{conflict ? '다른 곳에서 수정된 원고가 있습니다' : '원고를 저장하지 못했습니다'}</h3>
+          <p>{saveError || '작품 관리에서 서버 원고와 현재 입력을 비교하세요.'}</p>
+          <p className="small muted">현재 입력은 편집기에 남아 있습니다.</p>
+          {!conflict && (
+            <button className="primary" disabled={saving} onClick={() => void saveManuscript()}>
+              다시 저장
+            </button>
+          )}
+        </div>
       )}
       <div className="manuscript-toolbar">
         <div className="manuscript-editor-tools">
@@ -406,29 +463,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
               <Icon name="plus" />
             </button>
           </div>
-          <span
-            className={`save-status${storageError || saveError ? ' save-status--error' : saving || dirty ? ' save-status--pending' : ''}`}
-            role="status"
-          >
-            <Icon
-              name={
-                storageError || saveError
-                  ? 'cloud-alert'
-                  : saving || dirty
-                    ? 'cloud-upload'
-                    : 'cloud-check'
-              }
-            />
-            {storageError || saveError
-              ? '저장 실패 · 입력 유지'
-              : saving
-                ? '서버 저장 중…'
-                : dirty
-                  ? '저장 대기 · 입력 유지'
-                  : work.source === 'server'
-                    ? '서버에 자동 저장'
-                    : '브라우저에 자동 저장'}
-          </span>
         </div>
         <div className="toolbar-actions">
           {work.source === 'server' && chapter && (
@@ -446,7 +480,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             <details aria-label="분석 작업 이력" className="analysis-history">
               <summary>
                 <Icon name="history" />
-                <span>분석 작업 이력</span>
+                <span>이전 검토 보기</span>
                 <span className="analysis-history-chevron">
                   <Icon name="chevron" />
                 </span>
@@ -457,32 +491,43 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                 {!jobs.loading && !jobs.history.length && !jobs.error && (
                   <p>아직 이 회차의 분석 기록이 없습니다.</p>
                 )}
-                {!!jobs.history.length && (
-                  <label>
-                    분석 기록 선택
-                    <select
-                      value={jobs.job?.id ?? ''}
-                      onChange={(event) => jobs.select(event.target.value)}
-                    >
-                      <option value="" disabled>
-                        기록을 선택하세요
-                      </option>
-                      {jobs.history.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {new Date(item.createdAt).toLocaleString('ko-KR')} ·{' '}
-                          {
-                            {
-                              QUEUED: '대기',
-                              RUNNING: '분석 중',
-                              SUCCEEDED: '완료',
-                              FAILED: '실패',
-                              CANCELLED: '취소',
-                            }[item.status]
+                {jobs.history.length > 0 && (
+                  <div className="workspace-list review-history-list" aria-label="이전 검토 목록">
+                    <div className="workspace-list-row workspace-list-header" aria-hidden="true">
+                      <span>검토한 회차</span>
+                      <span>검토 시각</span>
+                      <span>상태</span>
+                    </div>
+                    {jobs.history.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="workspace-list-row"
+                        aria-pressed={jobs.job?.id === item.id}
+                        onClick={() => {
+                          jobs.select(item.id)
+                          setView('검토')
+                        }}
+                      >
+                        <strong>{chapter.title}</strong>
+                        <time dateTime={item.createdAt}>
+                          {new Date(item.createdAt).toLocaleString('ko-KR')}
+                        </time>
+                        <span
+                          className={
+                            'badge ' +
+                            (item.status === 'SUCCEEDED'
+                              ? 'green'
+                              : item.status === 'FAILED'
+                                ? 'danger'
+                                : 'info')
                           }
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                        >
+                          {reviewStatusLabels[item.status] ?? '상태 확인 필요'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 )}
                 <button onClick={jobs.refresh}>작업 상태 다시 확인</button>
                 {jobs.job && (
@@ -518,10 +563,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             </details>
           )}
           <div className="manuscript-action-group">
-            <button disabled={preparing || submitting} onClick={() => setOptionsOpen(true)}>
-              <Icon name="settings" />
-              분석 설정
-            </button>
             {analyzing && <button onClick={() => void cancelAnalysis()}>AI 검토 취소</button>}
             <button
               className="primary"
@@ -533,14 +574,14 @@ export function ManuscriptPanel({ work }: { work: Work }) {
               ) : (
                 <Icon name="spark" />
               )}
-              {analyzing ? '분석 중…' : 'AI 검토'}
+              {analyzing ? '검토 중…' : '설정과 맞는지 검토'}
             </button>
           </div>
         </div>
       </div>
 
       <div className="workspace-mobile-tabs">
-        {['원고', '검토'].map((item) => (
+        {(['원고', '검토'] as const).map((item) => (
           <button
             key={item}
             className={view === item ? 'selected' : ''}
@@ -552,39 +593,62 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         ))}
       </div>
       <div className={`editor-review-grid view-${view === '원고' ? 'editor' : 'review'}`}>
-        <section className="editor-pane" aria-label="회차 원고">
+        <nav className="editor-chapters" aria-label="회차 탐색" hidden={view === '검토'}>
+          <h2>회차</h2>
+          {work.chapters.map((item) => (
+            <button
+              key={item.id}
+              className={'nav-item' + (chapter?.id === item.id ? ' active' : '')}
+              aria-current={chapter?.id === item.id ? 'true' : undefined}
+              onClick={() => changeChapter(item.id)}
+            >
+              <Icon name="file" />
+              {item.title}
+            </button>
+          ))}
+          <button
+            className="nav-item"
+            onClick={() => setCreating(true)}
+            disabled={preparing || submitting}
+          >
+            <Icon name="plus" />
+            회차 추가
+          </button>
+        </nav>
+        <section className="editor-pane" aria-label="회차 원고" hidden={view === '검토'}>
           {chapter ? (
             <>
-              <div className="editor-heading">
-                <span className="eyebrow">MANUSCRIPT</span>
-                <label className="font-select">
-                  글자 크기
-                  <select
-                    value={fontSize}
-                    onChange={(event) => setFontSize(Number(event.target.value))}
-                  >
-                    {[16, 18, 20, 22].map((size) => (
-                      <option key={size} value={size}>
-                        {size}px
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="font-select">
-                  행간
-                  <select
-                    value={lineHeight}
-                    onChange={(event) => setLineHeight(Number(event.target.value))}
-                  >
-                    {[1.6, 1.8, 2].map((height) => (
-                      <option key={height} value={height}>
-                        {height}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
               <MarkdownEditor
+                toolbarAccessory={
+                  <div className="editor-heading">
+                    <label className="font-select">
+                      글자 크기
+                      <select
+                        value={fontSize}
+                        onChange={(event) => setFontSize(Number(event.target.value))}
+                      >
+                        {[16, 18, 20, 22].map((size) => (
+                          <option key={size} value={size}>
+                            {size}px
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="font-select">
+                      행간
+                      <select
+                        value={lineHeight}
+                        onChange={(event) => setLineHeight(Number(event.target.value))}
+                      >
+                        {[1.6, 1.8, 2].map((height) => (
+                          <option key={height} value={height}>
+                            {height}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                }
                 header={
                   <div className="markdown-header">
                     {' '}
@@ -639,7 +703,30 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                   {chapter.content.length.toLocaleString()}자 · 원고 버전 {chapter.revision}
                 </span>
                 <div className="editor-bottom-actions">
-                  <Link to={`/works/${work.id}/settings`}>설정집 참고하기 →</Link>
+                  <span
+                    className={`save-status${storageError || saveError ? ' save-status--error' : saving || dirty ? ' save-status--pending' : ''}`}
+                    role="status"
+                  >
+                    <Icon
+                      name={
+                        storageError || saveError
+                          ? 'cloud-alert'
+                          : saving || dirty
+                            ? 'cloud-upload'
+                            : 'cloud-check'
+                      }
+                    />
+                    {storageError || saveError
+                      ? '저장 실패 · 입력 유지'
+                      : saving
+                        ? '서버 저장 중…'
+                        : dirty
+                          ? '저장 대기 · 입력 유지'
+                          : work.source === 'server'
+                            ? '서버에 자동 저장'
+                            : '브라우저에 자동 저장'}
+                  </span>
+                  <Link to={`/works/${work.id}/settings`}>인물·세계관 참고하기</Link>
                   <button
                     disabled={
                       saving || conflict || !chapter || (work.source === 'server' && !dirty)
@@ -649,10 +736,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                         ? '작품 관리에서 저장 충돌을 먼저 해결해 주세요.'
                         : '현재 변경 사항 저장'
                     }
-                    onClick={() => {
-                      if (work.source === 'server') void flushWorkspace(work.id)
-                      else retrySave()
-                    }}
+                    onClick={() => void saveManuscript()}
                   >
                     <Icon name="save" />
                     {saving ? '저장 중…' : '저장'}
@@ -673,6 +757,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         </section>
         <ReviewPanel
           key={chapter?.id || 'empty'}
+          hidden={view !== '검토'}
           work={work}
           jobId={jobs.job?.status === 'SUCCEEDED' ? jobs.job.id : undefined}
           currentChapterId={chapter?.id}
@@ -700,6 +785,12 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           onOpenLedger={() => setLedgerOpen(true)}
         />
       </div>
+      {savedToast && (
+        <p className="workspace-toast" role="status">
+          <Icon name="check" />
+          원고를 저장했습니다.
+        </p>
+      )}
       {openedSource && (
         <ReviewSourceDialog {...openedSource} onClose={() => setOpenedSource(null)} />
       )}

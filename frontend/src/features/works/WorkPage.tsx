@@ -4,7 +4,7 @@ import { DeleteWorkDialog } from './DeleteWorkDialog'
 import { WorkspaceStatus } from '../workspace/WorkspaceStatus'
 import { GENRES } from './workGenres'
 import { Dialog } from '../../shared/Dialog'
-import { Link, Navigate, NavLink, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useWorksStore } from './useWorksStore'
 import { SettingsPanel } from '../settings/SettingsPanel'
 import { Icon } from '../../shared/Icon'
@@ -84,14 +84,19 @@ export function WorkPage() {
   return (
     <main className="work-page">
       <div className="work-heading">
-        <Link to="/" className="small muted">
-          작품 보관함 /
-        </Link>
         <div className="row">
           <div>
-            <h1>{work.title}</h1>
+            <h1>
+              {tab === 'manuscript'
+                ? searchParams.get('view') === 'review'
+                  ? '검토 결과'
+                  : '원고 쓰기'
+                : tab === 'settings'
+                  ? '인물·세계관'
+                  : '사건 순서'}
+            </h1>
             <p className="small muted">
-              {work.genre} · {work.era || '시대 미정'}
+              {work.title} · {work.genre}
             </p>
           </div>
           <button
@@ -188,18 +193,6 @@ export function WorkPage() {
           </form>
         </Dialog>
       )}
-      <nav className="work-tabs" aria-label="작품 메뉴">
-        {[
-          ['manuscript', '원고 · 검토', 'file'],
-          ['settings', '설정집', 'book'],
-          ['timeline', '사건 타임라인', 'clock'],
-        ].map(([path, label, icon]) => (
-          <NavLink to={`/works/${work.id}/${path}`} key={path}>
-            <Icon name={icon === 'file' ? 'file' : icon === 'book' ? 'book' : 'clock'} />
-            {label}
-          </NavLink>
-        ))}
-      </nav>
       <div className="work-content">
         {tab === 'settings' ? (
           <SettingsPanel key={work.id} work={work} />

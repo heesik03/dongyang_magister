@@ -86,14 +86,13 @@ export function SettingsPanel({ work }: { work: Work }) {
     <section className="settings-panel">
       <div className="section-line">
         <div>
-          <h1>설정집</h1>
           <p className="small muted">
             확정된 설정을 검토의 기준으로 사용합니다. 아이디어와 후보는 구분해 보관하세요.
           </p>
         </div>
         <button className="primary" onClick={() => setEditing('new')}>
           <Icon name="plus" />
-          설정 등록
+          설정 추가
         </button>
       </div>
       <div className="setting-filter-row">
@@ -132,19 +131,27 @@ export function SettingsPanel({ work }: { work: Work }) {
         </button>
       )}
       <div className="settings-layout">
-        <div className="setting-list">
+        <div className="workspace-list setting-list setting-rows">
+          {filtered.length > 0 && (
+            <div className="workspace-list-row workspace-list-header" aria-hidden="true">
+              <span>이름 / 설정</span>
+              <span>내용</span>
+              <span>검토에 사용</span>
+            </div>
+          )}
           {filtered.map((setting) => (
             <button
               key={setting.id}
-              className={`setting-item ${selected?.id === setting.id ? 'selected' : ''}`}
+              className={`workspace-list-row setting-item ${selected?.id === setting.id ? 'selected' : ''}`}
+              aria-pressed={selected?.id === setting.id}
               onClick={() => setSelectedId(setting.id)}
             >
-              <Icon name={setting.kind === '인물' ? 'file' : 'book'} />
               <div>
                 <strong>{setting.title}</strong>
                 <span className="small muted">{setting.kind}</span>
               </div>
-              <span className={`badge ${setting.status === '확정' ? 'green' : 'warning'}`}>
+              <span className="setting-row-preview">{setting.content}</span>
+              <span className={`badge ${setting.status === '확정' ? 'green' : 'hold'}`}>
                 {setting.status}
               </span>
             </button>
@@ -159,7 +166,7 @@ export function SettingsPanel({ work }: { work: Work }) {
         {selected ? (
           <article className="setting-detail">
             <div className="row">
-              <span className={`badge ${selected.status === '확정' ? 'green' : 'warning'}`}>
+              <span className={`badge ${selected.status === '확정' ? 'green' : 'hold'}`}>
                 {selected.status}
               </span>
               <button className="text-button" onClick={() => setEditing(selected)}>

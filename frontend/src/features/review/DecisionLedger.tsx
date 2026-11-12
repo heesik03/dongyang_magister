@@ -28,7 +28,7 @@ export function DecisionLedger({ workId, onClose }: { workId: string; onClose: (
     return () => controller.abort()
   }, [workId, page, status, key])
   return (
-    <Dialog title="작품 판단 기록" onClose={onClose}>
+    <Dialog size="wide" title="내가 남긴 판단" onClose={onClose}>
       <label>
         판단 필터
         <select
@@ -54,24 +54,52 @@ export function DecisionLedger({ workId, onClose }: { workId: string; onClose: (
       {current?.result && (
         <>
           {!current.result.items.length && <p>이 상태로 저장한 판단이 없습니다.</p>}
-          {current.result.items.map((decision) => (
-            <article className="notice" key={decision.id} style={{ overflowWrap: 'anywhere' }}>
-              <strong>
-                {decision.status} · 버전 {decision.version}
-                {decision.stale ? ' · 근거 변경, 재확인 필요' : ''}
-              </strong>
-              <blockquote>{decision.quote}</blockquote>
-              <p>{decision.reason || '사유 없음'}</p>
-              {decision.scopes.map((scope) => (
-                <p key={scope.id}>
-                  {scope.scopeType === 'SCENE'
-                    ? '특정 장면'
-                    : `${scope.fromChapterTitle ?? '시작 회차'} ~ ${scope.toChapterTitle ?? '이후 회차'}`}{' '}
-                  · {scope.conditionText}
-                </p>
-              ))}
-            </article>
-          ))}
+          <div className="workspace-list decision-ledger-list">
+            {current.result.items.length > 0 && (
+              <div className="workspace-list-row workspace-list-header" aria-hidden="true">
+                <span>검토 항목</span>
+                <span>내 판단</span>
+                <span>적용 범위</span>
+              </div>
+            )}
+            {current.result.items.map((decision) => (
+              <details className="event-list-item" key={decision.id ?? decision.reviewId}>
+                <summary className="workspace-list-row">
+                  <strong>{decision.quote}</strong>
+                  <span>{decision.status}</span>
+                  <span>
+                    {decision.scopes.length
+                      ? decision.scopes
+                          .map((scope) =>
+                            scope.scopeType === 'SCENE'
+                              ? '특정 장면'
+                              : (scope.fromChapterTitle ?? '회차 범위'),
+                          )
+                          .join(', ')
+                      : '범위 없음'}
+                  </span>
+                </summary>
+                <div className="notice ledger-details">
+                  <strong>
+                    버전 {decision.version}
+                    {decision.stale ? ' · 근거 변경, 재확인 필요' : ''}
+                  </strong>
+                  <p>{decision.reason || '사유 없음'}</p>
+                  {decision.scopes.map((scope) => (
+                    <p key={scope.id}>
+                      {scope.scopeType === 'SCENE'
+                        ? '특정 장면'
+                        : (scope.fromChapterTitle ?? '시작 회차') +
+                          ' ~ ' +
+                          (scope.toChapterTitle ?? '이후 회차')}
+                      {' · '}
+                      {scope.conditionText}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
           <div className="dialog-actions">
             <button disabled={page === 0} onClick={() => setPage(page - 1)}>
               이전 판단

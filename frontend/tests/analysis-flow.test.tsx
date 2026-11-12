@@ -171,7 +171,7 @@ test('저장 실패는 재시도할 수 있고 저장 중·충돌 상태에서�
 
 test('실제 전송 자료를 확인하고 동의하기 전에는 분석을 접수하지 않는다', async () => {
   show()
-  fireEvent.click(screen.getByRole('button', { name: 'AI 검토', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: '설정과 맞는지 검토', exact: true }))
   fireEvent.click(screen.getByRole('checkbox', { name: '1화', exact: true }))
   fireEvent.click(screen.getByRole('button', { name: '전송 자료 미리보기' }))
   await screen.findByRole('dialog', { name: 'AI 전송 자료 확인' })
@@ -231,6 +231,7 @@ test('실패한 검토의 선택 범위를 복원하고 다시 미리보기를 �
   history = [summary('FAILED')]
   currentJob = { ...currentJob, status: 'FAILED', error: '공급자 응답 실패' }
   show()
+  fireEvent.click(screen.getByRole('button', { name: '검토', exact: true }))
   fireEvent.click(await screen.findByRole('button', { name: '다시 분석' }))
   await screen.findByRole('dialog', { name: '분석 범위 설정' })
   expect(
@@ -253,7 +254,7 @@ test('이력 조회 실패를 빈 결과로 표시하지 않는다', async () =>
 test('미리보기 이후 자료가 바뀌면 재확인하며 자동으로 다시 접수하지 않는다', async () => {
   vi.mocked(analysisClient.create).mockRejectedValue(new ApiError('자료가 바뀌었습니다.', 409))
   show()
-  fireEvent.click(screen.getByRole('button', { name: 'AI 검토', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: '설정과 맞는지 검토', exact: true }))
   fireEvent.click(screen.getByRole('button', { name: '전송 자료 미리보기' }))
   await screen.findByRole('dialog', { name: 'AI 전송 자료 확인' })
   fireEvent.click(screen.getByRole('checkbox', { name: /보관 안내를 확인/ }))
