@@ -591,7 +591,7 @@
 dialog {
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  padding: 32px;
+  padding: clamp(20px, 3vw, 36px);
   width: min(720px, calc(100% - 64px));
   color: var(--color-text);
   max-height: calc(100dvh - 64px);
@@ -606,7 +606,7 @@ dialog::backdrop {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 .dialog-heading h2 {
   margin: 0;
@@ -622,7 +622,9 @@ dialog::backdrop {
 }
 .dialog-actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
   justify-content: flex-end;
 }
 .storage-error {
@@ -993,7 +995,7 @@ blockquote.evidence {
 }
 .decision-actions {
   display: flex;
-  gap: 6px;
+  gap: 12px;
   flex-wrap: wrap;
   margin: 24px 0 12px;
 }
@@ -1859,7 +1861,7 @@ fieldset input {
 .markdown-modes,
 .markdown-tools {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .markdown-toolbar button {
@@ -2842,10 +2844,15 @@ fieldset input {
 }
 
 /* ─── 작품 흐름 시각화 및 AI 검토 고도화 ─── */
-.review-utility-bar {
+.review-utility-bar,
+.analysis-history-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
+}
+.analysis-history-actions {
+  margin-block: 12px;
 }
 .review-overview-box,
 .review-comparison-box,
@@ -2869,14 +2876,14 @@ fieldset input {
 .review-overview-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .review-overview-summary,
 .scope-summary-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 10px;
 }
 .review-overview-legend {
   display: flex;
@@ -2907,15 +2914,15 @@ fieldset input {
 }
 .review-overview-bars {
   display: grid;
-  gap: 10px;
+  gap: 24px;
 }
 .review-overview-row {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  padding: 12px;
+  padding: clamp(14px, 2vw, 24px);
   display: grid;
-  gap: 8px;
+  gap: 16px;
 }
 .review-overview-row--active {
   border-color: var(--color-brand);
@@ -2924,13 +2931,13 @@ fieldset input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .review-overview-row-top > div {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .review-overview-bar-track {
@@ -2950,8 +2957,9 @@ fieldset input {
 }
 .review-overview-counts {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px 16px;
 }
 .review-overview-table-wrap {
   overflow-x: auto;
@@ -2964,7 +2972,7 @@ fieldset input {
 .review-overview-table th,
 .review-overview-table td {
   text-align: left;
-  padding: 8px 10px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--color-border);
 }
 .priority-issues,
@@ -2990,7 +2998,7 @@ fieldset input {
 .issue-group-candidates {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 12px;
 }
 .timeline-flow-lanes {
   display: grid;

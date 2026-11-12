@@ -89,7 +89,7 @@ export function ReviewOverviewModal({
     <section className="review-overview-box" aria-label="회차별 검토 현황">
       <div className="review-overview-header">
         <div>
-          <strong>회차별 검토 현황</strong>
+          <h3>회차별 검토 현황</h3>
           <p className="small muted">
             전체 회차의 최신 분석 완료 기준 후보 분포와 작가 판단 상태를 비교합니다.
           </p>
@@ -141,18 +141,20 @@ export function ReviewOverviewModal({
               수정 전 원고 기준 {overview.outdatedRevisionChapters}회차
             </span>
             <span className="badge">미분석 {overview.unanalyzedChapters}회차</span>
+          </div>
+          <div className="review-overview-totals">
             {(['CURRENT', 'OUTDATED'] as const).map((status) => {
               const chapters = overview.chapters.filter(
                 (chapter) => chapter.analysisStatus === status,
               )
               if (!chapters.length) return null
               return (
-                <span className="badge" key={status}>
+                <p className="small muted" key={status}>
                   {STATUS_LABELS[status]} · 충돌{' '}
                   {chapters.reduce((sum, chapter) => sum + chapter.conflictCount, 0)}건 · 보완{' '}
                   {chapters.reduce((sum, chapter) => sum + chapter.supplementCount, 0)}건 · 미검토{' '}
                   {chapters.reduce((sum, chapter) => sum + chapter.unreviewedCount, 0)}건
-                </span>
+                </p>
               )
             })}
           </div>
@@ -240,15 +242,17 @@ export function ReviewOverviewModal({
                           {countLink(chapter, '설정 충돌 후보', chapter.conflictCount)}
                           {countLink(chapter, '설명 보완', chapter.supplementCount)}
                           {countLink(chapter, '미검토', chapter.unreviewedCount)}
-                          <span>
+                        </div>
+                        <div className="review-overview-meta small muted">
+                          <p>
                             처리됨 (수용 {chapter.acceptedCount} · 보류 {chapter.holdCount} · 의도된
                             설정 {chapter.intendedCount})
-                          </span>
-                          <span className="muted">
+                          </p>
+                          <p>
                             분석 원고 버전 {chapter.analyzedRevision ?? chapter.currentRevision} /
                             현재 버전 {chapter.currentRevision} · 설정 {chapter.settingCount}개 ·
                             이전 회차 {chapter.previousChapterCount}개
-                          </span>
+                          </p>
                         </div>
                       </>
                     )}

@@ -22,14 +22,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ActiveProfiles("test")
-@SpringBootTest(properties = {"scene-board.analysis-daily-limit=1", "scene-board.image-daily-limit=1"})
+@SpringBootTest(properties = {"scene-board.analysis-daily-limit=1"})
 class AiQuotaServiceTests {
     @Autowired private AiQuotaService quota;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private PlatformTransactionManager transactionManager;
 
     @Test
-    void concurrentRequestsCannotExceedLimitAndUsersAndFeaturesAreIndependent() throws Exception {
+    void concurrentRequestsCannotExceedLimitAndUsersAreIndependent() throws Exception {
         long first = createUser();
         long second = createUser();
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
@@ -40,10 +40,8 @@ class AiQuotaServiceTests {
             assertThat(one.get(10, TimeUnit.SECONDS)).isNotEqualTo(two.get(10, TimeUnit.SECONDS));
 
             charge(second, Feature.SCENE_ANALYSIS);
-            charge(first, Feature.SCENE_IMAGE);
             assertThat(quota.usage(first, Feature.SCENE_ANALYSIS, Instant.now()).used()).isEqualTo(1);
             assertThat(quota.usage(second, Feature.SCENE_ANALYSIS, Instant.now()).used()).isEqualTo(1);
-            assertThat(quota.usage(first, Feature.SCENE_IMAGE, Instant.now()).used()).isEqualTo(1);
         } finally {
             jdbcTemplate.update("DELETE FROM users WHERE id IN (?, ?)", first, second);
         }

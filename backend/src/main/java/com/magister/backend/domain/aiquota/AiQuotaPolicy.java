@@ -11,8 +11,7 @@ public final class AiQuotaPolicy {
     private AiQuotaPolicy() {}
 
     public enum Feature {
-        SCENE_ANALYSIS,
-        SCENE_IMAGE
+        SCENE_ANALYSIS
     }
 
     public record Period(LocalDate start, Instant resetAt) {}

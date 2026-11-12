@@ -9,27 +9,6 @@ export type SceneSelection = {
   settingIds: number[]
 }
 
-export type SceneImageInput = {
-  kind: 'LOCATION' | 'PROP'
-  confirmed: string
-  direction: string
-}
-
-export type SceneImageJob = {
-  id: string
-  status: string
-  revision: number
-  kind: 'LOCATION' | 'PROP'
-  confirmed: string
-  direction: string
-}
-
-export type SceneImagePreview = {
-  input: SceneImageInput
-  token: string
-  revision: number
-}
-
 function readArray<T>(raw: unknown, parse: (item: unknown) => T): T[] {
   if (!Array.isArray(raw)) throw new Error('장면 보드 목록을 읽을 수 없습니다.')
   return raw.map(parse)
@@ -38,24 +17,6 @@ function readArray<T>(raw: unknown, parse: (item: unknown) => T): T[] {
 function readText(raw: unknown) {
   if (typeof raw !== 'string') throw new Error('장면 보드 내용을 읽을 수 없습니다.')
   return raw
-}
-
-function readImageKind(raw: string): 'LOCATION' | 'PROP' {
-  if (raw === 'LOCATION' || raw === 'PROP') return raw
-  throw new Error('콘셉트 이미지 유형을 읽을 수 없습니다.')
-}
-
-function readImageJob(raw: unknown): SceneImageJob {
-  const job = readRecord(raw)
-  const input = readRecord(job.input)
-  return {
-    id: readString(job, 'id'),
-    status: readString(job, 'status'),
-    revision: readInteger(job, 'revision', 1),
-    kind: readImageKind(readString(input, 'kind')),
-    confirmed: readString(input, 'confirmed'),
-    direction: readString(input, 'direction'),
-  }
 }
 
 function readSnapshot(raw: unknown) {
@@ -116,8 +77,6 @@ function readBoard(raw: unknown) {
 }
 
 const path = (workId: string) => '/work/' + encodeURIComponent(workId) + '/scene-board'
-const imagePath = (workId: string, boardId: string) =>
-  path(workId) + '/' + encodeURIComponent(boardId) + '/images'
 
 export const sceneBoardClient = {
   async preview(workId: string, selection: SceneSelection) {
@@ -138,65 +97,9 @@ export const sceneBoardClient = {
       readText,
     )
   },
-  async previewImage(
-    workId: string,
-    boardId: string,
-    input: SceneImageInput,
-  ): Promise<SceneImagePreview> {
-    const raw = readRecord(await httpClient.post(imagePath(workId, boardId) + '/preview', input))
-    const confirmed = readRecord(raw.input)
-    if (
-      confirmed.kind !== input.kind ||
-      confirmed.confirmed !== input.confirmed ||
-      confirmed.direction !== input.direction
-    )
-      throw new Error('전송할 이미지 설명이 변경되었습니다.')
-    return {
-      input,
-      token: readString(raw, 'token'),
-      revision: readInteger(raw, 'revision', 1),
-    }
-  },
-  async createImage(
-    workId: string,
-    boardId: string,
-    input: SceneImageInput,
-    token: string,
-    requestId: string,
-  ): Promise<SceneImageJob> {
-    return readImageJob(
-      await httpClient.post(imagePath(workId, boardId), {
-        input,
-        token,
-        requestId,
-        consent: true,
-      }),
-    )
-  },
-  async listImages(
-    workId: string,
-    boardId: string,
-    signal?: AbortSignal,
-  ): Promise<SceneImageJob[]> {
-    const result = await httpClient.get(imagePath(workId, boardId), { signal })
-    if (!Array.isArray(result)) throw new Error('시안 이력 응답이 올바르지 않습니다.')
-    return result.map(readImageJob)
-  },
-  async imageContent(workId: string, boardId: string, imageId: string, signal?: AbortSignal) {
-    const file = await httpClient.get(
-      imagePath(workId, boardId) + '/' + encodeURIComponent(imageId) + '/content',
-      {
-        responseType: 'blob',
-        signal,
-      },
-    )
-    if (!(file instanceof Blob) || file.type !== 'image/png')
-      throw new Error('이미지 응답 형식이 올바르지 않습니다.')
-    return file
-  },
-  async usage(feature: 'SCENE_ANALYSIS' | 'SCENE_IMAGE' = 'SCENE_ANALYSIS') {
+  async usage() {
     const rows = readArray(await httpClient.get('/ai-usage'), readRecord)
-    const row = rows.find((value) => value.feature === feature)
+    const row = rows.find((value) => value.feature === 'SCENE_ANALYSIS')
     if (!row) throw new Error('AI 사용량을 확인할 수 없습니다.')
     return {
       remaining: Math.max(0, readInteger(row, 'limit', 1) - readInteger(row, 'used')),

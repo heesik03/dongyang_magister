@@ -105,7 +105,7 @@ export function Icon({ name, brand = false }: { name: IconName; brand?: boolean 
     return (
       <span
         className="design-icon feather-icon"
-        style={{ maskImage: 'url(' + asset + ')' }}
+        style={{ maskImage: `url("${asset}")` }}
         aria-hidden="true"
       />
     )

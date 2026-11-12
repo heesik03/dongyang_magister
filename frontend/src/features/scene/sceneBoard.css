@@ -1,17 +1,15 @@
 .scene-board-flow {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   overflow-wrap: anywhere;
 }
 
-.scene-board-flow > section,
-.scene-image-panel fieldset,
-.scene-image-panel article {
+.scene-board-flow > section {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  padding: 16px;
+  padding: 20px;
   background: var(--color-surface);
 }
 
@@ -52,17 +50,4 @@
 .scene-board-flow button[aria-pressed='true'] {
   background: var(--color-primary);
   color: white;
-}
-
-.scene-image-panel {
-  display: grid;
-  gap: 12px;
-}
-
-.scene-image-panel img {
-  display: block;
-  max-width: 100%;
-  max-height: 65vh;
-  object-fit: contain;
-  border-radius: 8px;
 }

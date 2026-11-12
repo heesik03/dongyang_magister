@@ -15,18 +15,15 @@ import java.time.Instant;
 public class AiQuotaService {
     private final JdbcTemplate jdbcTemplate;
     private final int sceneLimit;
-    private final int imageLimit;
 
     public AiQuotaService(
             JdbcTemplate jdbcTemplate,
-            @Value("${scene-board.analysis-daily-limit:10}") int sceneLimit,
-            @Value("${scene-board.image-daily-limit:3}") int imageLimit) {
-        if (sceneLimit < 1 || imageLimit < 1) {
-            throw new IllegalArgumentException("AI daily limits must be positive");
+            @Value("${scene-board.analysis-daily-limit:10}") int sceneLimit) {
+        if (sceneLimit < 1) {
+            throw new IllegalArgumentException("Scene analysis daily limit must be positive");
         }
         this.jdbcTemplate = jdbcTemplate;
         this.sceneLimit = sceneLimit;
-        this.imageLimit = imageLimit;
     }
 
     /** 새 작업을 저장하는 트랜잭션에서만 호출한다. 재전송 판정은 호출자가 먼저 수행한다. */
@@ -52,7 +49,7 @@ public class AiQuotaService {
                         userId,
                         feature.name(),
                         period.start(),
-                        limit(feature));
+                        sceneLimit);
         if (updated == 0) {
             throw new AiQuotaExceededException(period.resetAt());
         }
@@ -73,14 +70,7 @@ public class AiQuotaService {
                         feature.name(),
                         period.start());
 
-        return new Usage(feature, used == null ? 0 : used, limit(feature), period.resetAt());
-    }
-
-    private int limit(Feature feature) {
-        return switch (feature) {
-            case SCENE_ANALYSIS -> sceneLimit;
-            case SCENE_IMAGE -> imageLimit;
-        };
+        return new Usage(feature, used == null ? 0 : used, sceneLimit, period.resetAt());
     }
 
     public record Usage(Feature feature, int used, int limit, Instant resetAt) {}

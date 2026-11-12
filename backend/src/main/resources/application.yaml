@@ -32,9 +32,7 @@ gemini:
   timeout: ${GEMINI_TIMEOUT:30s}
 
 scene-board:
-  image-model: ${GEMINI_IMAGE_MODEL:}
   analysis-daily-limit: ${SCENE_ANALYSIS_DAILY_LIMIT:10}
-  image-daily-limit: ${SCENE_IMAGE_DAILY_LIMIT:3}
 
 analysis:
   # 비워 두면 프로세스별 임시 키. 여러 서버에서는 같은 32자 이상 비밀 값을 주입한다.

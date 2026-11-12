@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, test, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { SceneBoardFlow } from '../src/features/scene/SceneBoardFlow'
 import { sceneBoardClient } from '../src/features/scene/sceneBoardClient'
 import { ApiError } from '../src/shared/httpClient'
@@ -74,7 +74,7 @@ test('저장 버전의 선택 구간을 확인하고 동의한 뒤에만 장면 
   expect(create).toHaveBeenCalledWith(work.id, selection, 'preview', expect.any(String))
 })
 
-test('409 충돌 시 만료된 미리보기를 닫고 콘셉트 이미지는 중복 즉시 재조회 없이 생성한다', async () => {
+test('409 충돌 시 미리보기를 닫고 전송 자료를 다시 확인할 수 있다', async () => {
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '')
   }
@@ -105,26 +105,6 @@ test('409 충돌 시 만료된 미리보기를 닫고 콘셉트 이미지는 중
         references: [],
       },
     })
-  const listImages = vi.spyOn(sceneBoardClient, 'listImages').mockResolvedValue([])
-  const previewImage = vi.spyOn(sceneBoardClient, 'previewImage').mockResolvedValue({
-    input: { kind: 'LOCATION', confirmed: '비바람이 치는 등대', direction: '어두운 밤' },
-    token: 'img-token',
-    revision: 2,
-  })
-  const createImage = vi.spyOn(sceneBoardClient, 'createImage').mockResolvedValue({
-    id: 'img-1',
-    status: 'SUCCEEDED',
-    revision: 2,
-    kind: 'LOCATION',
-    confirmed: '비바람이 치는 등대',
-    direction: '어두운 밤',
-  })
-  vi.spyOn(sceneBoardClient, 'imageContent').mockResolvedValue(
-    new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' }),
-  )
-  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:scene-image')
-  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
-
   const area = document.createElement('textarea')
   area.value = chapter.content
   area.setSelectionRange(0, 3)
@@ -142,33 +122,6 @@ test('409 충돌 시 만료된 미리보기를 닫고 콘셉트 이미지는 중
   fireEvent.click(screen.getByRole('button', { name: '동의하고 분석 시작' }))
   expect(create).toHaveBeenCalledTimes(2)
 
-  fireEvent.click(await screen.findByRole('button', { name: '콘셉트 이미지' }))
-  await waitFor(() => expect(listImages).toHaveBeenCalledTimes(1))
-
-  fireEvent.change(screen.getByLabelText('원고·설정에서 확인한 장소·시간·소품'), {
-    target: { value: '비바람이 치는 등대' },
-  })
-  fireEvent.change(screen.getByLabelText('작가가 추가한 연출'), {
-    target: { value: '어두운 밤' },
-  })
-  fireEvent.click(screen.getByRole('button', { name: '전송 설명 확인' }))
-
-  const submitImage = await screen.findByRole('button', { name: '동의하고 이미지 생성' })
-  expect(previewImage).toHaveBeenCalledWith(work.id, 'board-1', {
-    kind: 'LOCATION',
-    confirmed: '비바람이 치는 등대',
-    direction: '어두운 밤',
-  })
-  expect(submitImage.hasAttribute('disabled')).toBe(true)
-
-  fireEvent.click(screen.getByRole('checkbox'))
-  fireEvent.click(submitImage)
-  expect(createImage).toHaveBeenCalledWith(
-    work.id,
-    'board-1',
-    { kind: 'LOCATION', confirmed: '비바람이 치는 등대', direction: '어두운 밤' },
-    'img-token',
-    expect.any(String),
-  )
-  expect(await screen.findByAltText('장소 콘셉트 시안')).toBeTruthy()
+  expect(await screen.findByRole('button', { name: '소설 레퍼런스' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '콘셉트 이미지' })).toBeNull()
 })

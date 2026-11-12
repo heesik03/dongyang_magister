@@ -2,14 +2,11 @@ package com.magister.backend.domain.scene;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -40,7 +36,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
@@ -51,17 +46,10 @@ import java.util.Map;
         properties = {
             "spring.datasource.url=jdbc:h2:mem:scene-board-test;MODE=MySQL;DB_CLOSE_DELAY=-1",
             "scene-board.analysis-daily-limit=2",
-            "scene-board.image-daily-limit=1",
-            "scene-board.image-model=imagen-3.0-generate-002",
-            "scene-board.poll-delay-ms=3600000",
-            "scene-board.image-poll-delay-ms=3600000"
+            "scene-board.poll-delay-ms=3600000"
         })
 @AutoConfigureMockMvc
-class SceneBoardAndImageTests {
-    private static final byte[] VALID_PNG = {
-        (byte) 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13
-    };
-
+class SceneBoardTests {
     @Autowired private MockMvc mvc;
     @Autowired private UserRepository userRepository;
     @Autowired private WorkRepository workRepository;
@@ -69,7 +57,6 @@ class SceneBoardAndImageTests {
     @Autowired private WorkSettingRepository workSettingRepository;
     @Autowired private WorkDeletionService workDeletionService;
     @Autowired private SceneBoardWorker sceneBoardWorker;
-    @Autowired private SceneImageWorker sceneImageWorker;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private ObjectMapper objectMapper;
     @MockitoBean private GeminiClient geminiClient;
@@ -335,177 +322,19 @@ class SceneBoardAndImageTests {
                 .andExpect(
                         jsonPath("$.data.result.references[0].reference.id").value("doyle-room"));
 
+        mvc.perform(get("/api/ai-usage").with(authentication(ownerAuth)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].feature").value("SCENE_ANALYSIS"));
+
         // 존재하지 않는 보드 조회 시 SCENE_BOARD_NOT_FOUND(404)
         mvc.perform(get(basePath + "/missing-board").with(authentication(ownerAuth)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("SCENE_BOARD_NOT_FOUND"));
-    }
 
-    @Test
-    void sceneImageValidatesReadinessQuotaPngSignatureAndWorkDeletion() throws Exception {
-        String boardPath = "/api/work/" + work.getId() + "/scene-board";
-        Map<String, Object> selection =
-                Map.of(
-                        "chapterId",
-                        "ch-1",
-                        "revision",
-                        2,
-                        "start",
-                        0,
-                        "end",
-                        4,
-                        "settingIds",
-                        List.of());
-        String previewResponse =
-                mvc.perform(
-                                post(boardPath + "/preview")
-                                        .with(authentication(ownerAuth))
-                                        .with(csrf())
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .content(objectMapper.writeValueAsString(selection)))
-                        .andExpect(status().isOk())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String boardToken =
-                objectMapper.readTree(previewResponse).path("data").path("token").asString();
-
-        String createdBoard =
-                mvc.perform(
-                                post(boardPath)
-                                        .with(authentication(ownerAuth))
-                                        .with(csrf())
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .content(
-                                                objectMapper.writeValueAsString(
-                                                        Map.of(
-                                                                "requestId",
-                                                                "req-board-img",
-                                                                "selection",
-                                                                selection,
-                                                                "token",
-                                                                boardToken,
-                                                                "consent",
-                                                                true))))
-                        .andExpect(status().isAccepted())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String boardId = objectMapper.readTree(createdBoard).path("data").path("id").asString();
-        String imageBasePath = boardPath + "/" + boardId + "/images";
-        Map<String, Object> imageInput =
-                Map.of(
-                        "kind",
-                        "LOCATION",
-                        "confirmed",
-                        "비바람이 치는 밤의 등대 내부",
-                        "direction",
-                        "차갑고 어두운 조명");
-
-        // 보드가 아직 QUEUED 상태일 때 이미지 미리보기는 SCENE_BOARD_NOT_READY(409)
-        mvc.perform(
-                        post(imageBasePath + "/preview")
-                                .with(authentication(ownerAuth))
-                                .with(csrf())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(imageInput)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("SCENE_BOARD_NOT_READY"));
-
-        when(geminiClient.generateScene(anyString()))
-                .thenReturn(
-                        """
-                        {"facts":[],"inferences":[],"gaps":[],"options":[],"references":[]}
-                        """);
-        sceneBoardWorker.process();
-
-        // 보드 완료 후 이미지 미리보기 및 생성 접수
-        String imagePreview =
-                mvc.perform(
-                                post(imageBasePath + "/preview")
-                                        .with(authentication(ownerAuth))
-                                        .with(csrf())
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .content(objectMapper.writeValueAsString(imageInput)))
-                        .andExpect(status().isOk())
-                        .andExpect(jsonPath("$.data.revision").value(2))
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String imageToken =
-                objectMapper.readTree(imagePreview).path("data").path("token").asString();
-
-        String createdImage =
-                mvc.perform(
-                                post(imageBasePath)
-                                        .with(authentication(ownerAuth))
-                                        .with(csrf())
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .content(
-                                                objectMapper.writeValueAsString(
-                                                        Map.of(
-                                                                "requestId",
-                                                                "req-img-1",
-                                                                "token",
-                                                                imageToken,
-                                                                "input",
-                                                                imageInput,
-                                                                "consent",
-                                                                true))))
-                        .andExpect(status().isAccepted())
-                        .andExpect(jsonPath("$.data.status").value("QUEUED"))
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String imageId = objectMapper.readTree(createdImage).path("data").path("id").asString();
-
-        // 일일 한도(1회) 소진 후 새 요청 시 429 및 Retry-After 헤더 반환
-        mvc.perform(
-                        post(imageBasePath)
-                                .with(authentication(ownerAuth))
-                                .with(csrf())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(
-                                        objectMapper.writeValueAsString(
-                                                Map.of(
-                                                        "requestId",
-                                                        "req-img-2",
-                                                        "token",
-                                                        imageToken,
-                                                        "input",
-                                                        imageInput,
-                                                        "consent",
-                                                        true))))
-                .andExpect(status().isTooManyRequests())
-                .andExpect(header().exists(HttpHeaders.RETRY_AFTER))
-                .andExpect(jsonPath("$.data.resetAt").exists());
-
-        when(geminiClient.generateSceneImage(
-                        eq("imagen-3.0-generate-002"), anyString()))
-                .thenReturn(VALID_PNG);
-        sceneImageWorker.process();
-
-        // 본인만 PNG 바이트 조회 가능, 타 계정은 404
-        mvc.perform(get(imageBasePath + "/" + imageId + "/content").with(authentication(otherAuth)))
+        mvc.perform(get(basePath + "/" + boardId + "/images").with(authentication(ownerAuth)))
                 .andExpect(status().isNotFound());
 
-        mvc.perform(get(imageBasePath + "/" + imageId + "/content").with(authentication(ownerAuth)))
-                .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-                .andExpect(content().contentType(MediaType.IMAGE_PNG))
-                .andExpect(content().bytes(VALID_PNG));
-
-        // AI 사용량 조회 확인
-        String usageResponse =
-                mvc.perform(get("/api/ai-usage").with(authentication(ownerAuth)))
-                        .andExpect(status().isOk())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        JsonNode usageData = objectMapper.readTree(usageResponse).path("data");
-        assertThat(usageData).hasSize(2);
-
-        // 작품 삭제 시 scene_boards와 scene_image_jobs도 모두 정리됨
         Long ownerId = ((LoginUser) ownerAuth.getPrincipal()).id();
         workDeletionService.delete(ownerId, work.getId(), work.getVersion());
         assertThat(
@@ -514,11 +343,6 @@ class SceneBoardAndImageTests {
                                 Long.class,
                                 work.getId()))
                 .isZero();
-        assertThat(
-                        jdbcTemplate.queryForObject(
-                                "SELECT COUNT(*) FROM scene_image_jobs WHERE board_id=?",
-                                Long.class,
-                                boardId))
-                .isZero();
     }
 }
+

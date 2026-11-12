@@ -10,9 +10,6 @@ import com.magister.backend.domain.scene.SceneBoardData.Selection;
 import com.magister.backend.domain.scene.SceneBoardData.Setting;
 import com.magister.backend.domain.scene.SceneBoardData.Snapshot;
 import com.magister.backend.domain.scene.SceneBoardRepository.StoredBoard;
-import com.magister.backend.domain.scene.SceneImageData.Input;
-import com.magister.backend.domain.scene.SceneImageData.Job;
-import com.magister.backend.domain.scene.SceneImageRepository.StoredImage;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 
 import lombok.RequiredArgsConstructor;
@@ -77,15 +74,4 @@ class SceneBoardConverter {
         return new Result(facts, inferences, gaps, options, references);
     }
 
-    SceneImageData.Preview toImagePreview(Input input, String token, long revision) {
-        return new SceneImageData.Preview(input, token, revision);
-    }
-
-    Job toImageJob(StoredImage image, Board board) {
-        return new Job(
-                image.id(),
-                image.status(),
-                objectMapper.readValue(image.input(), Input.class),
-                board.snapshot().selection().revision());
-    }
 }

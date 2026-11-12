@@ -529,17 +529,19 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                     ))}
                   </div>
                 )}
-                <button onClick={jobs.refresh}>작업 상태 다시 확인</button>
-                {jobs.job && (
-                  <button
-                    onClick={() => {
-                      setShowSnapshot(true)
-                      setSnapshotRefresh((value) => value + 1)
-                    }}
-                  >
-                    분석 당시 전송 자료
-                  </button>
-                )}
+                <div className="analysis-history-actions">
+                  <button onClick={jobs.refresh}>작업 상태 다시 확인</button>
+                  {jobs.job && (
+                    <button
+                      onClick={() => {
+                        setShowSnapshot(true)
+                        setSnapshotRefresh((value) => value + 1)
+                      }}
+                    >
+                      분석 당시 전송 자료
+                    </button>
+                  )}
+                </div>
                 {jobs.totalPages > 1 && (
                   <div className="dialog-actions">
                     <button

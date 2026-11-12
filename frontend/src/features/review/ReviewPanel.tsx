@@ -102,18 +102,20 @@ export function ReviewPanel({
         <span className="badge info">AI 검토</span>
       </div>
 
-      {work.source === 'server' && (
+      {(work.source === 'server' || (report && !report.legacy)) && (
         <div className="review-utility-bar">
-          <button
-            type="button"
-            className={showOverview ? 'selected' : 'ghost small'}
-            aria-pressed={showOverview}
-            onClick={() => setShowOverview((prev) => !prev)}
-          >
-            <Icon name="bar-chart" />
-            회차별 검토 현황
-          </button>
-          {jobId && analysis && !analyzing && (
+          {work.source === 'server' && (
+            <button
+              type="button"
+              className={showOverview ? 'selected' : 'ghost small'}
+              aria-pressed={showOverview}
+              onClick={() => setShowOverview((prev) => !prev)}
+            >
+              <Icon name="bar-chart" />
+              회차별 검토 현황
+            </button>
+          )}
+          {work.source === 'server' && jobId && analysis && !analyzing && (
             <button
               type="button"
               className={showComparison ? 'selected' : 'ghost small'}
@@ -124,10 +126,16 @@ export function ReviewPanel({
               수정 전·후 비교
             </button>
           )}
-          {onOpenLedger && (
+          {work.source === 'server' && onOpenLedger && (
             <button type="button" className="ghost small" onClick={onOpenLedger}>
               <Icon name="edit" />
               내가 남긴 판단
+            </button>
+          )}
+          {report && !report.legacy && (
+            <button type="button" className="ghost small" onClick={onDecisionSaved}>
+              <Icon name="refresh" />
+              판단 상태 새로 확인
             </button>
           )}
         </div>
@@ -159,16 +167,15 @@ export function ReviewPanel({
         />
       )}
 
-      {report && !report.legacy && <button onClick={onDecisionSaved}>판단 상태 새로 확인</button>}
       {report && !report.legacy && !report.summary && (
-        <p role="status" className="notice">
-          종합 요약을 불러오지 못했습니다. 개별 검토 결과는 계속 확인할 수 있습니다.
+        <div role="status" className="notice review-summary-notice">
+          <p>종합 요약을 불러오지 못했습니다. 개별 검토 결과는 계속 확인할 수 있습니다.</p>
           {retryReport && (
             <button type="button" onClick={retryReport}>
               요약 다시 조회
             </button>
           )}
-        </p>
+        </div>
       )}
       {reportLoading && <p role="status">검토 근거를 불러오고 있습니다.</p>}
       {reportError && (
@@ -183,7 +190,7 @@ export function ReviewPanel({
           이전 형식의 결과로 정확한 위치를 확인할 수 없습니다. 다시 분석하면 위치가 연결됩니다.
         </p>
       )}
-      <div role="status" aria-live="polite">
+      <div role="status" aria-live="polite" className={analyzing ? undefined : 'sr-only'}>
         {analyzing && (
           <div className="notice analyzing">
             <span className="analysis-spinner" aria-hidden="true" />

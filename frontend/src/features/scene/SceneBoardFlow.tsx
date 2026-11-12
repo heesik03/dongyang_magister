@@ -4,7 +4,6 @@ import { ApiError } from '../../shared/httpClient'
 import { useWorksStore } from '../works/useWorksStore'
 import type { Chapter, Work } from '../works/workTypes'
 import { sceneBoardClient } from './sceneBoardClient'
-import { SceneImagePanel } from './SceneImagePanel'
 import './sceneBoard.css'
 
 type Board = Awaited<ReturnType<typeof sceneBoardClient.get>>
@@ -30,7 +29,7 @@ export function SceneBoardFlow({
   const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<'analysis' | 'references' | 'images'>('analysis')
+  const [tab, setTab] = useState<'analysis' | 'references'>('analysis')
   const requestId = useRef('')
   const pending = board?.status === 'QUEUED' || board?.status === 'RUNNING'
   const boardId = board?.id
@@ -326,17 +325,8 @@ export function SceneBoardFlow({
                       >
                         소설 레퍼런스
                       </button>
-                      <button
-                        type="button"
-                        aria-pressed={tab === 'images'}
-                        onClick={() => setTab('images')}
-                      >
-                        콘셉트 이미지
-                      </button>
                     </div>
-                    {tab === 'images' ? (
-                      <SceneImagePanel key={board.id} workId={work.id} boardId={board.id} />
-                    ) : tab === 'analysis' ? (
+                    {tab === 'analysis' ? (
                       <>
                         <h4>원고에서 확인된 사실</h4>
                         {board.result.facts.length === 0 && (

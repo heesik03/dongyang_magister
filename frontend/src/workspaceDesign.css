@@ -32,7 +32,8 @@
 
 .sidebar-navigation {
   border-block-start: 1px solid var(--color-border);
-  padding-block-start: 12px;
+  gap: 16px;
+  padding-block-start: 16px;
 }
 
 .sidebar .nav-item {
@@ -77,7 +78,8 @@
 .work-page {
   width: 100%;
   max-width: none;
-  padding: 20px clamp(20px, 3vw, 48px) 40px;
+  gap: 28px;
+  padding: 28px clamp(20px, 3vw, 48px) 56px;
 }
 
 .page-heading h1,
@@ -95,7 +97,7 @@
   display: grid;
   gap: 0;
   min-width: 0;
-  margin-block: 12px;
+  margin-block: 16px;
 }
 
 .work-list {
@@ -116,7 +118,7 @@
   grid-template-columns: var(--list-columns);
   gap: 0;
   align-items: center;
-  min-height: 68px;
+  min-height: 76px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -158,7 +160,7 @@
 }
 
 .workspace-list-row.workspace-list-header {
-  min-height: 42px;
+  min-height: 48px;
   border-block-end: 1px solid var(--color-border);
   font-size: 14px;
   font-weight: 700;
@@ -209,7 +211,7 @@
 
 .library-filters,
 .timeline-help {
-  margin-block: 8px;
+  margin-block: 12px;
 }
 
 .timeline-help > p {
@@ -222,6 +224,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  row-gap: 20px;
   padding: 0;
   background: transparent;
 }
@@ -232,7 +235,8 @@
 
 .workspace-mobile-tabs {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 12px;
   padding: 0;
 }
 
@@ -271,6 +275,25 @@
 .manuscript-workspace .review-panel {
   padding: 0;
   overflow: visible;
+}
+
+.manuscript-workspace .review-panel:not([hidden]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(20px, 2vw, 28px);
+}
+
+.manuscript-workspace .review-panel > :is(.section-line, .analysis-scope, p) {
+  margin-block: 0;
+}
+
+.review-utility-bar {
+  padding-block-end: 16px;
+  border-block-end: 1px solid var(--color-border);
+}
+
+.review-summary-notice > p {
+  margin-block-end: 12px;
 }
 
 .editor-pane .markdown-toolbar {
@@ -409,7 +432,27 @@
 }
 
 .review-candidates .review-list {
+  display: grid;
+  gap: 12px;
   margin-block-start: 12px;
+}
+
+.review-candidates .review-summary {
+  margin: 0;
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+
+.review-candidates .review-summary .row {
+  flex-wrap: wrap;
+}
+
+.review-candidates .review-summary p {
+  font-size: 14px;
+}
+
+.review-candidates .review-filters {
+  gap: 10px;
 }
 
 .review-candidates .review-summary.selected {
@@ -425,6 +468,7 @@
 
 .review-workbench .review-detail {
   min-width: 0;
+  margin-block-start: 0;
   padding: 0;
   border: 0;
 }
@@ -501,6 +545,8 @@
 
 .mypage-container {
   max-width: none;
+  gap: 28px;
+  padding-block: 28px 56px;
   padding-inline: clamp(20px, 3vw, 48px);
 }
 
@@ -535,6 +581,38 @@
 
 .review-overview-row--active {
   border-color: var(--color-info);
+}
+
+.review-overview-box {
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(20px, 2vw, 28px);
+  padding: clamp(20px, 2.5vw, 32px);
+  overflow-wrap: anywhere;
+}
+
+.review-overview-box :is(h3, p) {
+  margin-block: 0;
+}
+
+.review-overview-box h3 {
+  margin-block-end: 6px;
+}
+
+.review-overview-summary .badge {
+  padding: 6px 10px;
+  white-space: normal;
+}
+
+.review-overview-totals,
+.review-overview-meta {
+  display: grid;
+  gap: 6px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.review-overview-totals:empty {
+  display: none;
 }
 
 .review-overview-bar-track {
@@ -586,28 +664,6 @@
   padding-inline: 0;
 }
 
-.scene-board-flow .scene-image-panel {
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  align-items: start;
-  gap: 24px;
-}
-
-.scene-image-panel :is(.scene-image-inputs, .scene-image-results) {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-
-.scene-image-empty {
-  padding: 16px;
-  border-radius: 8px;
-  background: var(--color-canvas);
-}
-
-.scene-image-empty p {
-  color: var(--color-text-muted);
-}
-
 .review-comparison-box .comparison-card,
 .scene-board-flow :is(section, article) {
   min-width: 0;
@@ -617,6 +673,8 @@
 @media (min-width: 901px) {
   .sidebar:not(.sidebar-collapsed) {
     width: 256px;
+    gap: 20px;
+    padding-block: 24px;
   }
 }
 
@@ -645,15 +703,12 @@
   .work-page .manuscript-action-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 12px;
   }
   .work-page .analysis-history-content {
     position: static;
     max-width: 100%;
     min-width: 0;
-  }
-  .scene-board-flow .scene-image-panel {
-    grid-template-columns: minmax(0, 1fr);
   }
   .sidebar-caption {
     display: none;
@@ -663,7 +718,10 @@
     min-height: 48px;
   }
   .library-page,
-  .work-page {
+  .work-page,
+  .mypage-container {
+    gap: 20px;
+    padding-block: 20px 32px;
     padding-inline: 16px;
   }
   .page-heading h1,

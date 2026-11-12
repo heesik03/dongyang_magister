@@ -157,10 +157,6 @@ class GeminiClientTests {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> client.generateText(null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> client.generateSceneImage(" ", "prompt"))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> client.generateSceneImage("imagen-3", " "))
-                .isInstanceOf(IllegalArgumentException.class);
         verifyNoInteractions(models);
     }
 
