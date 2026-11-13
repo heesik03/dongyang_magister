@@ -16,83 +16,6 @@
   color: var(--color-hold);
 }
 
-.app-layout .main-area {
-  background: var(--color-surface);
-}
-
-.sidebar {
-  border-inline-end: 1px solid var(--color-border);
-}
-
-.sidebar-caption {
-  margin: 0;
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.sidebar-navigation {
-  border-block-start: 1px solid var(--color-border);
-  gap: 16px;
-  padding-block-start: 16px;
-}
-
-.sidebar .nav-item {
-  gap: 16px;
-  min-height: 56px;
-}
-
-.sidebar-current {
-  padding: 12px 0 4px;
-}
-
-.sidebar-toggle,
-.sidebar-bottom .icon-button {
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-}
-
-.profile-link {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-height: 44px;
-}
-
-.sidebar-collapsed .sidebar-caption,
-.sidebar-collapsed .profile-link {
-  display: none;
-}
-
-.topbar {
-  margin-inline: clamp(20px, 3vw, 48px);
-  padding-inline: 0;
-  min-height: 68px;
-  border-block-end: 1px solid var(--color-border);
-}
-
-.library-page,
-.work-page {
-  width: 100%;
-  max-width: none;
-  gap: 28px;
-  padding: 28px clamp(20px, 3vw, 48px) 56px;
-}
-
-.page-heading h1,
-.work-heading h1 {
-  font-size: 32px;
-  line-height: 1.4;
-  margin-block-end: 8px;
-}
-
-.work-heading p {
-  margin-block-end: 0;
-}
-
 .workspace-list {
   display: grid;
   gap: 0;
@@ -750,14 +673,6 @@
   overflow-wrap: anywhere;
 }
 
-@media (min-width: 901px) {
-  .sidebar:not(.sidebar-collapsed) {
-    width: 256px;
-    gap: 20px;
-    padding-block: 24px;
-  }
-}
-
 @media (max-width: 1000px) {
   .manuscript-workspace .editor-review-grid,
   .review-workbench {
@@ -789,24 +704,6 @@
     position: static;
     max-width: 100%;
     min-width: 0;
-  }
-  .sidebar-caption {
-    display: none;
-  }
-  .topbar {
-    margin-inline: 16px;
-    min-height: 48px;
-  }
-  .library-page,
-  .work-page,
-  .mypage-container {
-    gap: 20px;
-    padding-block: 20px 32px;
-    padding-inline: 16px;
-  }
-  .page-heading h1,
-  .work-heading h1 {
-    font-size: 28px;
   }
   .workspace-list-row > * {
     padding-inline: 8px;

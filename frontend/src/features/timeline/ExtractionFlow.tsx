@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog } from '../../shared/Dialog'
+import { Icon } from '../../shared/Icon'
 import { ApiError } from '../../shared/httpClient'
 import { readRecord, readInteger } from '../../shared/responseReader'
 import { useWorksStore } from '../works/useWorksStore'
@@ -253,6 +254,7 @@ export function ExtractionFlow({ work }: { work: Work }) {
             setError('')
           }}
         >
+          <Icon name="search" />
           원고에서 사건 찾기
         </button>
         {loading && <span role="status">추출 이력 조회 중…</span>}

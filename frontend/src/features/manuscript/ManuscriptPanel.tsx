@@ -164,6 +164,8 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     }
   }, [params, chapter?.id, chapter?.content])
   // 원고나 참고 설정이 달라지면 과거 분석에 작가 판단을 덧붙이지 않고 재검토를 유도한다.
+  const noteReview = analysis?.reviews[0]
+  const noteSettings = work.settings.filter((setting) => setting.status === '확정').slice(0, 3)
   const stale =
     !!analysis &&
     (analysis.source !== chapter?.content ||
@@ -596,7 +598,18 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       </div>
       <div className={`editor-review-grid view-${view === '원고' ? 'editor' : 'review'}`}>
         <nav className="editor-chapters" aria-label="회차 탐색" hidden={view === '검토'}>
-          <h2>회차</h2>
+          <h2>
+            <Icon name="file" />
+            회차 목록
+          </h2>
+          <button
+            className="nav-item"
+            onClick={() => setCreating(true)}
+            disabled={preparing || submitting}
+          >
+            <Icon name="plus" />
+            회차 추가
+          </button>
           {work.chapters.map((item) => (
             <button
               key={item.id}
@@ -608,14 +621,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
               {item.title}
             </button>
           ))}
-          <button
-            className="nav-item"
-            onClick={() => setCreating(true)}
-            disabled={preparing || submitting}
-          >
-            <Icon name="plus" />
-            회차 추가
-          </button>
         </nav>
         <section className="editor-pane" aria-label="회차 원고" hidden={view === '검토'}>
           {chapter ? (
@@ -757,6 +762,46 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             </div>
           )}
         </section>
+        {view === '원고' && (
+          <aside className="manuscript-notes" aria-label="작품 노트">
+            <section>
+              <h2>
+                <Icon name="book" />
+                작품 노트
+              </h2>
+              <p className="small muted">원고와 함께 볼 설정과 검토 근거</p>
+              {noteReview ? (
+                <>
+                  <span className="badge warning">{noteReview.type}</span>
+                  <p>{noteReview.reason}</p>
+                  <button onClick={() => setView('검토')}>
+                    <Icon name="arrow" />
+                    검토 결과 보기
+                  </button>
+                </>
+              ) : (
+                <p className="small muted">이 회차의 검토 결과가 여기에 표시됩니다.</p>
+              )}
+            </section>
+            <section>
+              <h3>
+                <Icon name="grid" />
+                작품의 확정 설정
+              </h3>
+              {noteSettings.length > 0 && (
+                <ul>
+                  {noteSettings.map((setting) => (
+                    <li key={setting.id}>{setting.title}</li>
+                  ))}
+                </ul>
+              )}
+              <Link className="button" to={`/works/${work.id}/settings`}>
+                <Icon name="arrow" />
+                인물·세계관 열기
+              </Link>
+            </section>
+          </aside>
+        )}
         <ReviewPanel
           key={chapter?.id || 'empty'}
           hidden={view !== '검토'}

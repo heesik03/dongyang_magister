@@ -13,6 +13,7 @@ export function SettingsPanel({ work }: { work: Work }) {
   const deleteCharacter = useWorksStore((state) => state.deleteCharacter)
   const loadSettings = useWorksStore((state) => state.loadSettings)
   const settingView = useWorksStore((state) => state.settingView)
+  const [query, setQuery] = useState('')
   const [kind, setKind] = useState('전체')
   const latestKind = useRef(kind)
   useEffect(() => {
@@ -27,7 +28,7 @@ export function SettingsPanel({ work }: { work: Work }) {
   const [editing, setEditing] = useState<Setting | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Setting | null>(null)
   // 서버 페이지의 표시 순서는 유지하면서, 본문은 캐시에 병합된 최신 설정을 사용한다.
-  const filtered =
+  const available =
     work.source === 'server'
       ? settingView.workId === work.id && settingView.kind === kind
         ? settingView.ids.flatMap((id) => {
@@ -36,6 +37,9 @@ export function SettingsPanel({ work }: { work: Work }) {
           })
         : []
       : work.settings.filter((setting) => kind === '전체' || setting.kind === kind)
+  const filtered = available.filter((setting) =>
+    setting.title.toLowerCase().includes(query.trim().toLowerCase()),
+  )
   const selected = filtered.find((setting) => setting.id === selectedId) || filtered[0]
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -98,74 +102,88 @@ export function SettingsPanel({ work }: { work: Work }) {
           설정 추가
         </button>
       </div>
-      <div className="setting-filter-row">
-        <div className="filter-tabs setting-filters">
-          {['전체', '인물', '세계관', '주요 사건', '의도한 각색'].map((item) => (
-            <button
-              key={item}
-              aria-pressed={kind === item}
-              className={kind === item ? 'selected' : ''}
-              onClick={() => setKind(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        <span className="small muted">
-          확정 {work.settings.filter((item) => item.status === '확정').length} · 아이디어{' '}
-          {work.settings.filter((item) => item.status === '아이디어').length}
-        </span>
-      </div>
-      {work.source === 'server' && settingView.loading && (
-        <p role="status">설정을 불러오고 있습니다.</p>
-      )}
-      {work.source === 'server' && settingView.error && (
-        <div role="alert" className="error">
-          {settingView.error}
-          <button onClick={() => void loadSettings(work.id, kind)}>다시 시도</button>
-        </div>
-      )}
-      {work.source === 'server' && settingView.hasNext && (
-        <button
-          disabled={settingView.loading}
-          onClick={() => void loadSettings(work.id, kind, settingView.nextCursor ?? undefined)}
-        >
-          설정 더 불러오기
-        </button>
-      )}
-      <div className="settings-layout">
-        <div className="workspace-list setting-list setting-rows">
-          {filtered.length > 0 && (
-            <div className="workspace-list-row workspace-list-header" aria-hidden="true">
-              <span>이름 / 설정</span>
-              <span>내용</span>
-              <span>검토에 사용</span>
+      <div className="settings-layout editorial-surface">
+        <section className="setting-list-pane" aria-label="설정 목록">
+          <div className="editorial-section-title">
+            <h2>
+              <Icon name="grid" />
+              설정 목록
+            </h2>
+          </div>
+          <div className="filter-tabs setting-filters">
+            {['전체', '인물', '세계관', '주요 사건', '의도한 각색'].map((item) => (
+              <button
+                key={item}
+                aria-pressed={kind === item}
+                className={kind === item ? 'selected' : ''}
+                onClick={() => {
+                  setKind(item)
+                  setQuery('')
+                }}
+              >
+                {item === '인물' && <Icon name="grid" />}
+                {item === '세계관' && <Icon name="book" />}
+                {item}
+              </button>
+            ))}
+          </div>
+          <label className="search-field">
+            <Icon name="search" />
+            <input
+              aria-label="불러온 설정에서 이름 검색"
+              placeholder="불러온 설정에서 이름 검색"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+          {work.source === 'server' && settingView.loading && (
+            <p role="status">설정을 불러오고 있습니다.</p>
+          )}
+          {work.source === 'server' && settingView.error && (
+            <div role="alert" className="error">
+              {settingView.error}{' '}
+              <button onClick={() => void loadSettings(work.id, kind)}>다시 시도</button>
             </div>
           )}
-          {filtered.map((setting) => (
-            <button
-              key={setting.id}
-              className={`workspace-list-row setting-item ${selected?.id === setting.id ? 'selected' : ''}`}
-              aria-pressed={selected?.id === setting.id}
-              onClick={() => setSelectedId(setting.id)}
-            >
-              <div>
-                <strong>{setting.title}</strong>
-                <span className="small muted">{setting.kind}</span>
-              </div>
-              <span className="setting-row-preview">{setting.content}</span>
-              <span className={`badge ${setting.status === '확정' ? 'green' : 'hold'}`}>
-                {setting.status}
-              </span>
-            </button>
-          ))}
+          <ul className="editorial-list">
+            {filtered.map((setting) => (
+              <li key={setting.id}>
+                <button
+                  className="editorial-list-item"
+                  aria-pressed={selected?.id === setting.id}
+                  onClick={() => setSelectedId(setting.id)}
+                >
+                  <Icon name={setting.kind === '세계관' ? 'book' : 'file'} />
+                  <span className="editorial-list-copy">
+                    <strong>{setting.title}</strong>
+                    <span className="small muted">{setting.kind}</span>
+                  </span>
+                  <span className={`badge ${setting.status === '확정' ? 'green' : 'hold'}`}>
+                    {setting.status}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
           {!filtered.length && !settingView.loading && !settingView.error && (
             <div className="empty">
-              <p>등록된 설정이 없습니다.</p>
-              <button onClick={() => setEditing('new')}>첫 설정 등록</button>
+              <p>{query ? '불러온 설정에 검색 결과가 없습니다.' : '등록된 설정이 없습니다.'}</p>
+              {query ? (
+                <button onClick={() => setQuery('')}>검색 초기화</button>
+              ) : (
+                <button onClick={() => setEditing('new')}>첫 설정 등록</button>
+              )}
             </div>
           )}
-        </div>
+          {work.source === 'server' && settingView.hasNext && (
+            <button
+              disabled={settingView.loading}
+              onClick={() => void loadSettings(work.id, kind, settingView.nextCursor ?? undefined)}
+            >
+              설정 더 불러오기
+            </button>
+          )}
+        </section>
         {selected ? (
           <article className="setting-detail">
             <div className="row">
@@ -173,6 +191,7 @@ export function SettingsPanel({ work }: { work: Work }) {
                 {selected.status}
               </span>
               <button className="text-button" onClick={() => setEditing(selected)}>
+                <Icon name="edit" />
                 설정 수정
               </button>
               {work.source === 'server' && selected.kind === '인물' && (
@@ -190,20 +209,16 @@ export function SettingsPanel({ work }: { work: Work }) {
             <span className="small muted">{selected.kind}</span>
             <h2>{selected.title}</h2>
             <MarkdownPreview content={selected.content} />
-            {work.source === 'server' && selected.kind === '인물' && (
-              <CharacterImagePanel
-                key={work.id + ':' + selected.id}
-                workId={work.id}
-                setting={selected}
-              />
-            )}
             <div className="notice small">
               {selected.status === '확정'
                 ? '작가님이 확정한 설정입니다. 검토 후보가 이 내용을 자동으로 변경하지 않습니다.'
                 : '아직 확정하지 않은 설정입니다. 검토의 확정 근거로 사용되지 않습니다.'}
             </div>
             <section className="setting-connections">
-              <h3>연결된 이야기</h3>
+              <h3>
+                <Icon name="clock" />
+                연결된 이야기
+              </h3>
               <div className="connection-cards">
                 <div className="notice">
                   <span className="small muted">검토에 사용한 회차</span>
@@ -238,6 +253,13 @@ export function SettingsPanel({ work }: { work: Work }) {
           </article>
         ) : (
           <div className="setting-detail muted">인물과 세계관을 기록하고 원고와 연결해 보세요.</div>
+        )}
+        {work.source === 'server' && selected?.kind === '인물' && (
+          <CharacterImagePanel
+            key={work.id + ':' + selected.id}
+            workId={work.id}
+            setting={selected}
+          />
         )}
       </div>
       {deleting && (

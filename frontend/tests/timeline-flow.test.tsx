@@ -354,7 +354,7 @@ test('이야기 순번과 원고 순서를 구분하고 회차를 필터링해�
     </MemoryRouter>,
   )
 
-  expect(document.querySelector('.timeline-rows summary strong')?.textContent).toBe(
+  expect(document.querySelector('.timeline-rows button strong')?.textContent).toBe(
     '어린 시절의 서약',
   )
   fireEvent.click(screen.getByText('원고에 나온 순서와 비교'))
@@ -362,5 +362,5 @@ test('이야기 순번과 원고 순서를 구분하고 회차를 필터링해�
   expect(screen.getByText('앞서 일어난 사건')).toBeTruthy()
   expect(screen.getByText('이야기 속 순서 미정')).toBeTruthy()
   fireEvent.change(screen.getByLabelText('근거 회차'), { target: { value: 'ch-1' } })
-  expect(document.querySelector('.timeline-rows summary')?.textContent).toContain('2번째')
+  expect(document.querySelector('.timeline-rows button')?.textContent).toContain('2번째')
 })

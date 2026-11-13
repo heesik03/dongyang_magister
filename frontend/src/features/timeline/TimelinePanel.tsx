@@ -15,6 +15,7 @@ function isPlaced(event: StoryEvent) {
 export function TimelinePanel({ work }: { work: Work }) {
   const updateWork = useWorksStore((state) => state.updateWork)
   const [editing, setEditing] = useState<StoryEvent | 'new' | null>(null)
+  const [selectedId, setSelectedId] = useState('')
   const [filterChapter, setFilterChapter] = useState('')
   const [chapterId, setChapterId] = useState('')
   const [placement, setPlacement] = useState('later')
@@ -30,6 +31,8 @@ export function TimelinePanel({ work }: { work: Work }) {
   const matches = (event: StoryEvent) => !filterChapter || event.chapterId === filterChapter
   const visible = placed.filter(matches)
   const pending = ordered.filter((event) => !isPlaced(event) && matches(event))
+  const displayed = [...visible, ...pending]
+  const selected = displayed.find((event) => event.id === selectedId) ?? displayed[0]
   const anchors = placed.filter((event) => event.id !== draft?.id)
   const sources = new Map(
     ordered.map((event) => [
@@ -114,6 +117,7 @@ export function TimelinePanel({ work }: { work: Work }) {
       remaining.splice(index, 0, next)
       persist(remaining)
     }
+    setSelectedId(next.id)
     setEditing(null)
   }
 
@@ -149,46 +153,76 @@ export function TimelinePanel({ work }: { work: Work }) {
   function renderEvent(event: StoryEvent) {
     const rank = ranks.get(event.id)
     return (
-      <details className="event-list-item" key={event.id}>
-        <summary className="workspace-list-row">
+      <li className="event-list-item" key={event.id}>
+        <button
+          type="button"
+          className="workspace-list-row"
+          aria-pressed={selected?.id === event.id}
+          onClick={() => setSelectedId(event.id)}
+        >
           <span>{rank === undefined ? '순서 미정' : rank + '번째'}</span>
           <strong>{event.title}</strong>
           <span>{event.time || '시점 미정'}</span>
           <span>{chapterMap.get(event.chapterId)?.chapter.title || '회차 미지정'}</span>
-        </summary>
-        <article className="event-card">
-          <div className="event-body">
-            {event.description && <p>{event.description}</p>}
-            {event.characters && <p className="small muted">등장인물 · {event.characters}</p>}
-            {event.quote && <blockquote>{event.quote}</blockquote>}
-            <div className="timeline-event-actions">
-              {sourceLink(event)}
-              {event.extractionId && <ExtractionSourceButton workId={work.id} event={event} />}
-              <button onClick={() => open(event)}>
-                {rank === undefined ? '순서 정하기' : '사건 수정'}
-              </button>
-              {rank !== undefined && (
-                <>
-                  <button
-                    disabled={rank === 1}
-                    onClick={() => move(event, -1)}
-                    aria-label={event.title + ' 앞 순서로'}
-                  >
-                    ↑ 앞
-                  </button>
-                  <button
-                    disabled={rank === placed.length}
-                    onClick={() => move(event, 1)}
-                    aria-label={event.title + ' 뒤 순서로'}
-                  >
-                    ↓ 뒤
-                  </button>
-                </>
-              )}
-            </div>
+        </button>
+      </li>
+    )
+  }
+
+  function eventDetail(event: StoryEvent) {
+    const rank = ranks.get(event.id)
+    return (
+      <article className="timeline-detail" aria-label="선택한 사건">
+        <header className="editorial-section-title">
+          <h2>
+            <Icon name="clock" />
+            {event.title}
+          </h2>
+          <p className="muted">
+            {event.time || '시점 미정'} ·{' '}
+            {chapterMap.get(event.chapterId)?.chapter.title || '회차 미지정'}
+          </p>
+        </header>
+        <div className="event-body">
+          {event.description && <p>{event.description}</p>}
+          {event.characters && <p className="small muted">등장인물 · {event.characters}</p>}
+          {event.quote && (
+            <section className="timeline-source">
+              <h3>
+                <Icon name="file" />
+                근거 원문
+              </h3>
+              <blockquote>{event.quote}</blockquote>
+            </section>
+          )}
+          <div className="timeline-event-actions">
+            {sourceLink(event)}
+            {event.extractionId && <ExtractionSourceButton workId={work.id} event={event} />}
+            <button onClick={() => open(event)}>
+              <Icon name="edit" />
+              {rank === undefined ? '순서 정하기' : '사건 수정'}
+            </button>
+            {rank !== undefined && (
+              <>
+                <button
+                  disabled={rank === 1}
+                  onClick={() => move(event, -1)}
+                  aria-label={event.title + ' 앞 순서로'}
+                >
+                  ↑ 앞
+                </button>
+                <button
+                  disabled={rank === placed.length}
+                  onClick={() => move(event, 1)}
+                  aria-label={event.title + ' 뒤 순서로'}
+                >
+                  ↓ 뒤
+                </button>
+              </>
+            )}
           </div>
-        </article>
-      </details>
+        </div>
+      </article>
     )
   }
 
@@ -226,63 +260,66 @@ export function TimelinePanel({ work }: { work: Work }) {
           <p>사건을 직접 추가하거나 원고에서 찾아 등록하세요.</p>
         </div>
       ) : (
-        <>
-          {visible.length > 0 && (
-            <section aria-labelledby="story-order-heading">
-              <h2 id="story-order-heading">이야기 속 순서</h2>
-              <div className="workspace-list timeline-list timeline-rows">
-                <div className="workspace-list-row workspace-list-header" aria-hidden="true">
-                  <span>순서</span>
-                  <span>사건</span>
-                  <span>시점</span>
-                  <span>등장 회차</span>
-                </div>
-                {visible.map(renderEvent)}
-              </div>
-            </section>
-          )}
-          {pending.length > 0 && (
-            <section aria-labelledby="pending-story-order">
-              <h2 id="pending-story-order">
-                순서를 정할 사건 <span className="badge warning">{pending.length}개</span>
-              </h2>
-              <div className="workspace-list timeline-list timeline-rows">
-                {pending.map(renderEvent)}
-              </div>
-            </section>
-          )}
-          <details className="workspace-disclosure timeline-help">
-            <summary>원고에 나온 순서와 비교</summary>
-            <p>
-              회차와 원문 위치 순으로 표시합니다. 회상처럼 먼저 일어난 사건이 뒤에서 공개될 수
-              있습니다.
-            </p>
-            <ol className="timeline-comparison-list">
-              {manuscript.filter(matches).map((event) => (
-                <li key={event.id}>
-                  <div>
-                    <span className="small muted">
-                      {chapterMap.get(event.chapterId)?.chapter.title}
-                    </span>
-                    <strong>{event.title}</strong>
-                    <span className="small">
-                      {ranks.has(event.id)
-                        ? '이야기 속 ' + ranks.get(event.id) + '번째'
-                        : '이야기 속 순서 미정'}
-                    </span>
-                    {earlier.has(event.id) && (
-                      <span className="badge warning">앞서 일어난 사건</span>
-                    )}
-                  </div>
-                  {sourceLink(event)}
-                </li>
-              ))}
-            </ol>
-            {!manuscript.some(matches) && (
-              <p className="small muted">회차에 연결된 사건이 없습니다.</p>
+        <div className="timeline-workbench editorial-surface">
+          <div className="timeline-list-pane">
+            {visible.length > 0 && (
+              <section aria-labelledby="story-order-heading">
+                <h2 id="story-order-heading">이야기 속 순서</h2>
+                <ul className="workspace-list timeline-list timeline-rows">
+                  <li className="workspace-list-row workspace-list-header" aria-hidden="true">
+                    <span>순서</span>
+                    <span>사건</span>
+                    <span>시점</span>
+                    <span>등장 회차</span>
+                  </li>
+                  {visible.map(renderEvent)}
+                </ul>
+              </section>
             )}
-          </details>
-        </>
+            {pending.length > 0 && (
+              <section aria-labelledby="pending-story-order">
+                <h2 id="pending-story-order">
+                  순서를 정할 사건 <span className="badge warning">{pending.length}개</span>
+                </h2>
+                <ul className="workspace-list timeline-list timeline-rows">
+                  {pending.map(renderEvent)}
+                </ul>
+              </section>
+            )}
+            <details className="workspace-disclosure timeline-help">
+              <summary>원고에 나온 순서와 비교</summary>
+              <p>
+                회차와 원문 위치 순으로 표시합니다. 회상처럼 먼저 일어난 사건이 뒤에서 공개될 수
+                있습니다.
+              </p>
+              <ol className="timeline-comparison-list">
+                {manuscript.filter(matches).map((event) => (
+                  <li key={event.id}>
+                    <div>
+                      <span className="small muted">
+                        {chapterMap.get(event.chapterId)?.chapter.title}
+                      </span>
+                      <strong>{event.title}</strong>
+                      <span className="small">
+                        {ranks.has(event.id)
+                          ? '이야기 속 ' + ranks.get(event.id) + '번째'
+                          : '이야기 속 순서 미정'}
+                      </span>
+                      {earlier.has(event.id) && (
+                        <span className="badge warning">앞서 일어난 사건</span>
+                      )}
+                    </div>
+                    {sourceLink(event)}
+                  </li>
+                ))}
+              </ol>
+              {!manuscript.some(matches) && (
+                <p className="small muted">회차에 연결된 사건이 없습니다.</p>
+              )}
+            </details>
+          </div>
+          {selected && eventDetail(selected)}
+        </div>
       )}
       {editing && (
         <Dialog title={draft ? '사건 수정' : '사건 추가'} onClose={() => setEditing(null)}>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Dialog } from '../../shared/Dialog'
+import { Icon } from '../../shared/Icon'
 import { ApiError } from '../../shared/httpClient'
 import type { Setting } from '../works/workTypes'
 import {
@@ -158,7 +159,10 @@ export function CharacterImagePanel({ workId, setting }: { workId: string; setti
   return (
     <section className="character-images" aria-label="인물 이미지">
       <div className="character-image-actions">
-        <h3>인물 이미지</h3>
+        <h3>
+          <Icon name="grid" />
+          인물 이미지
+        </h3>
         <button
           className="primary"
           disabled={
@@ -173,6 +177,7 @@ export function CharacterImagePanel({ workId, setting }: { workId: string; setti
             setOpen(true)
           }}
         >
+          <Icon name="grid" />
           인물 이미지 만들기
         </button>
       </div>
@@ -190,6 +195,13 @@ export function CharacterImagePanel({ workId, setting }: { workId: string; setti
           </span>
           {!gallery.enabled && <span>이미지 모델을 사용할 수 없습니다.</span>}
           {gallery.remaining === 0 && <span>한국 시간 자정에 한도가 초기화됩니다.</span>}
+        </div>
+      )}
+      {gallery && !primary && (
+        <div className="character-image-empty">
+          <Icon name="grid" />
+          <strong>대표 이미지가 없습니다</strong>
+          <span className="small muted">생성한 시안에서 대표 이미지를 지정할 수 있습니다.</span>
         </div>
       )}
       {primary && (

@@ -13,7 +13,7 @@ import { TimelinePanel } from '../timeline/TimelinePanel'
 
 export function WorkPage() {
   const { workId, tab } = useParams()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const loaded = useWorksStore((state) => !!workId && state.loadedIds.includes(workId))
   const works = useWorksStore((state) => state.works)
   const loadWork = useWorksStore((state) => state.loadWork)
@@ -23,7 +23,13 @@ export function WorkPage() {
   const saveWorkInfo = useWorksStore((state) => state.saveWorkInfo)
   const deleted = useWorksStore((state) => !!workId && state.deletedIds.includes(workId))
   const [deleting, setDeleting] = useState(false)
-  const [managing, setManaging] = useState(false)
+  const managing = searchParams.get('manage') === '1'
+  function setManaging(open: boolean) {
+    const next = new URLSearchParams(searchParams)
+    if (open) next.set('manage', '1')
+    else next.delete('manage')
+    setSearchParams(next, { replace: true })
+  }
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -53,7 +59,12 @@ export function WorkPage() {
   }
   if (deleted) return <Navigate to="/" replace />
   if ((!loaded && !detailError) || (detailLoading && !work))
-    return <p role="status">작품을 불러오고 있습니다.</p>
+    return (
+      <p className="work-page" role="status">
+        <Icon name="clock" />
+        작품을 불러오고 있습니다.
+      </p>
+    )
   if (detailError)
     return (
       <ErrorPage

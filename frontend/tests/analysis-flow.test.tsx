@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ManuscriptPanel } from '../src/features/manuscript/ManuscriptPanel'
 import {
@@ -221,7 +221,7 @@ test('화면 이동 뒤 진행 중 작업과 완료 결과를 서버에서 복�
   currentJob = { ...currentJob, status: 'SUCCEEDED', result }
   history = [summary('SUCCEEDED')]
   show()
-  await screen.findByText('연결 확인')
+  await within(screen.getByRole('complementary', { name: '작품 노트' })).findByText('연결 확인')
   expect(analysisClient.create).not.toHaveBeenCalled()
   expect(useWorksStore.getState().flushWorkspace).not.toHaveBeenCalled()
   expect(screen.getByRole('button', { name: '분석 당시 전송 자료' })).toBeTruthy()

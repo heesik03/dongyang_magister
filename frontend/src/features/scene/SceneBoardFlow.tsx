@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Dialog } from '../../shared/Dialog'
+import { Icon } from '../../shared/Icon'
 import { ApiError } from '../../shared/httpClient'
 import { useWorksStore } from '../works/useWorksStore'
 import type { Chapter, Work } from '../works/workTypes'
@@ -174,6 +175,7 @@ export function SceneBoardFlow({
   return (
     <>
       <button type="button" onClick={show}>
+        <Icon name="grid" />
         AI 장면 보드
       </button>
       {open && (

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dialog } from '../../shared/Dialog'
+import { Icon } from '../../shared/Icon'
 import { ApiError } from '../../shared/httpClient'
 import type { Chapter, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
@@ -195,7 +196,10 @@ export function ManuscriptTransfer({
   return (
     <>
       <details className="workspace-disclosure manuscript-file-menu">
-        <summary>파일 메뉴</summary>
+        <summary>
+          <Icon name="file" />
+          파일 메뉴
+        </summary>
         <div className="file-menu-actions">
           <button onClick={(event) => openFromMenu(event.currentTarget, 'import')}>
             원고 가져오기

@@ -4,7 +4,6 @@ import { useAuthStore } from '../features/auth/useAuthStore'
 import { WorksProvider } from '../features/works/WorksProvider'
 import { useWorksStore } from '../features/works/useWorksStore'
 import { Icon } from './Icon'
-import { Dialog } from './Dialog'
 import { SiteFooter } from './SiteFooter'
 
 export function Shell() {
@@ -31,8 +30,6 @@ function ShellContent() {
     (work) => work.source !== 'server' || shortcutIds.includes(work.id),
   )
   const [logoutError, setLogoutError] = useState('')
-  const [collapsed, setCollapsed] = useState(false)
-  const [drawer, setDrawer] = useState(false)
   async function leave() {
     const state = useWorksStore.getState()
     await Promise.all(state.dirtyIds.map((id) => state.flushWorkspace(id)))
@@ -49,6 +46,7 @@ function ShellContent() {
       tab === 'manuscript' && match?.params.tab === 'manuscript'
         ? new URLSearchParams(params)
         : new URLSearchParams()
+    query.delete('manage')
     if (review) query.set('view', 'review')
     else query.delete('view')
     const search = query.toString()
@@ -57,14 +55,11 @@ function ShellContent() {
   function navigation() {
     return (
       <>
-        <NavLink to="/" end className="nav-item" onClick={() => setDrawer(false)}>
+        <NavLink to="/" end className="nav-item">
           <Icon name="book" />내 작품
         </NavLink>
         {current ? (
           <>
-            <div className="sidebar-current">
-              <strong>{current.title}</strong>
-            </div>
             <Link
               className={
                 'nav-item' +
@@ -78,7 +73,6 @@ function ShellContent() {
                   : undefined
               }
               to={workTab('manuscript')}
-              onClick={() => setDrawer(false)}
             >
               <Icon name="edit" />
               원고 쓰기
@@ -96,101 +90,60 @@ function ShellContent() {
                   : undefined
               }
               to={workTab('manuscript', true)}
-              onClick={() => setDrawer(false)}
             >
               <Icon name="search" />
               검토 결과
             </Link>
-            <NavLink className="nav-item" to={workTab('settings')} onClick={() => setDrawer(false)}>
-              <Icon name="book" />
+            <NavLink className="nav-item" to={workTab('settings')}>
+              <Icon name="grid" />
               인물·세계관
             </NavLink>
-            <NavLink className="nav-item" to={workTab('timeline')} onClick={() => setDrawer(false)}>
+            <NavLink className="nav-item" to={workTab('timeline')}>
               <Icon name="clock" />
               사건 순서
             </NavLink>
           </>
-        ) : (
-          <div className="sidebar-works">
-            <span className="small muted">최근 작업</span>
-            {works.map((work) => (
-              <NavLink
-                key={work.id}
-                className="nav-item"
-                to={'/works/' + work.id + '/manuscript'}
-                onClick={() => setDrawer(false)}
-              >
-                <span>{work.title}</span>
-              </NavLink>
-            ))}
-          </div>
-        )}
+        ) : works.length > 0 ? (
+          <details className="workspace-shortcuts">
+            <summary>
+              <Icon name="history" />
+              최근 작업
+            </summary>
+            <div className="workspace-shortcut-list">
+              {works.map((work) => (
+                <NavLink
+                  key={work.id}
+                  className="nav-item"
+                  to={'/works/' + work.id + '/manuscript'}
+                >
+                  <span>{work.title}</span>
+                </NavLink>
+              ))}
+            </div>
+          </details>
+        ) : null}
       </>
     )
   }
   return (
     <div className="app-layout">
-      <aside className={'sidebar ' + (collapsed ? 'sidebar-collapsed' : '')}>
-        <div className="sidebar-header">
-          <NavLink to="/" className="brand" aria-label="Magister 작품 보관함">
-            Magister
+      <header className="editorial-header">
+        <NavLink to="/" className="brand" aria-label="Magister 작품 보관함">
+          Magister
+        </NavLink>
+        <nav className="editorial-navigation" aria-label="작품 탐색">
+          {navigation()}
+        </nav>
+        <div className="editorial-account">
+          <NavLink to="/mypage" className={'nav-item' + (isMyPage ? ' active' : '')}>
+            <Icon name="settings" />내 계정
           </NavLink>
-          <button
-            className="icon-button sidebar-toggle"
-            aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
-            title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
-            aria-expanded={!collapsed}
-            aria-controls="sidebar-navigation"
-            onClick={() => setCollapsed(!collapsed)}
-          >
-            <Icon name={collapsed ? 'panel-left-open' : 'panel-left-close'} />
+          <button className="icon-button" aria-label="로그아웃" onClick={() => void leave()}>
+            <Icon name="logout" />
           </button>
         </div>
-        <button
-          className="icon-button mobile-menu"
-          aria-label="작품 탐색 메뉴 열기"
-          onClick={() => setDrawer(true)}
-        >
-          <Icon name="menu" />
-        </button>
-        <p className="sidebar-caption">소설 원고와 설정 관리</p>
-        <div className="sidebar-navigation" id="sidebar-navigation">
-          {navigation()}
-        </div>
-        <div className="sidebar-bottom">
-          <div className={'profile ' + (isMyPage ? 'profile-active' : '')}>
-            <NavLink
-              to="/mypage"
-              className="profile-link"
-              aria-label="마이페이지 이동"
-              onClick={() => setDrawer(false)}
-            >
-              <Icon name="settings" />내 계정
-            </NavLink>
-            <button className="icon-button" aria-label="로그아웃" onClick={() => void leave()}>
-              <Icon name="logout" />
-            </button>
-          </div>
-        </div>
-      </aside>
+      </header>
       <div className="main-area">
-        <header className="topbar">
-          <div className="topbar-left">
-            {isMyPage ? (
-              <>
-                <span className="muted">내 계정</span>
-                <Icon name="chevron" />
-                <strong>마이페이지</strong>
-              </>
-            ) : (
-              <>
-                <NavLink to="/">내 작품</NavLink>
-                <Icon name="chevron" />
-                <strong>{current?.title || '나의 작업 공간'}</strong>
-              </>
-            )}
-          </div>
-        </header>
         {(error || logoutError) && (
           <div role="alert" className="storage-error">
             {error || logoutError}
@@ -211,16 +164,6 @@ function ShellContent() {
         <Outlet />
         <SiteFooter />
       </div>
-      {drawer && (
-        <Dialog title="작품 탐색" onClose={() => setDrawer(false)}>
-          <nav className="drawer-nav">
-            {navigation()}
-            <NavLink to="/mypage" className="nav-item" onClick={() => setDrawer(false)}>
-              마이페이지
-            </NavLink>
-          </nav>
-        </Dialog>
-      )}
     </div>
   )
 }

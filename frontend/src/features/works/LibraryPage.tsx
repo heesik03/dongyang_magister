@@ -18,6 +18,7 @@ export function LibraryPage() {
   const loadWorks = useWorksStore((state) => state.loadWorks)
   const createWork = useWorksStore((state) => state.createWork)
   const navigate = useNavigate()
+  const [selectedId, setSelectedId] = useState('')
   const [query, setQuery] = useState('')
   const [genre, setGenre] = useState('전체')
   const [creating, setCreating] = useState(false)
@@ -35,6 +36,15 @@ export function LibraryPage() {
       work.title.toLowerCase().includes(query.toLowerCase()) &&
       (genre === '전체' || work.genre === genre),
   )
+  const ordered = [...filtered].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const selected = ordered.find((work) => work.id === selectedId) ?? ordered[0]
+  const recentChapter = selected?.chapters.at(-1)
+  const chapterId = selected?.summary?.latestChapterId ?? recentChapter?.id
+  const chapterTitle = selected?.summary?.latestChapterTitle ?? recentChapter?.title
+  const workPath = selected ? '/works/' + selected.id + '/manuscript' : ''
+  const chapterPath = chapterId ? workPath + '?chapter=' + encodeURIComponent(chapterId) : workPath
+  const date = (value: string) => new Date(value).toLocaleDateString('ko-KR')
+
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (saving) return
@@ -69,126 +79,142 @@ export function LibraryPage() {
     <main className="page library-page">
       <div className="page-heading">
         <div>
-          <h1>내 작품</h1>
+          <h1>작품 보관함</h1>
           <p className="muted">작품을 선택해 원고를 이어 쓰세요.</p>
         </div>
         <button className="primary" onClick={() => setCreating(true)}>
           <Icon name="plus" />새 작품 만들기
         </button>
       </div>
-      <details className="workspace-disclosure library-filters">
-        <summary>작품 검색 및 장르 필터{query || genre !== '전체' ? ' · 적용 중' : ''}</summary>
-        <div className="library-toolbar">
-          <div className="filter-tabs">
-            {[
-              '전체',
-              ...new Set([
-                '판타지',
-                '로맨스',
-                '현대 드라마',
-                '역사',
-                '미스터리',
-                'SF',
-                '기타',
-                ...works.map((work) => work.genre),
-              ]),
-            ].map((item) => (
-              <button
-                key={item}
-                className={genre === item ? 'selected' : ''}
-                aria-pressed={genre === item}
-                onClick={() => setGenre(item)}
-              >
-                {item}
-              </button>
-            ))}
+      <div className="library-workbench editorial-surface">
+        <section className="library-list-pane" aria-label={'작품 ' + totalElements + '개'}>
+          <div className="editorial-section-title">
+            <h2>
+              <Icon name="book" />
+              작품 목록
+            </h2>
+            <p className="muted">최근 수정한 작품부터 표시합니다.</p>
           </div>
-          <label className="search-field">
-            <Icon name="search" />
-            <input
-              aria-label="작품 검색"
-              placeholder="작품 이름으로 검색"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-        </div>
-      </details>
-      {loading && (
-        <p role="status" className="sr-only">
-          작품을 불러오고 있습니다.
-        </p>
-      )}
-      {listError && (
-        <div role="alert" className="error">
-          {listError}
-          <button onClick={() => void loadWorks(query, genre)}>다시 시도</button>
-        </div>
-      )}
-      {loading && filtered.length === 0 ? (
-        <div className="workspace-list work-list list-skeleton" aria-hidden="true">
-          {Array.from({ length: 4 }, (_, index) => (
-            <div className="workspace-list-row" key={index}>
-              <span />
-              <span />
-              <span />
-              <span />
+          <div className="library-list-filters">
+            <label className="search-field">
+              <Icon name="search" />
+              <input
+                aria-label="작품 검색"
+                placeholder="작품 이름으로 검색"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+            <label className="library-genre-field">
+              <Icon name="settings" />
+              <select
+                aria-label="작품 장르"
+                value={genre}
+                onChange={(event) => setGenre(event.target.value)}
+              >
+                <option value="전체">전체 장르</option>
+                {[...new Set([...GENRES, ...works.map((work) => work.genre)])].map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {loading && (
+            <p role="status" className={ordered.length ? 'sr-only' : 'muted'}>
+              작품을 불러오고 있습니다.
+            </p>
+          )}
+          {listError && (
+            <div role="alert" className="error">
+              {listError}
+              <button onClick={() => void loadWorks(query, genre)}>다시 시도</button>
             </div>
-          ))}
-        </div>
-      ) : !listError && filtered.length === 0 ? (
-        <div className="empty">
-          <Icon name="book" />
-          <h3>{query || genre !== '전체' ? '검색 결과가 없습니다' : '등록한 작품이 없습니다'}</h3>
-          <p>
-            {query || genre !== '전체'
-              ? '다른 제목이나 장르로 찾아보세요.'
-              : '새 작품을 만들고 첫 회차를 작성하세요.'}
-          </p>
-          <button
-            className="primary"
-            onClick={() =>
-              query || genre !== '전체' ? (setQuery(''), setGenre('전체')) : setCreating(true)
-            }
-          >
-            {query || genre !== '전체' ? '검색 초기화' : '새 작품 만들기'}
-          </button>
-        </div>
-      ) : (
-        <section className="workspace-list work-list" aria-label={'작품 ' + totalElements + '개'}>
-          <div className="workspace-list-row workspace-list-header" aria-hidden="true">
-            <span>작품</span>
-            <span>장르</span>
-            <span>회차</span>
-            <span>최근 수정</span>
-          </div>
-          {[...filtered]
-            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-            .map((work) => (
-              <Link
-                className="workspace-list-row work-list-link"
-                key={work.id}
-                to={'/works/' + work.id + '/manuscript'}
+          )}
+          {!loading && !listError && !ordered.length && (
+            <div className="empty">
+              <Icon name="book" />
+              <h3>
+                {query || genre !== '전체' ? '검색 결과가 없습니다' : '등록한 작품이 없습니다'}
+              </h3>
+              <p>
+                {query || genre !== '전체'
+                  ? '다른 제목이나 장르로 찾아보세요.'
+                  : '새 작품을 만들고 첫 회차를 작성하세요.'}
+              </p>
+              <button
+                className="primary"
+                onClick={() => {
+                  if (query || genre !== '전체') {
+                    setQuery('')
+                    setGenre('전체')
+                  } else setCreating(true)
+                }}
               >
-                <strong>{work.title}</strong>
-                <span>
-                  <span className="sr-only">장르 </span>
-                  {work.genre}
-                </span>
-                <span>{work.summary?.chapterCount ?? work.chapters.length}화</span>
-                <time dateTime={work.updatedAt}>
-                  <span className="sr-only">최근 수정 </span>
-                  {new Date(work.updatedAt).toLocaleDateString('ko-KR')}
-                </time>
-              </Link>
-            ))}
+                {query || genre !== '전체' ? '검색 초기화' : '새 작품 만들기'}
+              </button>
+            </div>
+          )}
+          {ordered.length > 0 && (
+            <ul className="editorial-list">
+              {ordered.map((work) => (
+                <li key={work.id}>
+                  <button
+                    className="editorial-list-item"
+                    type="button"
+                    aria-pressed={selected?.id === work.id}
+                    onClick={() => setSelectedId(work.id)}
+                  >
+                    <Icon name="book" />
+                    <span className="editorial-list-copy">
+                      <strong>{work.title}</strong>
+                      <span className="small muted">
+                        {work.genre} · <time dateTime={work.updatedAt}>{date(work.updatedAt)}</time>
+                      </span>
+                    </span>
+                    <Icon name="arrow" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {listPage + 1 < totalPages && (
+            <button disabled={loading} onClick={() => void loadWorks(query, genre, listPage + 1)}>
+              작품 더 불러오기
+            </button>
+          )}
         </section>
-      )}
-      {listPage + 1 < totalPages && (
-        <button disabled={loading} onClick={() => void loadWorks(query, genre, listPage + 1)}>
-          작품 더 불러오기
-        </button>
-      )}
+        {selected && (
+          <article className="library-detail-pane" aria-label="선택한 작품">
+            <header>
+              <div className="library-detail-genre">{selected.genre}</div>
+              <h2>{selected.title}</h2>
+              {selected.era && <p className="muted">{selected.era}</p>}
+              {selected.description && <p>{selected.description}</p>}
+            </header>
+            <section className="library-last-chapter">
+              <h3>
+                <Icon name="file" />
+                최근 원고
+              </h3>
+              <p>{chapterTitle || '작성한 원고가 없습니다.'}</p>
+              <p className="notice small">
+                <Icon name="clock" />
+                최근 수정 · {date(selected.updatedAt)}
+              </p>
+            </section>
+            <div className="editorial-actions">
+              <Link className="button primary" to={chapterPath}>
+                <Icon name="edit" />
+                {chapterId ? '원고 이어 쓰기' : '원고 쓰기'}
+              </Link>
+              <Link className="button" to={workPath + '?manage=1'}>
+                <Icon name="settings" />
+                작품 관리
+              </Link>
+            </div>
+          </article>
+        )}
+      </div>
       {creating && (
         <Dialog
           title="새 작품 만들기"
