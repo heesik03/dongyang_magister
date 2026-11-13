@@ -5,18 +5,11 @@ import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
 import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
-import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
-import com.magister.backend.domain.analysis.dto.AnalysisSourceResponse;
-import com.magister.backend.domain.analysis.dto.ReviewComparisonResponse;
 import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
-import com.magister.backend.domain.analysis.dto.WorkReviewOverviewResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
-import com.magister.backend.domain.analysis.service.AnalysisSnapshotService;
-import com.magister.backend.domain.analysis.service.ReviewComparisonService;
 import com.magister.backend.domain.analysis.service.ReviewResultService;
-import com.magister.backend.domain.analysis.service.WorkReviewOverviewService;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.pagination.OffsetPageRequest;
 import com.magister.backend.global.pagination.OffsetPageResponse;
@@ -42,17 +35,7 @@ import java.net.URI;
 public class AnalysisController implements AnalysisControllerDocs {
     private final AnalysisJobService analysisJobService;
     private final AnalysisPreviewService previewService;
-    private final AnalysisSnapshotService snapshotService;
     private final ReviewResultService reviewResultService;
-    private final WorkReviewOverviewService overviewService;
-    private final ReviewComparisonService comparisonService;
-
-    @Override
-    @GetMapping("/overview")
-    public ApiResult<WorkReviewOverviewResponse> overview(
-            @AuthenticationPrincipal LoginUser user, @PathVariable Long workId) {
-        return ApiResult.success(overviewService.getOverview(user.id(), workId));
-    }
 
     @Override
     @GetMapping("/{id}/review")
@@ -64,26 +47,6 @@ public class AnalysisController implements AnalysisControllerDocs {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResult.success(
                 reviewResultService.list(user.id(), workId, id, OffsetPageRequest.of(page, size)));
-    }
-
-    @Override
-    @GetMapping("/{id}/compare")
-    public ApiResult<ReviewComparisonResponse> compare(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @PathVariable String id,
-            @RequestParam(required = false) String baseJobId) {
-        return ApiResult.success(comparisonService.compare(user.id(), workId, id, baseJobId));
-    }
-
-    @Override
-    @GetMapping("/{id}/source/{sourceId}")
-    public ApiResult<AnalysisSourceResponse> source(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @PathVariable String id,
-            @PathVariable Long sourceId) {
-        return ApiResult.success(snapshotService.getSource(user.id(), workId, id, sourceId));
     }
 
     @Override
@@ -107,15 +70,6 @@ public class AnalysisController implements AnalysisControllerDocs {
         return ApiResult.success(
                 analysisJobService.list(
                         user.id(), workId, chapterId, status, OffsetPageRequest.of(page, size)));
-    }
-
-    @Override
-    @GetMapping("/{id}/snapshot")
-    public ApiResult<AnalysisSnapshotResponse> snapshot(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @PathVariable String id) {
-        return ApiResult.success(snapshotService.get(user.id(), workId, id));
     }
 
     @Override
@@ -148,3 +102,4 @@ public class AnalysisController implements AnalysisControllerDocs {
         return ApiResult.success(analysisJobService.cancel(user.id(), workId, id));
     }
 }
+

@@ -162,7 +162,7 @@ const linkedReview = {
   ],
 }
 
-test('검토 후보와 스냅샷 원문을 실제 경로로 조회하고 위치·출처를 검증한다', async () => {
+test('검토 후보를 실제 경로로 조회하고 위치·출처를 검증한다', async () => {
   request.mockResolvedValueOnce(
     success({
       candidates: { items: [linkedReview], page: 0, size: 100, totalElements: 1, totalPages: 1 },
@@ -172,18 +172,6 @@ test('검토 후보와 스냅샷 원문을 실제 경로로 조회하고 위치�
   )
   expect((await reviewClient.list('1', 'job-1')).reviews[0].startOffset).toBe(11)
   expect(request.mock.calls[0][0].url).toBe('/work/1/analysis/job-1/review')
-  request.mockResolvedValueOnce(
-    success({
-      id: 2,
-      type: 'PREVIOUS',
-      sourceId: 'previous',
-      title: '1화',
-      content: '이전에는 마법 불가',
-      revision: 1,
-    }),
-  )
-  expect((await reviewClient.source('1', 'job-1', 2)).content).toBe('이전에는 마법 불가')
-  expect(request.mock.calls[1][0].url).toBe('/work/1/analysis/job-1/source/2')
   expect(() => parseLinkedReview({ ...linkedReview, endOffset: 15 })).toThrow()
   expect(() => parseLinkedReview({ ...linkedReview, evidences: [] })).toThrow()
   expect(() =>
@@ -192,17 +180,6 @@ test('검토 후보와 스냅샷 원문을 실제 경로로 조회하고 위치�
       evidences: [{ ...linkedReview.evidences[0], sourceType: 'TARGET' }],
     }),
   ).toThrow()
-  request.mockResolvedValueOnce(
-    success({
-      id: 3,
-      type: 'PREVIOUS',
-      sourceId: 'previous',
-      title: '1화',
-      content: '',
-      revision: 1,
-    }),
-  )
-  await expect(reviewClient.source('1', 'job-1', 2)).rejects.toThrow()
 })
 function csrf() {
   return success({ headerName: 'X-CSRF-TOKEN', token: 'test-csrf' })

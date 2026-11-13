@@ -1,8 +1,6 @@
 package com.magister.backend.domain.analysis.converter;
 
 import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
-import com.magister.backend.domain.analysis.dto.ReviewReportResponse.PriorityIssue;
-import com.magister.backend.domain.analysis.dto.ReviewReportResponse.ScopeSummary;
 import com.magister.backend.domain.analysis.dto.ReviewResponse;
 import com.magister.backend.domain.analysis.dto.ReviewResponse.RevisionOption;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
@@ -41,16 +39,6 @@ public class ReviewConverter {
             boolean legacy,
             boolean stale,
             Map<String, DecisionResponse> decisions) {
-        return toReport(candidates, evidences, legacy, stale, decisions, null);
-    }
-
-    public ReviewReportResponse toReport(
-            Page<ReviewCandidate> candidates,
-            List<ReviewEvidence> evidences,
-            boolean legacy,
-            boolean stale,
-            Map<String, DecisionResponse> decisions,
-            ScopeSummary summary) {
         Map<String, List<ReviewEvidence>> byReview =
                 evidences.stream().collect(Collectors.groupingBy(item -> item.getReview().getId()));
         return new ReviewReportResponse(
@@ -63,8 +51,7 @@ public class ReviewConverter {
                                                         candidate.getId(), List.of())))),
                 legacy,
                 stale,
-                decisions,
-                summary);
+                decisions);
     }
 
     public ReviewResponse toCandidateResponse(
@@ -94,23 +81,6 @@ public class ReviewConverter {
                 interpretation,
                 missingInfo,
                 options);
-    }
-
-    /**
-     * 선택된 분석 범위의 출처·후보·근거만을 바탕으로 범위 종합 요약을 계산한다. 계산 중 오류가 발생해도 개별 후보 조회가 중단되지 않도록 null을 반환한다.
-     */
-    public ScopeSummary toScopeSummary(
-            String scopeNotice, int settingCount, int previousChapterCount, int totalCandidates,
-            int conflictCount, int supplementCount, int unreviewedCount, int issueGroupCount,
-            List<PriorityIssue> priorityItems) {
-        return new ScopeSummary(scopeNotice, settingCount, previousChapterCount, totalCandidates,
-                conflictCount, supplementCount, unreviewedCount, issueGroupCount, priorityItems);
-    }
-
-    public PriorityIssue toPriorityIssue(
-            String key, String title, String type, String summary, List<String> candidateIds,
-            List<String> sourceTitles) {
-        return new PriorityIssue(key, title, type, summary, candidateIds, sourceTitles);
     }
 
     public String resolveGroupKey(

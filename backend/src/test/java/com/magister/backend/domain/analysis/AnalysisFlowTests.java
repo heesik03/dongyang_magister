@@ -21,6 +21,7 @@ import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
+import com.magister.backend.domain.analysis.service.AnalysisSnapshotService;
 import com.magister.backend.domain.analysis.service.AnalysisWorker;
 import com.magister.backend.domain.analysis.service.support.AnalysisPreviewToken;
 import com.magister.backend.domain.chapter.dto.CreateChapterRequest;
@@ -73,6 +74,7 @@ class AnalysisFlowTests {
     @Autowired AnalysisSourceRepository sourceRepository;
     @Autowired AnalysisPreviewService previewService;
     @Autowired AnalysisJobService jobService;
+    @Autowired AnalysisSnapshotService snapshotService;
     @Autowired AnalysisWorker worker;
     @Autowired JdbcTemplate jdbcTemplate;
     @Autowired TransactionTemplate transactionTemplate;
@@ -194,12 +196,10 @@ class AnalysisFlowTests {
                 .andExpect(
                         jsonPath("$.data.candidates.items[0].evidences[1].sourceType")
                                 .value("PREVIOUS"));
-        Long sourceId = sourceRepository.findByJob_IdOrderByIdAsc(jobId).getFirst().getId();
-        mockMvc.perform(
-                        get(path() + "/" + jobId + "/source/" + sourceId)
-                                .with(authentication(owner)))
-                .andExpect(jsonPath("$.data.sourceId").value("target"))
-                .andExpect(jsonPath("$.data.content").value("검토 원고"));
+        AnalysisSource targetSource =
+                sourceRepository.findByJob_IdOrderByIdAsc(jobId).getFirst();
+        assertThat(targetSource.getSourceKey()).isEqualTo("target");
+        assertThat(targetSource.getContent()).isEqualTo("검토 원고");
         chapterService.update(
                 ownerId,
                 workId,
@@ -207,10 +207,12 @@ class AnalysisFlowTests {
                 new UpdateChapterRequest("1화", "바뀐 이전 원고", 0, "edit-prev"));
         mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(owner)))
                 .andExpect(jsonPath("$.data.stale").value(true));
-        mockMvc.perform(
-                        get(path() + "/" + jobId + "/source/" + sourceId)
-                                .with(authentication(owner)))
-                .andExpect(jsonPath("$.data.content").value("검토 원고"));
+        assertThat(
+                        sourceRepository
+                                .findByJob_IdOrderByIdAsc(jobId)
+                                .getFirst()
+                                .getContent())
+                .isEqualTo("검토 원고");
         mockMvc.perform(
                         get(path() + "/" + jobId + "/review")
                                 .with(authentication(owner))
@@ -222,23 +224,16 @@ class AnalysisFlowTests {
                         new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
         mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(other)))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(
-                        get(path() + "/" + jobId + "/source/" + sourceId)
-                                .with(authentication(other)))
-                .andExpect(status().isNotFound());
     }
 
     @Test
-    void anotherJobSourceIsRejectedByApiAndCompositeForeignKey() throws Exception {
+    void anotherJobSourceIsRejectedByCompositeForeignKey() {
         String firstId = jobService.create(ownerId, workId, confirmed()).id();
         when(geminiClient.generateAnalysis(anyString())).thenReturn(linkedProviderResult());
         worker.execute(firstId);
         String secondId = jobService.create(ownerId, workId, confirmed()).id();
         Long firstSource = sourceRepository.findByJob_IdOrderByIdAsc(firstId).getFirst().getId();
-        mockMvc.perform(
-                        get(path() + "/" + secondId + "/source/" + firstSource)
-                                .with(authentication(owner)))
-                .andExpect(status().isNotFound());
+        assertThat(sourceRepository.findByIdAndJob_Id(firstSource, secondId)).isEmpty();
         assertThatThrownBy(
                         () ->
                                 jdbcTemplate.update(
@@ -425,7 +420,7 @@ class AnalysisFlowTests {
     }
 
     @Test
-    void snapshotsSurviveEditingAndReplayDoesNotCreateNewSources() throws Exception {
+    void snapshotsSurviveEditingAndReplayDoesNotCreateNewSources() {
         AnalysisRequest request = confirmed();
         String jobId = jobService.create(ownerId, workId, request).id();
         List<AnalysisSource> sources = sourceRepository.findByJob_IdOrderByIdAsc(jobId);
@@ -438,12 +433,11 @@ class AnalysisFlowTests {
                 "target",
                 new UpdateChapterRequest("2화", "새 원고", 0, "edit-target"));
         assertThat(jobService.create(ownerId, workId, request).id()).isEqualTo(jobId);
-        assertThat(sourceRepository.findByJob_IdOrderByIdAsc(jobId)).hasSize(3);
-        mockMvc.perform(get(path() + "/" + jobId + "/snapshot").with(authentication(owner)))
-                .andExpect(jsonPath("$.data.input.chapter.content").value("검토 원고"))
-                .andExpect(jsonPath("$.data.sources[0].content").value("검토 원고"))
-                .andExpect(jsonPath("$.data.stale").value(true))
-                .andExpect(jsonPath("$.data.legacy").value(false));
+        List<AnalysisSource> persistedSources = sourceRepository.findByJob_IdOrderByIdAsc(jobId);
+        assertThat(persistedSources).hasSize(3);
+        assertThat(persistedSources.getFirst().getContent()).isEqualTo("검토 원고");
+        AnalysisJob job = jobRepository.findById(jobId).orElseThrow();
+        assertThat(snapshotService.isStale(workId, job.getInput())).isTrue();
     }
 
     @Test
@@ -478,7 +472,7 @@ class AnalysisFlowTests {
         UsernamePasswordAuthenticationToken other =
                 UsernamePasswordAuthenticationToken.authenticated(
                         new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
-        mockMvc.perform(get(path() + "/" + jobId + "/snapshot").with(authentication(other)))
+        mockMvc.perform(get(path() + "/" + jobId).with(authentication(other)))
                 .andExpect(status().isNotFound());
     }
 

@@ -56,12 +56,6 @@ export interface JobSummary {
   updatedAt: string
   previewConfirmed: boolean
 }
-export interface Snapshot {
-  jobId: string
-  input: InputSnapshot
-  legacy: boolean
-  stale: boolean
-}
 const statuses = ['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED']
 export const isActiveJob = (job: { status: string }) =>
   job.status === 'QUEUED' || job.status === 'RUNNING'
@@ -229,21 +223,6 @@ export const analysisClient = {
         } satisfies JobSummary
       },
     )
-  },
-  async snapshot(workId: string, jobId: string, signal?: AbortSignal): Promise<Snapshot> {
-    const value = readRecord(
-      await httpClient.get(path(workId) + '/' + encodeURIComponent(jobId) + '/snapshot', {
-        signal,
-      }),
-    )
-    if (typeof value.legacy !== 'boolean' || typeof value.stale !== 'boolean')
-      throw new Error('스냅샷 응답이 올바르지 않습니다.')
-    return {
-      jobId: readString(value, 'jobId'),
-      input: parseInput(value.input),
-      legacy: value.legacy,
-      stale: value.stale,
-    }
   },
   async cancel(workId: string, jobId: string): Promise<Job> {
     return parseJob(

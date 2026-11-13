@@ -6,19 +6,11 @@ import { useWorksStore } from '../works/useWorksStore'
 import { ReviewPanel } from '../review/ReviewPanel'
 import { DecisionLedger } from '../review/DecisionLedger'
 import { useReviewReport } from '../review/useReviewReport'
-import {
-  REVIEW_FILTERS,
-  reviewClient,
-  type ReviewFilter,
-  type ReviewSource,
-  type SourceLocation,
-} from '../review/reviewClient'
-import { ReviewSourceDialog } from '../review/ReviewSourceDialog'
-import { analysisClient, type Preview, type Snapshot } from '../analysis/analysisClient'
-import { settingsChanged, inputChanged } from '../analysis/analysisState'
+import { REVIEW_FILTERS, type ReviewFilter, type SourceLocation } from '../review/reviewClient'
+import { analysisClient, type Preview } from '../analysis/analysisClient'
+import { settingsChanged } from '../analysis/analysisState'
 import { useAnalysisJobs } from '../analysis/useAnalysisJobs'
 import { AnalysisPreviewDialog } from '../analysis/AnalysisPreviewDialog'
-import { AnalysisMaterials } from '../analysis/AnalysisMaterials'
 import { ApiError } from '../../shared/httpClient'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
@@ -49,13 +41,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const overviewFilter = REVIEW_FILTERS.find((filter) => filter === params.get('reviewFilter'))
   const jobs = useAnalysisJobs(work.id, chapter?.id, work.source === 'server', overviewJobId)
   const reportState = useReviewReport(work.id, jobs.job?.id, jobs.job?.status === 'SUCCEEDED')
-  const [openedSource, setOpenedSource] = useState<{
-    source: ReviewSource
-    location: SourceLocation
-  } | null>(null)
   const [jumpError, setJumpError] = useState<{ id: string; message: string } | null>(null)
-  const [jumpLoading, setJumpLoading] = useState<string | null>(null)
-  const jumpRequest = useRef<AbortController | null>(null)
   const savedAnalysis = work.analyses.find((item) => item.chapterId === chapter?.id)
   const analysis = jobs.job?.result ?? savedAnalysis
   const [ledgerOpen, setLedgerOpen] = useState(false)
@@ -70,10 +56,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const [preparing, setPreparing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [preview, setPreview] = useState<Preview | null>(null)
-  const [storedSnapshot, setSnapshot] = useState<Snapshot | null>(null)
-  const [sourceFailure, setSourceFailure] = useState<{ id: string; message: string } | null>(null)
-  const [showSnapshot, setShowSnapshot] = useState(false)
-  const [snapshotRefresh, setSnapshotRefresh] = useState(0)
   const analyzing = jobs.active
   const [error, setError] = useState('')
   const view = params.get('view') === 'review' ? '검토' : '원고'
@@ -94,11 +76,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const pendingSourceFocus = useRef<SourceLocation | null>(null)
   const [sourceFocusRequest, setSourceFocusRequest] = useState(0)
   const analysisRequest = useRef<AbortController | null>(null)
-  const selectedJobId = jobs.job?.id,
-    selectedJobStatus = jobs.job?.status
-  const snapshot = storedSnapshot?.jobId === selectedJobId ? storedSnapshot : null
-  const snapshotError =
-    sourceFailure && sourceFailure.id === selectedJobId ? sourceFailure.message : ''
+  const selectedJobId = jobs.job?.id
   const latestWork = useRef(work)
   useEffect(() => {
     const location = pendingSourceFocus.current
@@ -113,31 +91,9 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   useEffect(() => {
     latestWork.current = work
   }, [work])
-  useEffect(() => () => jumpRequest.current?.abort(), [selectedJobId])
-  useEffect(() => {
-    if (!selectedJobId) return
-    const controller = new AbortController()
-    void analysisClient
-      .snapshot(work.id, selectedJobId, controller.signal)
-      .then((value) => {
-        if (!controller.signal.aborted) {
-          setSnapshot(value)
-          setSourceFailure(null)
-        }
-      })
-      .catch((error) => {
-        if (!controller.signal.aborted)
-          setSourceFailure({
-            id: selectedJobId,
-            message: error instanceof Error ? error.message : '전송 자료 조회 실패',
-          })
-      })
-    return () => controller.abort()
-  }, [work.id, selectedJobId, selectedJobStatus, snapshotRefresh])
   useEffect(
     () => () => {
       analysisRequest.current?.abort()
-      jumpRequest.current?.abort()
     },
     [],
   )
@@ -169,7 +125,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
     !!analysis &&
     (analysis.source !== chapter?.content ||
       settingsChanged(analysis, work.settings) ||
-      (!!snapshot && (snapshot.stale || inputChanged(snapshot.input, work))) ||
       !!reportState.report?.stale)
   async function saveManuscript() {
     if (work.source !== 'server') {
@@ -308,46 +263,23 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       if (!controller.signal.aborted) setSubmitting(false)
     }
   }
-  async function retryAnalysis() {
-    if (!jobs.job) {
-      setOptionsOpen(true)
-      return
-    }
-    const controller = new AbortController()
-    analysisRequest.current?.abort()
-    analysisRequest.current = controller
-    try {
-      const previous = await analysisClient.snapshot(work.id, jobs.job.id, controller.signal)
-      if (controller.signal.aborted) return
-      const settingIds = previous.input.settings
-        .map((setting) => setting.id)
-        .filter((id) =>
-          work.settings.some((setting) => setting.id === id && setting.status === '확정'),
-        )
-      const previousIds = previous.input.previous
-        .map((chapter) => chapter.id)
-        .filter(
-          (id) =>
-            work.chapters.findIndex((item) => item.id === id) >= 0 &&
-            work.chapters.findIndex((item) => item.id === id) <
-              work.chapters.findIndex((item) => item.id === chapter?.id),
-        )
-      setSettingIds(settingIds)
-      setPreviousIds(previousIds)
-      setConsistency(previous.input.consistency)
-      setMotivation(previous.input.motivation)
-      setPreview(null)
-      setError(
-        settingIds.length !== previous.input.settings.length ||
-          previousIds.length !== previous.input.previous.length
-          ? '이전 참고 자료 중 현재 사용할 수 없는 자료가 있습니다. 분석 범위를 다시 선택해 주세요.'
-          : '',
+  function retryAnalysis() {
+    if (analysis) {
+      const nextSettingIds = analysis.settingIds.filter((id) =>
+        work.settings.some((setting) => setting.id === id && setting.status === '확정'),
       )
-      setOptionsOpen(true)
-    } catch (failure) {
-      if (!controller.signal.aborted)
-        setError(failure instanceof Error ? failure.message : '이전 선택 범위 조회 실패')
+      const nextPreviousIds = analysis.previousIds.filter(
+        (id) =>
+          work.chapters.findIndex((item) => item.id === id) >= 0 &&
+          work.chapters.findIndex((item) => item.id === id) <
+            work.chapters.findIndex((item) => item.id === chapter?.id),
+      )
+      setSettingIds(nextSettingIds)
+      setPreviousIds(nextPreviousIds)
     }
+    setPreview(null)
+    setError('')
+    setOptionsOpen(true)
   }
   async function cancelAnalysis() {
     if (!jobs.job) return
@@ -358,54 +290,34 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       setError(failure instanceof Error ? failure.message : '취소 요청 실패')
     }
   }
-  async function jump(location: SourceLocation) {
+  function jump(location: SourceLocation) {
     if (!selectedJobId) return
-    jumpRequest.current?.abort()
-    const controller = new AbortController()
-    jumpRequest.current = controller
-    setJumpLoading(selectedJobId)
     setJumpError(null)
-    try {
-      const source = await reviewClient.source(
-        work.id,
-        selectedJobId,
-        location.sourceId,
-        controller.signal,
-      )
-      if (controller.signal.aborted) return
-      if (source.content.slice(location.startOffset, location.endOffset) !== location.quote)
-        throw new Error('원문과 인용 위치가 일치하지 않습니다. 근거를 다시 조회해 주세요.')
-      const current = latestWork.current.chapters.find((item) => item.id === source.sourceKey)
-      if (
-        source.type !== 'SETTING' &&
-        current?.content === source.content &&
-        current.revision === source.revision
-      ) {
-        setHighlight(location.quote)
-        setMarkdownPreview(false)
-        if (current.id === chapter?.id) {
-          pendingSourceFocus.current = location
-          setSourceFocusRequest((request) => request + 1)
-          setView('원고')
-        } else {
-          setParams({
-            chapter: current.id,
-            quote: location.quote,
-            start: String(location.startOffset),
-            end: String(location.endOffset),
-          })
-        }
-      } else {
-        setOpenedSource({ source, location })
-      }
-    } catch (failure) {
-      if (!controller.signal.aborted)
-        setJumpError({
-          id: selectedJobId,
-          message: failure instanceof Error ? failure.message : '근거 원문 조회 실패',
-        })
-    } finally {
-      if (!controller.signal.aborted) setJumpLoading(null)
+    const targetChapterId = location.sourceKey || chapter?.id
+    const current = latestWork.current.chapters.find((item) => item.id === targetChapterId)
+    if (
+      !current ||
+      current.content.slice(location.startOffset, location.endOffset) !== location.quote
+    ) {
+      setJumpError({
+        id: selectedJobId,
+        message: '원고가 수정되어 해당 인용 위치를 찾을 수 없습니다.',
+      })
+      return
+    }
+    setHighlight(location.quote)
+    setMarkdownPreview(false)
+    if (current.id === chapter?.id) {
+      pendingSourceFocus.current = location
+      setSourceFocusRequest((request) => request + 1)
+      setView('원고')
+    } else {
+      setParams({
+        chapter: current.id,
+        quote: location.quote,
+        start: String(location.startOffset),
+        end: String(location.endOffset),
+      })
     }
   }
   function toggle(ids: string[], id: string) {
@@ -414,9 +326,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   return (
     <div className="manuscript-workspace">
       {ledgerOpen && <DecisionLedger workId={work.id} onClose={() => setLedgerOpen(false)} />}
-      {jumpLoading && jumpLoading === selectedJobId && (
-        <p role="status">근거 원문을 불러오고 있습니다.</p>
-      )}
       {jumpError && jumpError.id === selectedJobId && (
         <p className="error" role="alert">
           {jumpError.message}
@@ -524,16 +433,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                 )}
                 <div className="analysis-history-actions">
                   <button onClick={jobs.refresh}>작업 상태 다시 확인</button>
-                  {jobs.job && (
-                    <button
-                      onClick={() => {
-                        setShowSnapshot(true)
-                        setSnapshotRefresh((value) => value + 1)
-                      }}
-                    >
-                      분석 당시 전송 자료
-                    </button>
-                  )}
                 </div>
                 {jobs.totalPages > 1 && (
                   <div className="dialog-actions">
@@ -797,13 +696,9 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           key={chapter?.id || 'empty'}
           hidden={view !== '검토'}
           work={work}
-          jobId={jobs.job?.status === 'SUCCEEDED' ? jobs.job.id : undefined}
-          currentChapterId={chapter?.id}
-          onSelectChapter={changeChapter}
           initialFilter={overviewJobId === jobs.job?.id ? overviewFilter : undefined}
           analysis={analysis}
           report={reportState.report}
-          input={snapshot?.input}
           reportLoading={reportState.loading}
           reportError={reportState.error}
           retryReport={reportState.retry}
@@ -817,8 +712,8 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                 ? 'AI 검토를 취소했습니다.'
                 : '')
           }
-          retry={() => void retryAnalysis()}
-          onJump={(location) => void jump(location)}
+          retry={retryAnalysis}
+          onJump={jump}
           onDecisionSaved={reportState.retry}
           onOpenLedger={() => setLedgerOpen(true)}
         />
@@ -828,9 +723,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           <Icon name="check" />
           원고를 저장했습니다.
         </p>
-      )}
-      {openedSource && (
-        <ReviewSourceDialog {...openedSource} onClose={() => setOpenedSource(null)} />
       )}
       {creating && (
         <Dialog title="새 회차 추가" onClose={() => setCreating(false)}>
@@ -948,25 +840,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             if (!submitting) setPreview(null)
           }}
         />
-      )}
-      {showSnapshot && (
-        <Dialog title="분석 당시 전송 자료" onClose={() => setShowSnapshot(false)}>
-          {snapshotError && <p role="alert">{snapshotError}</p>}
-          {!snapshot && !snapshotError && <p role="status">전송 자료를 불러오고 있습니다.</p>}
-          {snapshot && (
-            <>
-              <p>
-                {snapshot.legacy
-                  ? '기존 분석의 저장 입력입니다.'
-                  : '접수 당시 고정한 전송 자료입니다.'}
-              </p>
-              {(snapshot.stale || inputChanged(snapshot.input, work)) && (
-                <p className="notice">현재 원고 또는 참고 자료와 다른 이전 자료입니다.</p>
-              )}
-              <AnalysisMaterials input={snapshot.input} />
-            </>
-          )}
-        </Dialog>
       )}
     </div>
   )

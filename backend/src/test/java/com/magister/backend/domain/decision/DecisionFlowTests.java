@@ -13,11 +13,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.magister.backend.domain.analysis.dto.AnalysisInput;
 import com.magister.backend.domain.analysis.dto.AnalysisOutput;
 import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
+import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
+import com.magister.backend.domain.analysis.entity.AnalysisSource;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
+import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisJobStateService;
@@ -83,6 +87,7 @@ class DecisionFlowTests {
     @Autowired AnalysisSnapshotService snapshotService;
     @Autowired AnalysisResultProcessor resultProcessor;
     @Autowired AnalysisJobRepository jobRepository;
+    @Autowired AnalysisSourceRepository sourceRepository;
     @Autowired UserRepository userRepository;
     @Autowired WorkRepository workRepository;
     @Autowired JdbcTemplate jdbcTemplate;
@@ -183,11 +188,11 @@ class DecisionFlowTests {
     @Test
     void deletesEntireGraphRejectsStaleVersionAndDiscardsLateCompletion() throws Exception {
         Long sceneSourceId =
-                snapshotService.get(ownerId, workId, jobId).sources().stream()
-                        .filter(source -> source.type().equals("TARGET"))
+                sourceRepository.findByJob_IdOrderByIdAsc(jobId).stream()
+                        .filter(source -> source.getType().equals("TARGET"))
                         .findFirst()
-                        .orElseThrow()
-                        .id();
+                        .map(AnalysisSource::getId)
+                        .orElseThrow();
         save(
                 intent(
                         0,
@@ -594,15 +599,11 @@ class DecisionFlowTests {
                         true,
                         update.scopes()));
         assertThat(preview("c3").input().decisionReferences().getFirst().version()).isEqualTo(2);
-        assertThat(
-                        snapshotService
-                                .get(ownerId, workId, nextJob)
-                                .input()
-                                .decisionReferences()
-                                .getFirst()
-                                .version())
-                .isEqualTo(1);
-        assertThat(snapshotService.get(ownerId, workId, nextJob).stale()).isTrue();
+        AnalysisJob nextJobEntity = jobRepository.findById(nextJob).orElseThrow();
+        AnalysisInput nextJobInput =
+                mapper.readValue(nextJobEntity.getInput(), AnalysisInput.class);
+        assertThat(nextJobInput.decisionReferences().getFirst().version()).isEqualTo(1);
+        assertThat(snapshotService.isStale(workId, nextJobEntity.getInput())).isTrue();
         AnalysisRequest prepared = request("c4", List.of(settingId.toString()));
         AnalysisPreviewResponse beforeWithdrawal =
                 previewService.preview(ownerId, workId, prepared);

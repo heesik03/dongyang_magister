@@ -23,7 +23,6 @@ vi.mock('../src/features/analysis/analysisClient', async (importOriginal) => {
       create: vi.fn(),
       list: vi.fn(),
       get: vi.fn(),
-      snapshot: vi.fn(),
       cancel: vi.fn(),
     },
   }
@@ -120,12 +119,6 @@ beforeEach(() => {
   currentJob = { id: 'job-1', status: 'QUEUED', error: null, result: null }
   vi.mocked(analysisClient.list).mockImplementation(async () => page(history))
   vi.mocked(analysisClient.get).mockImplementation(async () => currentJob)
-  vi.mocked(analysisClient.snapshot).mockResolvedValue({
-    jobId: 'job-1',
-    input,
-    legacy: false,
-    stale: false,
-  })
   vi.mocked(analysisClient.preview).mockResolvedValue(preview)
   vi.mocked(analysisClient.create).mockImplementation(async () => {
     history = [summary('QUEUED')]
@@ -224,10 +217,9 @@ test('화면 이동 뒤 진행 중 작업과 완료 결과를 서버에서 복�
   await within(screen.getByRole('complementary', { name: '작품 노트' })).findByText('연결 확인')
   expect(analysisClient.create).not.toHaveBeenCalled()
   expect(useWorksStore.getState().flushWorkspace).not.toHaveBeenCalled()
-  expect(screen.getByRole('button', { name: '분석 당시 전송 자료' })).toBeTruthy()
 })
 
-test('실패한 검토의 선택 범위를 복원하고 다시 미리보기를 거친다', async () => {
+test('실패한 검토는 분석 범위 설정을 다시 열고 미리보기를 거친다', async () => {
   history = [summary('FAILED')]
   currentJob = { ...currentJob, status: 'FAILED', error: '공급자 응답 실패' }
   show()
@@ -235,7 +227,7 @@ test('실패한 검토의 선택 범위를 복원하고 다시 미리보기를 �
   fireEvent.click(await screen.findByRole('button', { name: '다시 분석' }))
   await screen.findByRole('dialog', { name: '분석 범위 설정' })
   expect(
-    (screen.getByRole('checkbox', { name: '1화', exact: true }) as HTMLInputElement).checked,
+    (screen.getByRole('checkbox', { name: '능력', exact: true }) as HTMLInputElement).checked,
   ).toBe(true)
   expect(analysisClient.create).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: '전송 자료 미리보기' }))
