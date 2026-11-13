@@ -10,10 +10,6 @@ import {
 } from './characterImageClient'
 
 type Gallery = Awaited<ReturnType<typeof characterImageClient.list>>
-type Preview = Awaited<ReturnType<typeof characterImageClient.preview>> & {
-  input: PortraitInput
-  requestId: string
-}
 
 const statusLabels: Record<PortraitStatus, string> = {
   QUEUED: '대기 중',
@@ -77,8 +73,6 @@ export function CharacterImagePanel({ workId, setting }: { workId: string; setti
   const [actionError, setActionError] = useState('')
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState<PortraitInput>({ appearance: '', direction: '' })
-  const [preview, setPreview] = useState<Preview | null>(null)
-  const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [galleryOpen, setGalleryOpen] = useState(false)
@@ -127,8 +121,6 @@ export function CharacterImagePanel({ workId, setting }: { workId: string; setti
     } catch (failure) {
       setActionError(failure instanceof Error ? failure.message : '요청을 처리하지 못했습니다.')
       if (failure instanceof ApiError && (failure.status === 409 || failure.status === 429)) {
-        setPreview(null)
-        setConsent(false)
         refresh()
       }
     } finally {
@@ -137,22 +129,21 @@ export function CharacterImagePanel({ workId, setting }: { workId: string; setti
     }
   }
 
-  function prepare(event: FormEvent<HTMLFormElement>) {
+  function createPortrait(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const payload = { appearance: input.appearance.trim(), direction: input.direction.trim() }
     if (!payload.appearance) return
     void run(async () => {
-      const result = await characterImageClient.preview(workId, settingId, payload)
-      setPreview({ ...result, input: payload, requestId: crypto.randomUUID() })
-      setConsent(false)
+      await characterImageClient.create(workId, settingId, payload, crypto.randomUUID())
+      setOpen(false)
+      setGalleryOpen(true)
+      refresh()
     })
   }
 
   function close() {
     if (busy) return
     setOpen(false)
-    setPreview(null)
-    setConsent(false)
     setActionError('')
   }
 
@@ -302,91 +293,41 @@ export function CharacterImagePanel({ workId, setting }: { workId: string; setti
               {actionError}
             </p>
           )}
-          {preview ? (
-            <div className="stack">
-              <section aria-label="전송할 문구">
-                <h3>외부 AI에 전송할 내용</h3>
-                <pre className="character-image-prompt">{preview.prompt}</pre>
-              </section>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(event) => setConsent(event.target.checked)}
-                />
-                표시된 내용의 외부 AI 전송에 동의합니다.
-              </label>
-              <div className="dialog-actions">
-                <button
-                  disabled={busy}
-                  onClick={() => {
-                    setPreview(null)
-                    setConsent(false)
-                  }}
-                >
-                  내용 수정
-                </button>
-                <button
-                  className="primary"
-                  disabled={!consent || busy}
-                  onClick={() =>
-                    void run(async () => {
-                      await characterImageClient.create(
-                        workId,
-                        settingId,
-                        preview.input,
-                        preview.token,
-                        preview.requestId,
-                      )
-                      setOpen(false)
-                      setGalleryOpen(true)
-                      setPreview(null)
-                      setConsent(false)
-                      refresh()
-                    })
-                  }
-                >
-                  동의하고 생성
-                </button>
-              </div>
+          <form className="stack" onSubmit={createPortrait}>
+            <details className="workspace-disclosure">
+              <summary>저장된 인물 설정 보기</summary>
+              <pre className="character-image-prompt">{setting.content}</pre>
+            </details>
+            <label>
+              외형 설명
+              <textarea
+                required
+                maxLength={1500}
+                rows={5}
+                value={input.appearance}
+                onChange={(event) => setInput({ ...input, appearance: event.target.value })}
+                placeholder="저장된 설정에서 외형을 확인하고 필요한 내용만 입력하세요."
+              />
+            </label>
+            <label>
+              연출 (선택)
+              <textarea
+                maxLength={500}
+                rows={3}
+                value={input.direction}
+                onChange={(event) => setInput({ ...input, direction: event.target.value })}
+                placeholder="의상, 표정, 화풍 등"
+              />
+            </label>
+            <div className="dialog-actions">
+              <button type="button" disabled={busy} onClick={close}>
+                취소
+              </button>
+              <button className="primary" disabled={busy || !input.appearance.trim()}>
+                이미지 생성
+              </button>
             </div>
-          ) : (
-            <form className="stack" onSubmit={prepare}>
-              <details className="workspace-disclosure">
-                <summary>저장된 인물 설정 보기</summary>
-                <pre className="character-image-prompt">{setting.content}</pre>
-              </details>
-              <label>
-                외형 설명
-                <textarea
-                  required
-                  maxLength={1500}
-                  rows={5}
-                  value={input.appearance}
-                  onChange={(event) => setInput({ ...input, appearance: event.target.value })}
-                  placeholder="저장된 설정에서 외형을 확인하고 필요한 내용만 입력하세요."
-                />
-              </label>
-              <label>
-                연출 (선택)
-                <textarea
-                  maxLength={500}
-                  rows={3}
-                  value={input.direction}
-                  onChange={(event) => setInput({ ...input, direction: event.target.value })}
-                  placeholder="의상, 표정, 화풍 등"
-                />
-              </label>
-              <div className="dialog-actions">
-                <button type="button" disabled={busy} onClick={close}>
-                  취소
-                </button>
-                <button className="primary" disabled={busy || !input.appearance.trim()}>
-                  전송 내용 확인
-                </button>
-              </div>
-            </form>
-          )}
+          </form>
         </Dialog>
       )}
       {deleteId && (

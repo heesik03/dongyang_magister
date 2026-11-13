@@ -39,17 +39,6 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
             AnalysisJobStatus status,
             Pageable pageable);
 
-    /** 비교 기준은 동일 회차의 이전 성공 작업 한 건으로 제한한다. */
-    @Query("""
-            select j from AnalysisJob j
-            where j.work.id = :workId and j.chapterKey = :chapterKey and j.status = :status
-              and (j.createdAt < :createdAt or (j.createdAt = :createdAt and j.id < :jobId))
-            order by j.createdAt desc, j.id desc
-            """)
-    List<AnalysisJob> findEarlierCompleted(
-            Long workId, String chapterKey, AnalysisJobStatus status, Instant createdAt,
-            String jobId, Pageable limit);
-
     /** 같은 작품의 멱등 키를 조회한다. 요청 본문 일치는 서비스가 검사한다. */
     Optional<AnalysisJob> findByWork_IdAndRequestId(Long workId, String requestId);
 

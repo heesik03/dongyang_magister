@@ -83,35 +83,31 @@ class CharacterImageApiTests {
     }
 
     @Test
-    void verifiesConsentDeduplicatesAndPreservesPrimaryAfterFailureAndQuota() throws Exception {
-        JsonNode preview = data(preview(path));
-        String token = preview.get("token").asText();
-        String prompt = preview.get("prompt").asText();
-        create(path, token, "first", false, INPUT).andExpect(status().isBadRequest());
-        create(path, token, "first", true, Map.of("appearance", "다른 외형", "direction", ""))
-                .andExpect(status().isConflict());
-        String first = data(create(path, token, "first", true, INPUT)
+    void deduplicatesAndPreservesPrimaryAfterFailureAndQuota() throws Exception {
+        String first = data(create(path, "first", INPUT)
                 .andExpect(status().isAccepted()).andExpect(jsonPath("$.data.status").value("QUEUED")))
                 .get("id").asText();
-        create(path, token, "first", true, INPUT)
+        create(path, "first", INPUT)
                 .andExpect(status().isAccepted()).andExpect(jsonPath("$.data.id").value(first));
+        create(path, "first", Map.of("appearance", "다른 외형", "direction", ""))
+                .andExpect(status().isConflict());
         when(geminiClient.generatePortrait(eq("gemini-3.1-flash-image"), anyString()))
                 .thenReturn(new GeneratedPortrait("image/png", PNG))
                 .thenThrow(new IllegalStateException("synthetic failure"));
         worker.process();
-        verify(geminiClient).generatePortrait("gemini-3.1-flash-image", prompt);
+        verify(geminiClient).generatePortrait(eq("gemini-3.1-flash-image"), anyString());
         mvc.perform(put(path + "/" + first + "/primary").with(authentication(owner)).with(csrf()))
                 .andExpect(status().isNoContent());
         mvc.perform(get(path + "/" + first + "/content").with(authentication(owner)))
                 .andExpect(status().isOk()).andExpect(content().bytes(PNG));
 
-        String second = data(create(path, token, "second", true, INPUT)
+        String second = data(create(path, "second", INPUT)
                 .andExpect(status().isAccepted())).get("id").asText();
         worker.process();
         mvc.perform(put(path + "/" + second + "/primary").with(authentication(owner)).with(csrf()))
                 .andExpect(status().isNotFound());
-        create(path, token, "third", true, INPUT).andExpect(status().isAccepted());
-        create(path, token, "fourth", true, INPUT).andExpect(status().isTooManyRequests());
+        create(path, "third", INPUT).andExpect(status().isAccepted());
+        create(path, "fourth", INPUT).andExpect(status().isTooManyRequests());
         mvc.perform(get(path).with(authentication(owner)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.remaining").value(0))
                 .andExpect(jsonPath("$.data.capacity").value(10));
@@ -123,12 +119,7 @@ class CharacterImageApiTests {
     }
 
     @Test
-    void rejectsStalePreviewAndChecksCapacityBeforeChargingQuota() throws Exception {
-        String staleToken = data(preview(path)).get("token").asText();
-        character.update("인물", SettingKind.CHARACTER, SettingStatus.CONFIRMED, "외형: 새 설정");
-        character = settingRepository.saveAndFlush(character);
-        create(path, staleToken, "stale", true, INPUT).andExpect(status().isConflict());
-        String token = data(preview(path)).get("token").asText();
+    void checksCapacityBeforeChargingQuota() throws Exception {
         for (int index = 0; index < 10; index++) {
             jdbcTemplate.update("""
                     INSERT INTO character_image_jobs
@@ -136,7 +127,7 @@ class CharacterImageApiTests {
                     VALUES (?, ?, 0, ?, 'fixture', '', 'test', 'FAILED', CURRENT_TIMESTAMP)
                     """, UUID.randomUUID().toString(), character.getId(), "past-" + index);
         }
-        create(path, token, "capacity", true, INPUT).andExpect(status().isConflict());
+        create(path, "capacity", INPUT).andExpect(status().isConflict());
         mvc.perform(get(path).with(authentication(owner)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.remaining").value(3))
                 .andExpect(jsonPath("$.data.jobs.length()").value(10));
@@ -147,8 +138,8 @@ class CharacterImageApiTests {
         User stranger = userRepository.saveAndFlush(
                 new User("stranger-" + System.nanoTime() + "@example.com", "다른 작가", "unused"));
         mvc.perform(get(path).with(authentication(authenticationFor(stranger)))).andExpect(status().isNotFound());
-        mvc.perform(post(path + "/preview").with(authentication(owner))
-                .contentType("application/json").content(objectMapper.writeValueAsString(INPUT)))
+        mvc.perform(post(path).with(authentication(owner))
+                .contentType("application/json").content(objectMapper.writeValueAsString(Map.of("input", INPUT, "requestId", "no-csrf"))))
                 .andExpect(status().isForbidden());
         Work anotherWork = workRepository.saveAndFlush(
                 new Work(work.getOwner(), "다른 작품", "판타지", "", ""));
@@ -157,10 +148,8 @@ class CharacterImageApiTests {
         WorkSetting secondCharacter = settingRepository.saveAndFlush(new WorkSetting(
                 work, "두 번째 인물", SettingKind.CHARACTER, SettingStatus.CONFIRMED, "인물 설정"));
         String secondPath = imagePath(work, secondCharacter);
-        create(path, data(preview(path)).get("token").asText(), "delete-character", true, INPUT)
-                .andExpect(status().isAccepted());
-        create(secondPath, data(preview(secondPath)).get("token").asText(), "delete-work", true, INPUT)
-                .andExpect(status().isAccepted());
+        create(path, "delete-character", INPUT).andExpect(status().isAccepted());
+        create(secondPath, "delete-work", INPUT).andExpect(status().isAccepted());
         mvc.perform(delete("/api/work/{workId}/setting/{id}", work.getId(), character.getId())
                 .with(authentication(owner)).with(csrf()).param("version", character.getVersion().toString()))
                 .andExpect(status().isNoContent());
@@ -185,17 +174,9 @@ class CharacterImageApiTests {
         return "/api/work/" + work.getId() + "/setting/" + setting.getId() + "/character-image";
     }
 
-    private ResultActions preview(String path) throws Exception {
-        return mvc.perform(post(path + "/preview").with(authentication(owner)).with(csrf())
-                .contentType("application/json").content(objectMapper.writeValueAsString(INPUT)))
-                .andExpect(status().isOk());
-    }
-
-    private ResultActions create(String path, String token, String requestId, boolean consent,
-            Map<String, String> input) throws Exception {
+    private ResultActions create(String path, String requestId, Map<String, String> input) throws Exception {
         return mvc.perform(post(path).with(authentication(owner)).with(csrf()).contentType("application/json")
-                .content(objectMapper.writeValueAsString(Map.of(
-                        "input", input, "token", token, "requestId", requestId, "consent", consent))));
+                .content(objectMapper.writeValueAsString(Map.of("input", input, "requestId", requestId))));
     }
 
     private JsonNode data(ResultActions result) throws Exception {

@@ -29,18 +29,6 @@ export interface InputSnapshot {
   consistency: boolean
   motivation: boolean
 }
-export interface Preview {
-  previewToken: string
-  policyVersion: string
-  expiresAt: string
-  input: InputSnapshot
-  provider: string
-  model: string
-  retentionNotice: string
-  deletionNotice: string
-  providerPolicyUrl: string
-  request: AnalysisInput & { requestId: string }
-}
 export interface Job {
   id: string
   status: string
@@ -164,33 +152,17 @@ export function parseInput(raw: unknown): InputSnapshot {
   }
 }
 export const analysisClient = {
-  async preview(workId: string, input: AnalysisInput, signal?: AbortSignal): Promise<Preview> {
-    const request = { ...input, requestId: crypto.randomUUID() }
-    const value = readRecord(await httpClient.post(path(workId) + '/preview', request, { signal }))
-    const policyUrl = readString(value, 'providerPolicyUrl')
-    if (policyUrl !== 'https://ai.google.dev/gemini-api/terms')
-      throw new Error('공급자 정책 주소가 올바르지 않습니다.')
-    return {
-      previewToken: readString(value, 'previewToken'),
-      policyVersion: readString(value, 'policyVersion'),
-      expiresAt: readString(value, 'expiresAt'),
-      input: parseInput(value.input),
-      provider: readString(value, 'provider'),
-      model: readString(value, 'model'),
-      retentionNotice: readString(value, 'retentionNotice'),
-      deletionNotice: readString(value, 'deletionNotice'),
-      providerPolicyUrl: policyUrl,
-      request,
-    }
-  },
-  async create(workId: string, preview: Preview, signal?: AbortSignal): Promise<Job> {
+  async create(
+    workId: string,
+    input: AnalysisInput & { requestId?: string },
+    signal?: AbortSignal,
+  ): Promise<Job> {
     return parseJob(
       await httpClient.post(
         path(workId),
         {
-          ...preview.request,
-          previewToken: preview.previewToken,
-          consentPolicyVersion: preview.policyVersion,
+          ...input,
+          requestId: input.requestId ?? crypto.randomUUID(),
         },
         { signal },
       ),

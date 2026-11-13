@@ -3,12 +3,10 @@ package com.magister.backend.domain.analysis.controller;
 import com.magister.backend.domain.analysis.docs.AnalysisControllerDocs;
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
-import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
-import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
 import com.magister.backend.domain.analysis.service.ReviewResultService;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.pagination.OffsetPageRequest;
@@ -34,7 +32,6 @@ import java.net.URI;
 @RequestMapping("/api/work/{workId}/analysis")
 public class AnalysisController implements AnalysisControllerDocs {
     private final AnalysisJobService analysisJobService;
-    private final AnalysisPreviewService previewService;
     private final ReviewResultService reviewResultService;
 
     @Override
@@ -47,15 +44,6 @@ public class AnalysisController implements AnalysisControllerDocs {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResult.success(
                 reviewResultService.list(user.id(), workId, id, OffsetPageRequest.of(page, size)));
-    }
-
-    @Override
-    @PostMapping("/preview")
-    public ApiResult<AnalysisPreviewResponse> preview(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @RequestBody AnalysisRequest request) {
-        return ApiResult.success(previewService.preview(user.id(), workId, request));
     }
 
     @Override

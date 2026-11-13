@@ -15,8 +15,6 @@ import com.magister.backend.domain.timeline.dto.ExtractionData.Candidate;
 import com.magister.backend.domain.timeline.dto.ExtractionData.CreateRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Input;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Job;
-import com.magister.backend.domain.timeline.dto.ExtractionData.Preview;
-import com.magister.backend.domain.timeline.dto.ExtractionData.PreviewRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.SaveCandidates;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Selection;
 import com.magister.backend.domain.timeline.service.ExtractionDispatcher;
@@ -77,8 +75,7 @@ class ExtractionFlowTests {
 
     private CreateRequest request() {
         List<Selection> selection = List.of(new Selection("chapter", 1));
-        Preview preview = extractionService.preview(ownerId, workId, new PreviewRequest(selection));
-        return new CreateRequest(selection, preview.token(), true, UUID.randomUUID().toString());
+        return new CreateRequest(selection, UUID.randomUUID().toString());
     }
 
     private Job succeeded() {
@@ -177,19 +174,11 @@ class ExtractionFlowTests {
     }
 
     @Test
-    void changedPreviewAndUnconfirmedConsentNeverCallProvider() {
+    void changedChapterRevisionNeverCallsProvider() {
         CreateRequest prepared = request();
         chapterService.update(
                 ownerId, workId, "chapter", new UpdateChapterRequest("1화", "바뀐 원고", 0, "change"));
         assertThatThrownBy(() -> extractionService.create(ownerId, workId, prepared))
-                .isInstanceOf(CustomException.class);
-        CreateRequest noConsent =
-                new CreateRequest(
-                        List.of(new Selection("chapter", 2)),
-                        prepared.token(),
-                        false,
-                        "no-consent");
-        assertThatThrownBy(() -> extractionService.create(ownerId, workId, noConsent))
                 .isInstanceOf(CustomException.class);
         verifyNoInteractions(geminiClient);
     }

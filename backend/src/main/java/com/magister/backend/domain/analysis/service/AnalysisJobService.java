@@ -46,6 +46,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AnalysisJobService {
+    public static final String POLICY_VERSION = "2026-11-07.1";
+    private static final int MAX_SNAPSHOT_CHARS = 200_000;
     private static final List<AnalysisJobStatus> ACTIVE_STATUSES =
             List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING);
     private final AnalysisAdmissionRepository admissionRepository;
@@ -59,7 +61,6 @@ public class AnalysisJobService {
     private final AnalysisExecutionProperties executionProperties;
     private final AnalysisConverter converter;
     private final ObjectMapper objectMapper;
-    private final AnalysisPreviewService previewService;
     private final AnalysisSnapshotService analysisSnapshotService;
     private final ChapterRepository chapterRepository;
     private final GeminiProperties geminiProperties;
@@ -108,12 +109,15 @@ public class AnalysisJobService {
         // 이미 소유권과 잠금을 확인한 Work를 재사용한다. 저장 후 원고가 바뀌어도 이번 입력은 고정된다.
         WorkspaceResponse workspace = snapshotService.getForOwnedWork(work);
         AnalysisInput input = inputFactory.create(workId, request, workspace);
-        String snapshot = previewService.verify(ownerId, workId, request, input);
+        String snapshot = objectMapper.writeValueAsString(input);
+        if (snapshot.length() > MAX_SNAPSHOT_CHARS) {
+            invalid();
+        }
 
         for (AnalysisJob activeJob :
                 analysisJobRepository.findByWork_IdAndStatusIn(workId, ACTIVE_STATUSES)) {
             if (activeJob.getInput().equals(snapshot)
-                    && AnalysisPreviewService.POLICY_VERSION.equals(activeJob.getPolicyVersion())
+                    && POLICY_VERSION.equals(activeJob.getPolicyVersion())
                     && geminiProperties.model().equals(activeJob.getProviderModel())) {
                 analysisRequestAliasRepository.save(
                         workId, request.requestId(), requestBody, activeJob.getId());
@@ -148,7 +152,7 @@ public class AnalysisJobService {
                 chapterRepository
                         .findByWork_IdAndChapterKey(workId, input.chapter().id())
                         .orElseThrow(),
-                AnalysisPreviewService.POLICY_VERSION,
+                POLICY_VERSION,
                 geminiProperties.model());
         analysisJobRepository.saveAndFlush(job);
         analysisSnapshotService.save(job, input);

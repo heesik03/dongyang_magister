@@ -9,7 +9,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-test('저장된 외형을 확인하고 전송 동의 후에만 생성하며 시안 상태를 표시한다', async () => {
+test('저장된 외형을 확인하고 바로 생성하며 시안 상태를 표시한다', async () => {
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '')
   }
@@ -27,11 +27,6 @@ test('저장된 외형을 확인하고 전송 동의 후에만 생성하며 시�
   vi.spyOn(characterImageClient, 'list')
     .mockResolvedValue({ ...gallery, jobs: [job] })
     .mockResolvedValueOnce(gallery)
-  const preview = vi.spyOn(characterImageClient, 'preview').mockResolvedValue({
-    prompt: '검은 머리와 수채화',
-    settingVersion: 2,
-    token: 'signed-preview',
-  })
   const create = vi.spyOn(characterImageClient, 'create').mockResolvedValue(job)
   render(
     <CharacterImagePanel
@@ -51,15 +46,14 @@ test('저장된 외형을 확인하고 전송 동의 후에만 생성하며 시�
   const dialog = within(screen.getByRole('dialog', { name: '인물 이미지 만들기' }))
   expect(dialog.getByLabelText('외형 설명')).toHaveProperty('value', '검은 머리')
   fireEvent.change(dialog.getByLabelText('연출 (선택)'), { target: { value: '수채화' } })
-  fireEvent.click(dialog.getByRole('button', { name: '전송 내용 확인' }))
-  await dialog.findByText('검은 머리와 수채화')
-  expect(preview).toHaveBeenCalledWith('1', '2', { appearance: '검은 머리', direction: '수채화' })
-  const submit = dialog.getByRole('button', { name: '동의하고 생성' })
-  expect(submit).toHaveProperty('disabled', true)
-  expect(create).not.toHaveBeenCalled()
-  fireEvent.click(dialog.getByRole('checkbox'))
-  fireEvent.click(submit)
+  fireEvent.click(dialog.getByRole('button', { name: '이미지 생성' }))
   await waitFor(() => expect(create).toHaveBeenCalledOnce())
+  expect(create).toHaveBeenCalledWith(
+    '1',
+    '2',
+    { appearance: '검은 머리', direction: '수채화' },
+    expect.any(String),
+  )
   await screen.findByText('대기 중')
   expect(screen.getByText('최근 시안 1개').parentElement).toHaveProperty('open', true)
 })

@@ -15,7 +15,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.magister.backend.domain.analysis.dto.AnalysisInput;
 import com.magister.backend.domain.analysis.dto.AnalysisOutput;
-import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
@@ -25,8 +24,8 @@ import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisJobStateService;
-import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
 import com.magister.backend.domain.analysis.service.AnalysisSnapshotService;
+import com.magister.backend.domain.analysis.service.support.AnalysisInputFactory;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.chapter.dto.CreateChapterRequest;
 import com.magister.backend.domain.chapter.service.ChapterService;
@@ -45,8 +44,8 @@ import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.repository.WorkRepository;
 import com.magister.backend.domain.work.service.WorkDeletionService;
+import com.magister.backend.domain.workspace.service.WorkspaceSnapshotService;
 import com.magister.backend.global.error.exception.CustomException;
-import com.magister.backend.global.pagination.OffsetPageRequest;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -81,10 +80,11 @@ class DecisionFlowTests {
     @Autowired DecisionService decisionService;
     @Autowired ChapterService chapterService;
     @Autowired SettingService settingService;
-    @Autowired AnalysisPreviewService previewService;
     @Autowired AnalysisJobService jobService;
     @Autowired AnalysisJobStateService stateService;
     @Autowired AnalysisSnapshotService snapshotService;
+    @Autowired AnalysisInputFactory inputFactory;
+    @Autowired WorkspaceSnapshotService workspaceSnapshotService;
     @Autowired AnalysisResultProcessor resultProcessor;
     @Autowired AnalysisJobRepository jobRepository;
     @Autowired AnalysisSourceRepository sourceRepository;
@@ -125,16 +125,10 @@ class DecisionFlowTests {
                                         "마법 불가"))
                         .id();
         AnalysisRequest request = request("c2", List.of(settingId.toString()));
-        AnalysisPreviewResponse preview = previewService.preview(ownerId, workId, request);
-        jobId =
-                jobService
-                        .create(
-                                ownerId,
-                                workId,
-                                request.confirmed(preview.previewToken(), preview.policyVersion()))
-                        .id();
+        AnalysisInput input = buildInput(request);
+        jobId = jobService.create(ownerId, workId, request).id();
         stateService.claim(jobId).orElseThrow();
-        stateService.succeed(jobId, resultProcessor.validateDetailed(provider(), preview.input()));
+        stateService.succeed(jobId, resultProcessor.validateDetailed(provider(), input));
         reviewId = jobService.get(ownerId, workId, jobId).result().reviews().getFirst().id();
         owner =
                 UsernamePasswordAuthenticationToken.authenticated(
@@ -148,9 +142,17 @@ class DecisionFlowTests {
                 UUID.randomUUID().toString(), chapter, 0, settings, List.of(), true, true, 1L);
     }
 
-    private AnalysisPreviewResponse preview(String chapter) {
-        return previewService.preview(
-                ownerId, workId, request(chapter, List.of(settingId.toString())));
+    private AnalysisInput buildInput(AnalysisRequest request) {
+        return transactionTemplate.execute(
+                status -> {
+                    Work work = workRepository.findById(workId).orElseThrow();
+                    return inputFactory.create(
+                            workId, request, workspaceSnapshotService.getForOwnedWork(work));
+                });
+    }
+
+    private AnalysisInput inputFor(String chapter) {
+        return buildInput(request(chapter, List.of(settingId.toString())));
     }
 
     private String provider() {
@@ -201,15 +203,8 @@ class DecisionFlowTests {
                                 new DecisionRequest.Scope(
                                         "SCENE", null, null, sceneSourceId, 0, 5, "이 장면"))));
         AnalysisRequest next = request("c3", List.of(settingId.toString()));
-        AnalysisPreviewResponse nextPreview = previewService.preview(ownerId, workId, next);
-        String activeId =
-                jobService
-                        .create(
-                                ownerId,
-                                workId,
-                                next.confirmed(
-                                        nextPreview.previewToken(), nextPreview.policyVersion()))
-                        .id();
+        AnalysisInput nextInput = buildInput(next);
+        String activeId = jobService.create(ownerId, workId, next).id();
         stateService.claim(activeId).orElseThrow();
         assertThat(
                         jdbcTemplate.queryForObject(
@@ -295,7 +290,7 @@ class DecisionFlowTests {
                                 activeId))
                 .isZero();
         stateService.succeed(
-                activeId, resultProcessor.validateDetailed(provider(), nextPreview.input()));
+                activeId, resultProcessor.validateDetailed(provider(), nextInput));
         assertThat(stateService.claim(activeId)).isEmpty();
         assertThat(stateService.maintain(List.of(activeId))).contains(activeId);
         assertThat(jobRepository.existsById(activeId)).isFalse();
@@ -306,15 +301,7 @@ class DecisionFlowTests {
     void rollbackKeepsGraphAndDoesNotCancelWorker() {
         save(intent(0, List.of(range("c2", "c4"))));
         AnalysisRequest next = request("c3", List.of(settingId.toString()));
-        AnalysisPreviewResponse nextPreview = previewService.preview(ownerId, workId, next);
-        String activeId =
-                jobService
-                        .create(
-                                ownerId,
-                                workId,
-                                next.confirmed(
-                                        nextPreview.previewToken(), nextPreview.policyVersion()))
-                        .id();
+        String activeId = jobService.create(ownerId, workId, next).id();
         clearInvocations(dispatcher);
         transactionTemplate.executeWithoutResult(
                 transactionStatus -> {
@@ -331,7 +318,7 @@ class DecisionFlowTests {
     }
 
     @Test
-    void versionsIdempotencyWithdrawalHistoryAndAccessAreExplicit() throws Exception {
+    void versionsIdempotencyWithdrawalAndAccessAreExplicit() throws Exception {
         DecisionRequest request = intent(0, List.of(range("c2", "c3")));
         mockMvc.perform(
                         put(path())
@@ -349,13 +336,7 @@ class DecisionFlowTests {
                 new DecisionRequest(
                         "미검토", "철회", 1, "withdraw", initial.basisHash(), false, List.of()));
         assertThat(decisionService.get(ownerId, workId, reviewId).status()).isEqualTo("미검토");
-        assertThat(
-                        decisionService
-                                .history(ownerId, workId, reviewId, OffsetPageRequest.of(0, 10))
-                                .items())
-                .extracting(DecisionResponse::version)
-                .containsExactly(2L, 1L);
-        assertThat(preview("c3").input().decisionReferences()).isEmpty();
+        assertThat(inputFor("c3").decisionReferences()).isEmpty();
         mockMvc.perform(get(path())).andExpect(status().isUnauthorized());
         mockMvc.perform(
                         put(path())
@@ -367,15 +348,10 @@ class DecisionFlowTests {
                 UsernamePasswordAuthenticationToken.authenticated(
                         new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
         mockMvc.perform(get(path()).with(authentication(other))).andExpect(status().isNotFound());
-        mockMvc.perform(get(path() + "/history").with(authentication(owner)).param("size", "101"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
-        mockMvc.perform(get("/api/work/" + workId + "/decision").with(authentication(owner)))
-                .andExpect(jsonPath("$.data.items[0].status").value("미검토"));
     }
 
     @Test
-    void overOneHundredStaleDecisionsDoNotBlockPreviewOfCurrentChapter() {
+    void overOneHundredStaleDecisionsDoNotBlockInputOfCurrentChapter() {
         Long chapterEntityId =
                 jdbcTemplate.queryForObject(
                         "SELECT id FROM chapters WHERE work_id=? AND chapter_key='c2'",
@@ -425,25 +401,25 @@ class DecisionFlowTests {
                     chapterEntityId);
         }
         save(intent(0, List.of(range("c2", "c3"))));
-        assertThat(preview("c3").input().decisionReferences()).hasSize(1);
+        assertThat(inputFor("c3").decisionReferences()).hasSize(1);
     }
 
     @Test
     void onlyRelatedChaptersAndScenesReceiveDecisionAndCandidatesStayUnreviewed() {
         DecisionResponse decision = save(intent(0, List.of(range("c2", "c3"))));
-        assertThat(preview("c1").input().decisionReferences()).isEmpty();
-        assertThat(preview("c2").input().decisionReferences()).hasSize(1);
-        AnalysisPreviewResponse next = preview("c3");
-        assertThat(next.input().decisionReferences().getFirst().version()).isEqualTo(1);
-        assertThat(next.input().decisionReferences().getFirst().conditionText()).contains("주인공 능력");
+        assertThat(inputFor("c1").decisionReferences()).isEmpty();
+        assertThat(inputFor("c2").decisionReferences()).hasSize(1);
+        AnalysisInput next = inputFor("c3");
+        assertThat(next.decisionReferences().getFirst().version()).isEqualTo(1);
+        assertThat(next.decisionReferences().getFirst().conditionText()).contains("주인공 능력");
         assertThat(
                         resultProcessor
-                                .validate(provider(), next.input())
+                                .validate(provider(), next)
                                 .reviews()
                                 .getFirst()
                                 .decision())
                 .isEqualTo("미검토");
-        assertThat(preview("c4").input().decisionReferences()).isEmpty();
+        assertThat(inputFor("c4").decisionReferences()).isEmpty();
         Long unrelated =
                 settingService
                         .create(
@@ -456,21 +432,11 @@ class DecisionFlowTests {
                                         "전혀 다른 근거"))
                         .id();
         assertThat(
-                        previewService
-                                .preview(
-                                        ownerId,
-                                        workId,
-                                        request("c3", List.of(unrelated.toString())))
-                                .input()
+                        buildInput(request("c3", List.of(unrelated.toString())))
                                 .decisionReferences())
                 .isEmpty();
         assertThat(
-                        previewService
-                                .preview(
-                                        ownerId,
-                                        workId,
-                                        request("c2", List.of(unrelated.toString())))
-                                .input()
+                        buildInput(request("c2", List.of(unrelated.toString())))
                                 .decisionReferences())
                 .isEmpty();
         Long source =
@@ -484,8 +450,8 @@ class DecisionFlowTests {
                         List.of(
                                 new DecisionRequest.Scope(
                                         "SCENE", null, null, source, 0, 5, "이 장면의 반전에만 적용"))));
-        assertThat(preview("c2").input().decisionReferences()).hasSize(1);
-        assertThat(preview("c3").input().decisionReferences()).isEmpty();
+        assertThat(inputFor("c2").decisionReferences()).hasSize(1);
+        assertThat(inputFor("c3").decisionReferences()).isEmpty();
         assertThat(decision.scopes()).hasSize(1);
     }
 
@@ -503,15 +469,8 @@ class DecisionFlowTests {
                                         "다른 근거"))
                         .id();
         AnalysisRequest selection = request("c2", List.of(settingId.toString(), other.toString()));
-        AnalysisPreviewResponse preview = previewService.preview(ownerId, workId, selection);
-        String combinedJob =
-                jobService
-                        .create(
-                                ownerId,
-                                workId,
-                                selection.confirmed(
-                                        preview.previewToken(), preview.policyVersion()))
-                        .id();
+        AnalysisInput input = buildInput(selection);
+        String combinedJob = jobService.create(ownerId, workId, selection).id();
         stateService.claim(combinedJob).orElseThrow();
         AnalysisOutput response =
                 new AnalysisOutput(
@@ -541,35 +500,21 @@ class DecisionFlowTests {
         stateService.succeed(
                 combinedJob,
                 resultProcessor.validateDetailed(
-                        mapper.writeValueAsString(response), preview.input()));
+                        mapper.writeValueAsString(response), input));
         reviewId = jobService.get(ownerId, workId, combinedJob).result().reviews().getFirst().id();
         save(intent(0, List.of(range("c2", null))));
-        assertThat(preview("c3").input().decisionReferences()).isEmpty();
+        assertThat(inputFor("c3").decisionReferences()).isEmpty();
         assertThat(
-                        previewService
-                                .preview(
-                                        ownerId,
-                                        workId,
-                                        request(
-                                                "c3",
-                                                List.of(settingId.toString(), other.toString())))
-                                .input()
+                        buildInput(request("c3", List.of(settingId.toString(), other.toString())))
                                 .decisionReferences())
                 .hasSize(1);
     }
 
     @Test
-    void immutableReferencesRejectChangedPreviewAndChangedBasisNeedsReconfirmation() {
+    void immutableReferencesAndChangedBasisNeedsReconfirmation() {
         save(intent(0, List.of(range("c2", null))));
         AnalysisRequest request = request("c3", List.of(settingId.toString()));
-        AnalysisPreviewResponse preview = previewService.preview(ownerId, workId, request);
-        String nextJob =
-                jobService
-                        .create(
-                                ownerId,
-                                workId,
-                                request.confirmed(preview.previewToken(), preview.policyVersion()))
-                        .id();
+        String nextJob = jobService.create(ownerId, workId, request).id();
         jobService.cancel(ownerId, workId, nextJob);
         assertThat(
                         jdbcTemplate.queryForObject(
@@ -583,7 +528,7 @@ class DecisionFlowTests {
                 settingId,
                 new UpdateSettingRequest(
                         "능력", SettingKind.CHARACTER, SettingStatus.CONFIRMED, "마법 불가. 봉인 기록", 0L));
-        assertThat(preview("c3").input().decisionReferences()).isEmpty();
+        assertThat(inputFor("c3").decisionReferences()).isEmpty();
         DecisionResponse stale = decisionService.get(ownerId, workId, reviewId);
         assertThat(stale.stale()).isTrue();
         assertThat(stale.canReconfirm()).isTrue();
@@ -598,26 +543,12 @@ class DecisionFlowTests {
                         update.basisHash(),
                         true,
                         update.scopes()));
-        assertThat(preview("c3").input().decisionReferences().getFirst().version()).isEqualTo(2);
+        assertThat(inputFor("c3").decisionReferences().getFirst().version()).isEqualTo(2);
         AnalysisJob nextJobEntity = jobRepository.findById(nextJob).orElseThrow();
         AnalysisInput nextJobInput =
                 mapper.readValue(nextJobEntity.getInput(), AnalysisInput.class);
         assertThat(nextJobInput.decisionReferences().getFirst().version()).isEqualTo(1);
         assertThat(snapshotService.isStale(workId, nextJobEntity.getInput())).isTrue();
-        AnalysisRequest prepared = request("c4", List.of(settingId.toString()));
-        AnalysisPreviewResponse beforeWithdrawal =
-                previewService.preview(ownerId, workId, prepared);
-        DecisionResponse current = decisionService.get(ownerId, workId, reviewId);
-        save(new DecisionRequest("미검토", "철회", 2, "retract", current.basisHash(), false, List.of()));
-        assertThatThrownBy(
-                        () ->
-                                jobService.create(
-                                        ownerId,
-                                        workId,
-                                        prepared.confirmed(
-                                                beforeWithdrawal.previewToken(),
-                                                beforeWithdrawal.policyVersion())))
-                .isInstanceOf(CustomException.class);
     }
 
     @Test

@@ -19,15 +19,11 @@ import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.service.WorkAccessService;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
-import com.magister.backend.global.pagination.OffsetPageRequest;
-import com.magister.backend.global.pagination.OffsetPageResponse;
 
 import jakarta.validation.Validator;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -216,31 +212,6 @@ public class DecisionService {
                         .orElse(null));
     }
 
-    /** 판단 이력을 버전 내림차순으로 제한하고 변경된 근거는 각 버전에 표시한다. */
-    @Transactional(readOnly = true)
-    public OffsetPageResponse<DecisionResponse> history(
-            Long ownerId, Long workId, String reviewId, OffsetPageRequest page) {
-        owned(ownerId, workId, reviewId);
-        return responses(
-                workId,
-                decisionRepository.findByReview_Id(
-                        reviewId, page.toPageable(Sort.by("decisionVersion").descending())));
-    }
-
-    /** 작품의 최신 판단을 필터·페이지로 조회한다. 현재 회차 외의 판단도 다시 확인할 수 있다. */
-    @Transactional(readOnly = true)
-    public OffsetPageResponse<DecisionResponse> list(
-            Long ownerId, Long workId, String chapterKey, String status, OffsetPageRequest page) {
-        workAccessService.requireOwned(ownerId, workId);
-        if (status != null && !List.of("미검토", "수용", "보류", "의도된 설정").contains(status)) {
-            invalid();
-        }
-        return responses(
-                workId,
-                decisionRepository.findLatestForWork(
-                        workId, chapterKey, status, page.toPageable(Sort.by("id").descending())));
-    }
-
     /** 검토 후보 한 페이지의 최신 상태를 일괄 매핑한다. 호출자가 소유권을 먼저 검사한다. */
     @Transactional(readOnly = true)
     public Map<String, DecisionResponse> summaries(
@@ -274,29 +245,6 @@ public class DecisionService {
                                                             decision.getId(), List.of()),
                                             basis.get(candidate.getId()));
                                 }));
-    }
-
-    private OffsetPageResponse<DecisionResponse> responses(
-            Long workId, Page<ReviewDecision> decisions) {
-        List<ReviewCandidate> candidates =
-                decisions.stream().map(ReviewDecision::getReview).distinct().toList();
-        Map<String, DecisionBasis.State> basis =
-                decisionBasis.inspect(
-                        workId,
-                        candidates,
-                        candidates.isEmpty()
-                                ? List.of()
-                                : evidenceRepository.findForReviews(
-                                        candidates.stream().map(ReviewCandidate::getId).toList()));
-        Map<Long, List<ReviewDecisionScope>> scopes = scopes(decisions.getContent());
-        return OffsetPageResponse.from(
-                decisions.map(
-                        decision ->
-                                decisionConverter.toResponse(
-                                        decision.getReview(),
-                                        decision,
-                                        scopes.getOrDefault(decision.getId(), List.of()),
-                                        basis.get(decision.getReview().getId()))));
     }
 
     private Map<Long, List<ReviewDecisionScope>> scopes(List<ReviewDecision> decisions) {

@@ -148,21 +148,14 @@ function DecisionForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [comparison, setComparison] = useState<SavedDecision | null>(null)
-  const [history, setHistory] = useState<{
-    items: SavedDecision[]
-    page: number
-    totalPages: number
-  } | null>(null)
   const pending = useRef<DecisionRequest | null>(null)
   const compareRequest = useRef<AbortController | null>(null)
-  const historyRequest = useRef<AbortController | null>(null)
   const mounted = useRef(true)
   useEffect(() => {
     mounted.current = true
     return () => {
       mounted.current = false
       compareRequest.current?.abort()
-      historyRequest.current?.abort()
     }
   }, [])
   function persistDraft(request: DecisionRequest | null = pending.current) {
@@ -283,18 +276,6 @@ function DecisionForm({
     } catch (error) {
       if (mounted.current && !controller.signal.aborted)
         setError(error instanceof Error ? error.message : '최신 판단 조회 실패')
-    }
-  }
-  async function loadHistory(page: number) {
-    historyRequest.current?.abort()
-    const controller = new AbortController()
-    historyRequest.current = controller
-    try {
-      const history = await decisionClient.history(work.id, review.id, page, controller.signal)
-      if (mounted.current && !controller.signal.aborted) setHistory(history)
-    } catch (error) {
-      if (mounted.current && !controller.signal.aborted)
-        setError(error instanceof Error ? error.message : '판단 이력 조회 실패')
     }
   }
   return (
@@ -549,44 +530,6 @@ function DecisionForm({
             작성 내용 유지하고 최신 버전을 기준으로 준비
           </button>
         </div>
-      )}
-      <button type="button" disabled={saving} onClick={() => void loadHistory(0)}>
-        변경 이력 보기
-      </button>
-      {history && (
-        <section aria-label="판단 변경 이력">
-          {history.items.map((decision) => (
-            <div className="notice small" key={decision.id}>
-              <strong>
-                버전 {decision.version} · {decision.status}
-                {decision.stale ? ' · 근거 변경' : ''}
-              </strong>
-              <p>{decision.reason || '사유 없음'}</p>
-              {decision.scopes.map((scope) => (
-                <p key={scope.id}>
-                  {scope.scopeType === 'SCENE'
-                    ? '해당 장면'
-                    : `${scope.fromChapterTitle ?? '시작 회차'} ~ ${scope.toChapterTitle ?? '이후'}`}{' '}
-                  · {scope.conditionText}
-                </p>
-              ))}
-            </div>
-          ))}
-          <button
-            type="button"
-            disabled={history.page === 0}
-            onClick={() => void loadHistory(history.page - 1)}
-          >
-            이전 이력
-          </button>
-          <button
-            type="button"
-            disabled={history.page + 1 >= history.totalPages}
-            onClick={() => void loadHistory(history.page + 1)}
-          >
-            다음 이력
-          </button>
-        </section>
       )}
       <div className="dialog-actions">
         <button

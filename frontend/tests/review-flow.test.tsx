@@ -77,19 +77,6 @@ const report: ReviewReport = {
       endOffset: 16,
       reason: '능력 변화 계기 확인',
       suggestion: '설명 보완',
-      issueGroupKey: 'magic-conflict',
-      issueGroupTitle: '봉인된 마법 능력 발현 조건',
-      confirmedFact: '확정 설정에는 마법 불가로 기록되어 있고 원고에서는 마법을 사용했습니다.',
-      interpretation: '봉인 해제나 일시적 각성 장면으로 읽힐 수 있습니다.',
-      missingInfo: '능력 제약이 풀린 계기 문장이 선택 범위 안에 없습니다.',
-      options: [
-        {
-          title: '봉인 해제 복선 추가',
-          direction: '마법 발현 직전에 제약이 흔들리는 단서를 덧붙입니다.',
-          premise: '일시적 각성 전제',
-          rationale: '기존 설정을 유지하면서 현재 장면을 살릴 수 있습니다.',
-        },
-      ],
       evidences: [
         {
           sourceId: 11,
@@ -183,13 +170,4 @@ test('위치 없는 과거 결과는 추정해서 이동하지 않는다', () =>
   show()
   expect(screen.getByText(/이전 형식의 결과/)).toBeTruthy()
   expect(screen.getByRole('button', { name: '원고에서 확인' })).toHaveProperty('disabled', true)
-})
-
-test('4단계 구조화 검토를 표시한다', () => {
-  show()
-  expect(
-    screen.getByText('확정 설정에는 마법 불가로 기록되어 있고 원고에서는 마법을 사용했습니다.'),
-  ).toBeTruthy()
-  expect(screen.getByText('봉인 해제 복선 추가')).toBeTruthy()
-  expect(screen.getByText(/전제: 일시적 각성 전제/)).toBeTruthy()
 })

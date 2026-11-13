@@ -4,8 +4,6 @@ import com.magister.backend.domain.timeline.dto.ExtractionData.ConfirmationReque
 import com.magister.backend.domain.timeline.dto.ExtractionData.CreateRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Input;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Job;
-import com.magister.backend.domain.timeline.dto.ExtractionData.Preview;
-import com.magister.backend.domain.timeline.dto.ExtractionData.PreviewRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.SaveCandidates;
 import com.magister.backend.domain.timeline.service.ExtractionService;
 import com.magister.backend.domain.user.security.LoginUser;
@@ -43,23 +41,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class ExtractionController {
     private final ExtractionService extractionService;
 
-    @PostMapping("/preview")
-    @Operation(
-            summary = "외부 AI로 전송할 원고와 모델 확인",
-            description = "입력 예: chapters:[{id:chapter-1,revision:1}]. 실제 AI 호출·저장 없음.")
-    public ApiResult<Preview> preview(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @Valid @RequestBody PreviewRequest request) {
-        return ApiResult.success(extractionService.preview(user.id(), workId, request));
-    }
-
     @PostMapping
     @Operation(
-            summary = "동의한 원고의 사건 추출 접수",
-            description =
-                    "preview의 chapters/token과 consent:true, 재시도에 같은 requestId를 보낸다. 202 및 작업 ID"
-                            + " 반환.")
+            summary = "원고의 사건 추출 접수",
+            description = "chapters와 재시도에 같은 requestId를 보낸다. 202 및 작업 ID 반환.")
     public ResponseEntity<ApiResult<Job>> create(
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,

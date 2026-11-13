@@ -17,12 +17,6 @@ export interface ReviewEvidence extends SourceLocation {
   revision: number
   explanation: string
 }
-export interface RevisionOption {
-  title: string
-  direction: string
-  premise: string
-  rationale: string
-}
 export interface LinkedReview {
   id: string
   type: '설정 충돌 후보' | '설명 보완'
@@ -33,12 +27,6 @@ export interface LinkedReview {
   reason: string
   suggestion: string
   evidences: ReviewEvidence[]
-  issueGroupKey?: string | null
-  issueGroupTitle?: string | null
-  confirmedFact?: string | null
-  interpretation?: string | null
-  missingInfo?: string | null
-  options?: RevisionOption[]
 }
 export interface ReviewReport {
   reviews: LinkedReview[]
@@ -49,14 +37,6 @@ export interface ReviewReport {
 export const REVIEW_FILTERS = ['전체', '설정 충돌 후보', '설명 보완', '미검토', '처리됨'] as const
 export type ReviewFilter = (typeof REVIEW_FILTERS)[number]
 
-function readNullableString(value: Record<string, unknown>, field: string): string | null {
-  const result = value[field]
-  if (result === null || result === undefined) return null
-  if (typeof result !== 'string')
-    throw new Error('서버 응답의 ' + field + ' 필드가 올바르지 않습니다.')
-  return result
-}
-
 function range(value: Record<string, unknown>) {
   const quote = readString(value, 'quote')
   const startOffset = readInteger(value, 'startOffset')
@@ -64,16 +44,6 @@ function range(value: Record<string, unknown>) {
   if (!quote.trim() || endOffset - startOffset !== quote.length)
     throw new Error('근거 인용 위치가 올바르지 않습니다.')
   return { quote, startOffset, endOffset }
-}
-
-function parseRevisionOption(raw: unknown): RevisionOption {
-  const value = readRecord(raw)
-  return {
-    title: readString(value, 'title'),
-    direction: readString(value, 'direction'),
-    premise: readString(value, 'premise'),
-    rationale: readString(value, 'rationale'),
-  }
 }
 
 export function parseLinkedReview(raw: unknown): LinkedReview {
@@ -86,7 +56,6 @@ export function parseLinkedReview(raw: unknown): LinkedReview {
     value.evidences.length > 10
   )
     throw new Error('검토 후보 형식이 올바르지 않습니다.')
-  const options = Array.isArray(value.options) ? value.options.map(parseRevisionOption) : []
   return {
     id: readString(value, 'id'),
     type,
@@ -109,12 +78,6 @@ export function parseLinkedReview(raw: unknown): LinkedReview {
         explanation: readString(evidence, 'explanation'),
       }
     }),
-    issueGroupKey: readNullableString(value, 'issueGroupKey'),
-    issueGroupTitle: readNullableString(value, 'issueGroupTitle'),
-    confirmedFact: readNullableString(value, 'confirmedFact'),
-    interpretation: readNullableString(value, 'interpretation'),
-    missingInfo: readNullableString(value, 'missingInfo'),
-    options,
   }
 }
 

@@ -27,8 +27,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import tools.jackson.databind.ObjectMapper;
-
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -44,7 +42,6 @@ public class ReviewResultService {
     private final AnalysisSnapshotService snapshotService;
     private final ReviewConverter reviewConverter;
     private final DecisionService decisionService;
-    private final ObjectMapper objectMapper;
 
     /** 완료 상태와 같은 트랜잭션에서만 저장한다. 출처·후보는 같은 작업의 FK로도 묶는다. */
     @Transactional(propagation = Propagation.MANDATORY)
@@ -62,8 +59,6 @@ public class ReviewResultService {
                         .orElseThrow();
         for (int index = 0; index < validated.candidates().size(); index++) {
             Candidate candidate = validated.candidates().get(index);
-            String optionsJson = candidate.options() == null
-                    ? null : objectMapper.writeValueAsString(candidate.options());
             ReviewCandidate saved =
                     candidateRepository.save(
                             new ReviewCandidate(
@@ -75,13 +70,7 @@ public class ReviewResultService {
                                     candidate.startOffset(),
                                     candidate.endOffset(),
                                     candidate.reason(),
-                                    candidate.suggestion(),
-                                    candidate.issueGroupKey(),
-                                    candidate.issueGroupTitle(),
-                                    candidate.confirmedFact(),
-                                    candidate.interpretation(),
-                                    candidate.missingInfo(),
-                                    optionsJson));
+                                    candidate.suggestion()));
             for (Evidence evidence : candidate.evidences()) {
                 AnalysisSource source =
                         sources.get(evidence.sourceType() + ":" + evidence.sourceKey());

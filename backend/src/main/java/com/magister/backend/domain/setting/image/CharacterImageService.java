@@ -3,7 +3,6 @@ package com.magister.backend.domain.setting.image;
 import com.magister.backend.domain.aiquota.AiQuotaPolicy.Feature;
 import com.magister.backend.domain.aiquota.AiQuotaService;
 import com.magister.backend.domain.aiquota.AiQuotaService.Usage;
-import com.magister.backend.domain.analysis.service.support.AnalysisPreviewToken;
 import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.setting.error.SettingErrorCode;
@@ -11,13 +10,11 @@ import com.magister.backend.domain.setting.image.CharacterImageData.CreateReques
 import com.magister.backend.domain.setting.image.CharacterImageData.Gallery;
 import com.magister.backend.domain.setting.image.CharacterImageData.Input;
 import com.magister.backend.domain.setting.image.CharacterImageData.Job;
-import com.magister.backend.domain.setting.image.CharacterImageData.Preview;
 import com.magister.backend.domain.setting.image.CharacterImageRepository.Receipt;
 import com.magister.backend.domain.setting.image.CharacterImageRepository.StoredImage;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.service.WorkAccessService;
-import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,7 +37,6 @@ class CharacterImageService {
     private final WorkSettingRepository workSettingRepository;
     private final CharacterImageRepository repository;
     private final AiQuotaService quota;
-    private final AnalysisPreviewToken tokens;
 
     @Value("${character-image.model:gemini-3.1-flash-image}")
     private String model;
@@ -55,27 +51,13 @@ class CharacterImageService {
                 Math.max(0, usage.limit() - usage.used()), usage.resetAt(), CAPACITY, !model.isBlank());
     }
 
-    /** 화면에 표시하는 전체 프롬프트와 설정 버전을 서명한다. */
-    @Transactional(readOnly = true)
-    public Preview preview(long userId, long workId, long settingId, Input input) {
-        workAccessService.requireOwned(userId, workId);
-        WorkSetting setting = character(workId, settingId);
-        requireModel();
-        String prompt = prompt(input);
-        return new Preview(prompt, setting.getVersion(), tokens.issue(
-                payload(userId, workId, setting, prompt), Instant.now().plusSeconds(600)));
-    }
-
     /** 작품 잠금 아래에서 중복 확인, 시안 한도 검사, 사용량 차감과 접수를 수행한다. */
     @Transactional
     public Job create(long userId, long workId, long settingId, CreateRequest request) {
         workAccessService.lockOwned(userId, workId);
         WorkSetting setting = character(workId, settingId);
-        if (!request.consent()) {
-            throw new CustomException(CommonErrorCode.INVALID_REQUEST);
-        }
         String prompt = prompt(request.input());
-        String requestFingerprint = fingerprint(request.token(), prompt);
+        String requestFingerprint = fingerprint(setting.getVersion(), prompt);
         Optional<Receipt> existing = repository.receipt(settingId, request.requestId());
         if (existing.isPresent()) {
             Receipt receipt = existing.get();
@@ -86,7 +68,6 @@ class CharacterImageService {
         }
 
         requireModel();
-        tokens.verify(request.token(), payload(userId, workId, setting, prompt));
         if (repository.count(settingId) >= CAPACITY) {
             throw new CustomException(SettingErrorCode.CHARACTER_IMAGE_CAPACITY);
         }
@@ -152,15 +133,10 @@ class CharacterImageService {
                 """.formatted(input.appearance().strip(), input.direction().strip()).strip();
     }
 
-    private String payload(long userId, long workId, WorkSetting setting, String prompt) {
-        return "character-image|" + userId + "|" + workId + "|" + setting.getId() + "|"
-                + setting.getVersion() + "|" + model + "|" + prompt;
-    }
-
-    private String fingerprint(String token, String prompt) {
+    private String fingerprint(long settingVersion, String prompt) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest((token + "|" + prompt).getBytes(StandardCharsets.UTF_8)));
+            return HexFormat.of().formatHex(digest.digest((settingVersion + "|" + prompt).getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 unavailable", exception);
         }

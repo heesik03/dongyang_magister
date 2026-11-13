@@ -3,7 +3,6 @@ package com.magister.backend.domain.decision.docs;
 import com.magister.backend.domain.decision.dto.DecisionRequest;
 import com.magister.backend.domain.decision.dto.DecisionResponse;
 import com.magister.backend.domain.user.security.LoginUser;
-import com.magister.backend.global.pagination.OffsetPageResponse;
 import com.magister.backend.global.response.ApiResult;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,12 +10,10 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
-@Tag(name = "Decision", description = "작가 판단 버전·범위·이력")
+@Tag(name = "Decision", description = "작가 판단 기록 및 조회")
 @SecurityRequirement(name = "session")
 public interface DecisionControllerDocs {
     @Operation(
@@ -39,27 +36,4 @@ public interface DecisionControllerDocs {
                             + " 현재 원문에도 인용 위치가 일치하는지 표시. 200/400/401/404.")
     ApiResult<DecisionResponse> get(
             LoginUser user, @Positive Long workId, @Size(max = 36) String reviewId);
-
-    @Operation(
-            summary = "판단 변경 이력",
-            description = "버전 내림차순. page=0,size=20(최대100). 철회도 이력에 보존. 200/400/401/404.")
-    ApiResult<OffsetPageResponse<DecisionResponse>> history(
-            LoginUser user,
-            @Positive Long workId,
-            @Size(max = 36) String reviewId,
-            @Min(0) int page,
-            @Min(1) @Max(100) int size);
-
-    @Operation(
-            summary = "작품의 누적 판단",
-            description =
-                    "최신 판단만 ID 내림차순. chapterId(원래 판단 회차)·status 필터 선택. page=0,size=20(최대100)."
-                            + " 200/400/401/404.")
-    ApiResult<OffsetPageResponse<DecisionResponse>> list(
-            LoginUser user,
-            @Positive Long workId,
-            @Size(max = 64) String chapterId,
-            String status,
-            @Min(0) int page,
-            @Min(1) @Max(100) int size);
 }

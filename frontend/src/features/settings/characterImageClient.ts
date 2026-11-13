@@ -54,27 +54,11 @@ export const characterImageClient = {
       enabled: data.enabled,
     }
   },
-  async preview(workId: string, settingId: string, input: PortraitInput) {
-    const data = readRecord(await httpClient.post(imagePath(workId, settingId) + '/preview', input))
-    return {
-      prompt: readString(data, 'prompt'),
-      token: readString(data, 'token'),
-      settingVersion: readInteger(data, 'settingVersion'),
-    }
-  },
-  async create(
-    workId: string,
-    settingId: string,
-    input: PortraitInput,
-    token: string,
-    requestId: string,
-  ) {
+  async create(workId: string, settingId: string, input: PortraitInput, requestId: string) {
     return readJob(
       await httpClient.post(imagePath(workId, settingId), {
         input,
-        token,
         requestId,
-        consent: true,
       }),
     )
   },

@@ -4,7 +4,6 @@ import com.magister.backend.domain.chapter.entity.Chapter;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Candidate;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Input;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Job;
-import com.magister.backend.domain.timeline.dto.ExtractionData.Preview;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Source;
 import com.magister.backend.domain.timeline.entity.EventExtraction;
 import com.magister.backend.domain.timeline.repository.ExtractionView;
@@ -38,10 +37,6 @@ public class ExtractionConverter {
                 extraction.getError(),
                 candidates,
                 List.of());
-    }
-
-    public Preview preview(Input input, String token) {
-        return new Preview(input.sources(), token, input.model());
     }
 
     public Input input(List<Chapter> chapters, String model) {

@@ -5,13 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 
-import com.magister.backend.domain.analysis.AnalysisPreviewSupport;
-import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
+import com.magister.backend.domain.analysis.dto.AnalysisInput;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisJobStateService;
-import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
+import com.magister.backend.domain.analysis.service.support.AnalysisInputFactory;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.chapter.dto.ChapterResponse;
 import com.magister.backend.domain.chapter.dto.CreateChapterRequest;
@@ -38,6 +37,7 @@ import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
 import com.magister.backend.domain.workspace.entity.Workspace;
 import com.magister.backend.domain.workspace.repository.WorkspaceRepository;
+import com.magister.backend.domain.workspace.service.WorkspaceSnapshotService;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 
@@ -88,7 +88,8 @@ import java.util.concurrent.TimeUnit;
         named = "MAGISTER_MYSQL_TEST_SCHEMA",
         matches = "magister_refactor_[a-f0-9]{12}")
 class MySqlRefactoringTests {
-    @Autowired AnalysisPreviewService previewService;
+    @Autowired AnalysisInputFactory inputFactory;
+    @Autowired WorkspaceSnapshotService workspaceSnapshotService;
     @Autowired AnalysisJobStateService stateService;
     @Autowired AnalysisResultProcessor resultProcessor;
     @Autowired DecisionService decisionService;
@@ -107,6 +108,11 @@ class MySqlRefactoringTests {
     @MockitoBean AnalysisDispatcher dispatcher;
     @MockitoSpyBean PasswordEncoder passwordEncoder;
 
+    private AnalysisInput buildInput(Long workId, AnalysisRequest request) {
+        Work work = works.findById(workId).orElseThrow();
+        return inputFactory.create(workId, request, workspaceSnapshotService.getForOwnedWork(work));
+    }
+
     @Test
     void decisionVersionsScopesReferencesAndWorkDeletionOnMySql() {
         Fixture fixture = fixture(null);
@@ -115,22 +121,15 @@ class MySqlRefactoringTests {
                 fixture.workId(),
                 new CreateChapterRequest("c2", "next", "text", "create-next"));
         AnalysisRequest selection = fixture.request();
-        AnalysisPreviewResponse preview =
-                previewService.preview(fixture.ownerId(), fixture.workId(), selection);
-        String jobId =
-                jobs.create(
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                selection.confirmed(
-                                        preview.previewToken(), preview.policyVersion()))
-                        .id();
+        AnalysisInput input = buildInput(fixture.workId(), selection);
+        String jobId = jobs.create(fixture.ownerId(), fixture.workId(), selection).id();
         stateService.claim(jobId).orElseThrow();
         String provider =
                 """
                 {"reviews":[{"type":"설정 충돌 후보","quote":"text","startOffset":0,"endOffset":4,"evidences":[{"sourceType":"SETTING","sourceKey":"%s","quote":"evidence","startOffset":0,"endOffset":8,"explanation":"rule"}],"reason":"check","suggestion":"explain"}]}
                 """
                         .formatted(fixture.settingId());
-        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, preview.input()));
+        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, input));
         String reviewId =
                 jobs.get(fixture.ownerId(), fixture.workId(), jobId)
                         .result()
@@ -186,16 +185,9 @@ class MySqlRefactoringTests {
                         true,
                         true,
                         1L);
-        AnalysisPreviewResponse nextPreview =
-                previewService.preview(fixture.ownerId(), fixture.workId(), next);
-        assertThat(nextPreview.input().decisionReferences()).hasSize(1);
-        String nextId =
-                jobs.create(
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                next.confirmed(
-                                        nextPreview.previewToken(), nextPreview.policyVersion()))
-                        .id();
+        AnalysisInput nextInput = buildInput(fixture.workId(), next);
+        assertThat(nextInput.decisionReferences()).hasSize(1);
+        String nextId = jobs.create(fixture.ownerId(), fixture.workId(), next).id();
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT COUNT(*) FROM analysis_decision_references WHERE job_id=?",
@@ -252,7 +244,7 @@ class MySqlRefactoringTests {
                                 nextId))
                 .isZero();
         stateService.succeed(
-                nextId, resultProcessor.validateDetailed(provider, nextPreview.input()));
+                nextId, resultProcessor.validateDetailed(provider, nextInput));
         assertThat(stateService.claim(nextId)).isEmpty();
         assertThat(stateService.maintain(List.of(nextId))).contains(nextId);
     }
@@ -261,14 +253,8 @@ class MySqlRefactoringTests {
     void reviewEvidencePersistsAtomicallyAndRejectsOtherJobSourcesOnMySql() {
         Fixture fixture = fixture(null);
         AnalysisRequest request = fixture.request();
-        AnalysisPreviewResponse preview =
-                previewService.preview(fixture.ownerId(), fixture.workId(), request);
-        String jobId =
-                jobs.create(
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                request.confirmed(preview.previewToken(), preview.policyVersion()))
-                        .id();
+        AnalysisInput input = buildInput(fixture.workId(), request);
+        String jobId = jobs.create(fixture.ownerId(), fixture.workId(), request).id();
         stateService.claim(jobId).orElseThrow();
         String provider =
                 """
@@ -277,7 +263,7 @@ class MySqlRefactoringTests {
                 "reason":"check","suggestion":"explain"}]}
                 """
                         .formatted(fixture.settingId());
-        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, preview.input()));
+        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, input));
         assertThat(jobs.get(fixture.ownerId(), fixture.workId(), jobId).status())
                 .isEqualTo("SUCCEEDED");
         assertThat(
@@ -295,11 +281,7 @@ class MySqlRefactoringTests {
                 jobs.create(
                                 fixture.ownerId(),
                                 fixture.workId(),
-                                AnalysisPreviewSupport.confirm(
-                                        previewService,
-                                        fixture.ownerId(),
-                                        fixture.workId(),
-                                        fixture.request()))
+                                fixture.request())
                         .id();
         assertThatThrownBy(
                         () ->
@@ -536,11 +518,7 @@ class MySqlRefactoringTests {
                 jobs.create(
                         fixture.ownerId(),
                         fixture.workId(),
-                        AnalysisPreviewSupport.confirm(
-                                previewService,
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                fixture.request()));
+                        fixture.request());
                 return true;
             } catch (CustomException error) {
                 assertThat(error.getErrorCode()).isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);

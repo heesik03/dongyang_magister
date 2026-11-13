@@ -10,7 +10,6 @@ import {
   parseCandidate,
   type EventCandidate,
   type ExtractionJob,
-  type ExtractionPreview,
 } from './extractionClient'
 import { ExtractionSourceButton } from './ExtractionSourceButton'
 
@@ -28,19 +27,16 @@ export function ExtractionFlow({ work }: { work: Work }) {
   const [page, setPage] = useState(0),
     [totalPages, setTotalPages] = useState(0)
   const [refresh, setRefresh] = useState(0)
-  const [mode, setMode] = useState<'select' | 'preview' | 'candidates' | null>(null)
+  const [mode, setMode] = useState<'select' | 'candidates' | null>(null)
   const [selected, setSelected] = useState<string[]>(
     work.chapters.slice(0, 1).map((chapter) => chapter.id),
   )
-  const [preview, setPreview] = useState<ExtractionPreview | null>(null)
-  const [consent, setConsent] = useState(false)
   const [candidates, setCandidates] = useState<EventCandidate[]>([])
   const [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(work.source === 'server')
   const [error, setError] = useState(''),
     [message, setMessage] = useState('')
   const active = useRef(true),
-    requestId = useRef(''),
     currentId = useRef(''),
     editingModal = useRef(false)
   const activeJob = job?.status === 'QUEUED' || job?.status === 'RUNNING'
@@ -179,19 +175,13 @@ export function ExtractionFlow({ work }: { work: Work }) {
       throw new Error('현재 입력을 먼저 저장하고 충돌을 해결해 주세요.')
     return latest
   }
-  async function preparePreview() {
+  async function start() {
     const latest = await prepare()
     if (!latest) return
-    const next = await extractionClient.preview(latest, selected)
-    if (!active.current) return
-    setPreview(next)
-    setConsent(false)
-    requestId.current = crypto.randomUUID()
-    setMode('preview')
-  }
-  async function start() {
-    if (!preview || !consent) return
-    const next = await extractionClient.create(work.id, preview, requestId.current)
+    const chapters = latest.chapters
+      .filter((chapter) => selected.includes(chapter.id))
+      .map(({ id, revision }) => ({ id, revision }))
+    const next = await extractionClient.create(work.id, chapters, crypto.randomUUID())
     if (!active.current) return
     accept(next)
     setHistory((previous) => [next, ...previous.filter((item) => item.id !== next.id)])
@@ -353,13 +343,7 @@ export function ExtractionFlow({ work }: { work: Work }) {
       {mode && (
         <Dialog
           initialFocus="heading"
-          title={
-            mode === 'select'
-              ? '원고에서 사건 찾기'
-              : mode === 'preview'
-                ? '사건 추출 전송 확인'
-                : '사건 후보 확인'
-          }
+          title={mode === 'select' ? '원고에서 사건 찾기' : '사건 후보 확인'}
           size="wide"
           onClose={() => {
             if (!busy) setMode(null)
@@ -368,7 +352,6 @@ export function ExtractionFlow({ work }: { work: Work }) {
           <div className="stack" aria-busy={busy}>
             <ol className="extraction-steps" aria-label="사건 찾기 단계">
               <li aria-current={mode === 'select' ? 'step' : undefined}>회차 선택</li>
-              <li aria-current={mode === 'preview' ? 'step' : undefined}>전송 확인</li>
               <li aria-current={mode === 'candidates' ? 'step' : undefined}>후보 선택</li>
             </ol>
             {mode === 'select' && (
@@ -396,52 +379,10 @@ export function ExtractionFlow({ work }: { work: Work }) {
                 <button
                   className="primary"
                   disabled={busy || !selected.length || selected.length > 10}
-                  onClick={() => void run(preparePreview)}
+                  onClick={() => void run(start)}
                 >
-                  전송할 원고 확인
+                  사건 후보 추출
                 </button>
-              </>
-            )}
-            {mode === 'preview' && preview && (
-              <>
-                <p>
-                  Google Gemini · {preview.model}로 아래 원고가 전송됩니다. 원고 수정 후에는 다시
-                  확인해야 합니다.
-                </p>
-                {preview.sources.map((source) => (
-                  <details key={source.id}>
-                    <summary>
-                      {source.title} · 버전 {source.revision} ·{' '}
-                      {source.content.length.toLocaleString()}자
-                    </summary>
-                    <pre className="extraction-source">{source.content}</pre>
-                  </details>
-                ))}
-                <label className="extraction-check">
-                  <input
-                    type="checkbox"
-                    disabled={busy}
-                    checked={consent}
-                    onChange={(event) => setConsent(event.target.checked)}
-                  />
-                  선택한 원고의 외부 AI 전송에 동의합니다.
-                </label>
-                <p className="small muted">
-                  AI 후보는 확정 전까지 기존 사건을 변경하지 않습니다. 취소 후에도 이미 전송한
-                  요청의 과금 중단은 보장되지 않습니다.
-                </p>
-                <div className="dialog-actions">
-                  <button disabled={busy} onClick={() => setMode('select')}>
-                    범위 다시 선택
-                  </button>
-                  <button
-                    className="primary"
-                    disabled={busy || !consent}
-                    onClick={() => void run(start)}
-                  >
-                    사건 후보 추출
-                  </button>
-                </div>
               </>
             )}
             {mode === 'candidates' && job && (

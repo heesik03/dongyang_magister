@@ -13,7 +13,6 @@ export function ReviewPanel({
   work,
   hidden = false,
   initialFilter = '전체',
-  onOpenLedger,
   analysis,
   stale,
   analyzing,
@@ -26,7 +25,6 @@ export function ReviewPanel({
   retryReport,
   onDecisionSaved,
 }: {
-  onOpenLedger?: () => void
   work: Work
   hidden?: boolean
   initialFilter?: ReviewFilter
@@ -70,20 +68,12 @@ export function ReviewPanel({
         <span className="badge info">AI 검토</span>
       </div>
 
-      {((work.source === 'server' && onOpenLedger) || (report && !report.legacy)) && (
+      {report && !report.legacy && (
         <div className="review-utility-bar">
-          {work.source === 'server' && onOpenLedger && (
-            <button type="button" className="ghost small" onClick={onOpenLedger}>
-              <Icon name="edit" />
-              내가 남긴 판단
-            </button>
-          )}
-          {report && !report.legacy && (
-            <button type="button" className="ghost small" onClick={onDecisionSaved}>
-              <Icon name="refresh" />
-              판단 상태 새로 확인
-            </button>
-          )}
+          <button type="button" className="ghost small" onClick={onDecisionSaved}>
+            <Icon name="refresh" />
+            판단 상태 새로 확인
+          </button>
         </div>
       )}
 
@@ -200,32 +190,26 @@ export function ReviewPanel({
               ) : (
                 <>
                   <div className="review-list">
-                    {filtered.map((review) => {
-                      const candidate = report?.reviews.find((item) => item.id === review.id)
-                      return (
-                        <button
-                          className={`review-summary ${selected?.id === review.id ? 'selected' : ''}`}
-                          key={review.id}
-                          aria-pressed={selected?.id === review.id}
-                          onClick={() => {
-                            setSelectedId(review.id)
-                          }}
-                        >
-                          <div className="row">
-                            <span
-                              className={`badge ${review.type === '설정 충돌 후보' ? 'danger' : 'warning'}`}
-                            >
-                              {review.type}
-                            </span>
-                            <span className="badge">{review.decision}</span>
-                          </div>
-                          {candidate?.issueGroupTitle && (
-                            <span className="small muted">{candidate.issueGroupTitle}</span>
-                          )}
-                          <p>{review.quote}</p>
-                        </button>
-                      )
-                    })}
+                    {filtered.map((review) => (
+                      <button
+                        className={`review-summary ${selected?.id === review.id ? 'selected' : ''}`}
+                        key={review.id}
+                        aria-pressed={selected?.id === review.id}
+                        onClick={() => {
+                          setSelectedId(review.id)
+                        }}
+                      >
+                        <div className="row">
+                          <span
+                            className={`badge ${review.type === '설정 충돌 후보' ? 'danger' : 'warning'}`}
+                          >
+                            {review.type}
+                          </span>
+                          <span className="badge">{review.decision}</span>
+                        </div>
+                        <p>{review.quote}</p>
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
@@ -237,7 +221,7 @@ export function ReviewPanel({
                     ? '확인 필요 · 능력 설정'
                     : '판단 유보 · 행동의 동기'}
                 </span>
-                <h3>{linked?.issueGroupTitle || '원문과 설정 사이의 연결'}</h3>
+                <h3>원문과 설정 사이의 연결</h3>
                 <section className="review-evidence review-evidence--manuscript">
                   <span className="detail-label">
                     원고 ·{' '}
@@ -297,54 +281,6 @@ export function ReviewPanel({
                   <summary>보완 방향 보기</summary>
                   <p>{selected.suggestion}</p>
                 </details>
-
-                {linked &&
-                  (linked.confirmedFact ||
-                    linked.interpretation ||
-                    linked.missingInfo ||
-                    (linked.options && linked.options.length > 0)) && (
-                    <section className="structured-review-stages" aria-label="4단계 검토 구조">
-                      <span className="detail-label">사실 · 해석 · 부족 정보 · 보완 선택지</span>
-                      {linked.confirmedFact && (
-                        <div className="review-stage-block">
-                          <strong>1. 확인된 사실</strong>
-                          <p>{linked.confirmedFact}</p>
-                        </div>
-                      )}
-                      {linked.interpretation && (
-                        <div className="review-stage-block">
-                          <strong>2. 해석이 필요한 부분</strong>
-                          <p>{linked.interpretation}</p>
-                        </div>
-                      )}
-                      {linked.missingInfo && (
-                        <div className="review-stage-block">
-                          <strong>3. 부족한 정보</strong>
-                          <p>{linked.missingInfo}</p>
-                        </div>
-                      )}
-                      {linked.options && linked.options.length > 0 && (
-                        <div className="review-stage-block">
-                          <strong>4. 가능한 보완 방향 (원고 자동 수정 없음)</strong>
-                          <div className="revision-options-list">
-                            {linked.options.map((option, index) => (
-                              <div
-                                className="revision-option-card"
-                                key={`${option.title}:${index}`}
-                              >
-                                <strong>{option.title}</strong>
-                                <p>{option.direction}</p>
-                                <p className="small muted">전제: {option.premise}</p>
-                                {option.rationale && (
-                                  <p className="small muted">이유: {option.rationale}</p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </section>
-                  )}
 
                 {selected.note && (
                   <div className="notice small">

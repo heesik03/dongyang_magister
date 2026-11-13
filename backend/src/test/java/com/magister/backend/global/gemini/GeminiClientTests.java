@@ -71,20 +71,14 @@ class GeminiClientTests {
                         .items()
                         .orElseThrow();
         assertThat(candidate.required().orElseThrow())
-                .contains(
+                .containsExactly(
+                        "type",
                         "quote",
-                        "evidences",
                         "startOffset",
                         "endOffset",
-                        "issueGroupKey",
-                        "issueGroupTitle",
-                        "confirmedFact",
-                        "interpretation",
-                        "missingInfo",
-                        "options");
-        Schema option = candidate.properties().orElseThrow().get("options").items().orElseThrow();
-        assertThat(option.required().orElseThrow())
-                .containsExactly("title", "direction", "premise", "rationale");
+                        "evidences",
+                        "reason",
+                        "suggestion");
         Schema sourceType =
                 candidate
                         .properties()

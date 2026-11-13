@@ -2,9 +2,7 @@ package com.magister.backend.domain.setting.image;
 
 import com.magister.backend.domain.setting.image.CharacterImageData.CreateRequest;
 import com.magister.backend.domain.setting.image.CharacterImageData.Gallery;
-import com.magister.backend.domain.setting.image.CharacterImageData.Input;
 import com.magister.backend.domain.setting.image.CharacterImageData.Job;
-import com.magister.backend.domain.setting.image.CharacterImageData.Preview;
 import com.magister.backend.domain.setting.image.CharacterImageRepository.StoredImage;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.response.ApiResult;
@@ -37,17 +35,9 @@ public class CharacterImageController {
         return ApiResult.success(service.list(user.id(), workId, settingId));
     }
 
-    @PostMapping("/preview")
-    @Operation(summary = "인물 이미지 전송 문구 미리보기",
-            description = "appearance는 외형 설명, direction은 의상·표정·화풍 등 선택 연출입니다. 토큰은 설정 버전과 문구에 묶입니다.")
-    public ApiResult<Preview> preview(@AuthenticationPrincipal LoginUser user,
-            @PathVariable long workId, @PathVariable long settingId, @Valid @RequestBody Input input) {
-        return ApiResult.success(service.preview(user.id(), workId, settingId, input));
-    }
-
     @PostMapping
     @Operation(summary = "인물 이미지 생성 접수",
-            description = "미리보기와 동일한 input, token, requestId, consent:true를 보냅니다. 202 작업 접수, 409 입력 변경 또는 보관 한도, 429 일일 한도.")
+            description = "input과 requestId를 보냅니다. 202 작업 접수, 409 보관 한도, 429 일일 한도.")
     public ResponseEntity<ApiResult<Job>> create(@AuthenticationPrincipal LoginUser user,
             @PathVariable long workId, @PathVariable long settingId, @Valid @RequestBody CreateRequest request) {
         return ResponseEntity.accepted().body(ApiResult.success(service.create(user.id(), workId, settingId, request)));

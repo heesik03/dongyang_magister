@@ -20,10 +20,8 @@ import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.repository.AnalysisSourceRepository;
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
-import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
 import com.magister.backend.domain.analysis.service.AnalysisSnapshotService;
 import com.magister.backend.domain.analysis.service.AnalysisWorker;
-import com.magister.backend.domain.analysis.service.support.AnalysisPreviewToken;
 import com.magister.backend.domain.chapter.dto.CreateChapterRequest;
 import com.magister.backend.domain.chapter.dto.UpdateChapterRequest;
 import com.magister.backend.domain.chapter.service.ChapterService;
@@ -36,7 +34,6 @@ import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.repository.WorkRepository;
-import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.gemini.GeminiClient;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +42,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
@@ -55,7 +51,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -72,7 +67,6 @@ class AnalysisFlowTests {
     @Autowired WorkSettingRepository settingRepository;
     @Autowired AnalysisJobRepository jobRepository;
     @Autowired AnalysisSourceRepository sourceRepository;
-    @Autowired AnalysisPreviewService previewService;
     @Autowired AnalysisJobService jobService;
     @Autowired AnalysisSnapshotService snapshotService;
     @Autowired AnalysisWorker worker;
@@ -133,7 +127,7 @@ class AnalysisFlowTests {
     }
 
     private AnalysisRequest confirmed() {
-        return AnalysisPreviewSupport.confirm(previewService, ownerId, workId, selection());
+        return selection();
     }
 
     private String linkedProviderResult() {
@@ -309,88 +303,7 @@ class AnalysisFlowTests {
     }
 
     @Test
-    void previewDoesNotCreateJobOrCallProviderAndChecksAccess() throws Exception {
-        mockMvc.perform(
-                        post(path() + "/preview")
-                                .with(authentication(owner))
-                                .with(csrf())
-                                .contentType("application/json")
-                                .content(objectMapper.writeValueAsString(selection())))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.input.chapter.content").value("검토 원고"))
-                .andExpect(jsonPath("$.data.input.previous[0].content").value("이전 근거 원고"))
-                .andExpect(jsonPath("$.data.input.settings[0].content").value("마법 불가"))
-                .andExpect(jsonPath("$.data.previewToken").isString())
-                .andExpect(jsonPath("$.data.policyVersion").isString());
-        assertThat(jobRepository.findHistory(workId, ownerId, null, null, PageRequest.of(0, 10)))
-                .isEmpty();
-        verifyNoInteractions(geminiClient, dispatcher);
-        mockMvc.perform(
-                        post(path() + "/preview")
-                                .with(authentication(owner))
-                                .contentType("application/json")
-                                .content(objectMapper.writeValueAsString(selection())))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(get(path())).andExpect(status().isUnauthorized());
-        UsernamePasswordAuthenticationToken other =
-                UsernamePasswordAuthenticationToken.authenticated(
-                        new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
-        mockMvc.perform(
-                        post(path() + "/preview")
-                                .with(authentication(other))
-                                .with(csrf())
-                                .contentType("application/json")
-                                .content(objectMapper.writeValueAsString(selection())))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void rejectsMissingConsentAndChangedPreviousManuscript() throws Exception {
-        mockMvc.perform(
-                        post(path())
-                                .with(authentication(owner))
-                                .with(csrf())
-                                .contentType("application/json")
-                                .content(objectMapper.writeValueAsString(selection())))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("PREVIEW_REQUIRED"));
-        AnalysisRequest request = confirmed();
-        chapterService.update(
-                ownerId,
-                workId,
-                "previous",
-                new UpdateChapterRequest("1화", "바뀐 이전 원고", 0, "edit-reference"));
-        mockMvc.perform(
-                        post(path())
-                                .with(authentication(owner))
-                                .with(csrf())
-                                .contentType("application/json")
-                                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("PREVIEW_CHANGED"));
-        verifyNoInteractions(geminiClient, dispatcher);
-    }
-
-    @Test
-    void changingConfirmedSettingInvalidatesPreviewAndIdeaIsRejected() throws Exception {
-        AnalysisRequest request = confirmed();
-        transactionTemplate.executeWithoutResult(
-                status ->
-                        settingRepository
-                                .findById(settingId)
-                                .orElseThrow()
-                                .update(
-                                        "능력",
-                                        SettingKind.CHARACTER,
-                                        SettingStatus.CONFIRMED,
-                                        "바뀐 확정 설정"));
-        mockMvc.perform(
-                        post(path())
-                                .with(authentication(owner))
-                                .with(csrf())
-                                .contentType("application/json")
-                                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isConflict());
+    void rejectsIdeaSettingAndChecksAccess() throws Exception {
         transactionTemplate.executeWithoutResult(
                 status ->
                         settingRepository
@@ -398,7 +311,7 @@ class AnalysisFlowTests {
                                 .orElseThrow()
                                 .update("능력", SettingKind.CHARACTER, SettingStatus.IDEA, "아이디어"));
         mockMvc.perform(
-                        post(path() + "/preview")
+                        post(path())
                                 .with(authentication(owner))
                                 .with(csrf())
                                 .contentType("application/json")
@@ -474,18 +387,5 @@ class AnalysisFlowTests {
                         new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
         mockMvc.perform(get(path() + "/" + jobId).with(authentication(other)))
                 .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void expiredTamperedAndOtherContextTokensAreRejected() {
-        AnalysisPreviewToken token = new AnalysisPreviewToken("01234567890123456789012345678901");
-        String expired = token.issue("user:work:input", Instant.now().minusSeconds(1));
-        assertThatThrownBy(() -> token.verify(expired, "user:work:input"))
-                .isInstanceOf(CustomException.class);
-        String valid = token.issue("user:work:input", Instant.now().plusSeconds(60));
-        assertThatThrownBy(() -> token.verify(valid, "other:work:input"))
-                .isInstanceOf(CustomException.class);
-        assertThatThrownBy(() -> token.verify(valid + "x", "user:work:input"))
-                .isInstanceOf(CustomException.class);
     }
 }

@@ -94,16 +94,6 @@ test('판단의 버전·멱등 키·범위를 보내고 최신 상태와 이력�
       data: payload,
     }),
   )
-  request.mockResolvedValueOnce(
-    success({ items: [decision], page: 0, size: 20, totalElements: 1, totalPages: 1 }),
-  )
-  expect((await decisionClient.history('1', 'candidate')).items[0].scopes[0].fromChapterTitle).toBe(
-    '2화',
-  )
-  request.mockResolvedValueOnce(
-    success({ items: [decision], page: 0, size: 20, totalElements: 1, totalPages: 1 }),
-  )
-  expect((await decisionClient.list('1', 0, '의도된 설정')).items).toHaveLength(1)
   expect(() => parseDecision({ ...decision, basisHash: 'bad' })).toThrow()
   expect(() => parseDecision({ ...decision, version: -1 })).toThrow()
   expect(() =>
@@ -201,8 +191,9 @@ const chapter = {
   workVersion: 1,
 }
 
-test('분석 미리보기와 확인된 접수를 구분하고 같은 요청 ID·토큰을 보낸다', async () => {
+test('분석 접수는 선택한 범위와 요청 ID를 바로 전송한다', async () => {
   const selection = {
+    requestId: 'req-1',
     chapterId: 'c1',
     chapterRevision: 1,
     workspaceVersion: 0,
@@ -211,51 +202,17 @@ test('분석 미리보기와 확인된 접수를 구분하고 같은 요청 ID·
     consistency: true,
     motivation: true,
   }
-  const input = {
-    chapter: { id: 'c1', title: '1화', content: '원고', revision: 1 },
-    previous: [],
-    settings: [
-      { id: '1', title: '능력', content: '마법 불가', kind: '인물', status: '확정', version: 0 },
-    ],
-    decisions: [],
-    consistency: true,
-    motivation: true,
-  }
-  request.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(
-    success({
-      previewToken: 'confirmed-token',
-      policyVersion: 'policy-v1',
-      expiresAt: chapter.updatedAt,
-      input,
-      provider: 'Google Gemini API',
-      model: 'test-model',
-      retentionNotice: '보관 안내',
-      deletionNotice: '삭제 안내',
-      providerPolicyUrl: 'https://ai.google.dev/gemini-api/terms',
-    }),
-  )
-  const preview = await analysisClient.preview('1', selection)
-  expect(request).toHaveBeenLastCalledWith(
-    expect.objectContaining({
-      url: '/work/1/analysis/preview',
-      method: 'POST',
-      data: { ...selection, requestId: preview.request.requestId },
-    }),
-  )
-  expect(request).toHaveBeenCalledTimes(2)
-  request.mockResolvedValueOnce(
-    success({ id: 'job-1', status: 'QUEUED', error: null, result: null }),
-  )
-  await analysisClient.create('1', preview)
+  request
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(
+      success({ id: 'job-1', status: 'QUEUED', error: null, result: null }),
+    )
+  await analysisClient.create('1', selection)
   expect(request).toHaveBeenLastCalledWith(
     expect.objectContaining({
       url: '/work/1/analysis',
       method: 'POST',
-      data: {
-        ...preview.request,
-        previewToken: 'confirmed-token',
-        consentPolicyVersion: 'policy-v1',
-      },
+      data: selection,
     }),
   )
 })

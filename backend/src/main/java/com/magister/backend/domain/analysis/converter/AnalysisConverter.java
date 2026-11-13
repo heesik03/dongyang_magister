@@ -6,7 +6,6 @@ import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
 import com.magister.backend.domain.analysis.dto.AnalysisOutput.Candidate;
 import com.magister.backend.domain.analysis.dto.AnalysisOutput.Evidence;
-import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.repository.AnalysisJobSummaryView;
@@ -23,7 +22,6 @@ import org.springframework.stereotype.Component;
 
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -32,32 +30,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AnalysisConverter {
     private final ObjectMapper objectMapper;
-
-    public AnalysisPreviewResponse toPreview(
-            String token,
-            Instant expiresAt,
-            AnalysisInput input,
-            String policyVersion,
-            String model,
-            Duration retention) {
-        String notice =
-                retention.isZero()
-                        ? "분석 입력과 결과는 서버에 저장되며 현재 자동 삭제되지 않습니다."
-                        : "판단 이력이 없는 분석 입력과 작업 결과는 작업 종료 후 "
-                                + retention.toSeconds()
-                                + "초가 지나면 자동 삭제 대상이 됩니다. 별도로 저장한 원고와 판단은 유지됩니다.";
-        return new AnalysisPreviewResponse(
-                token,
-                expiresAt,
-                input,
-                policyVersion,
-                "Google Gemini API",
-                model,
-                notice,
-                "작품 화면의 작품 삭제에서 원고·설정·분석 원본·검토·판단 이력·타임라인을 영구 삭제할 수 있습니다. 작업 취소·작품 삭제로 이미 전송한 자료를"
-                    + " 회수하거나 공급자 자료를 삭제할 수는 없습니다. 공급자의 보관·이용 기준은 유료·무료 서비스와 계정 설정에 따라 다릅니다.",
-                "https://ai.google.dev/gemini-api/terms");
-    }
 
     public AnalysisJobSummary toSummary(AnalysisJobSummaryView job) {
         return new AnalysisJobSummary(

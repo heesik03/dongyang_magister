@@ -26,11 +26,6 @@ export interface ExtractionJob {
   error: string
   candidates: EventCandidate[]
 }
-export interface ExtractionPreview {
-  sources: ExtractionSource[]
-  token: string
-  model: string
-}
 export function parseSource(raw: unknown): ExtractionSource {
   const value = readRecord(raw)
   const source = {
@@ -109,32 +104,14 @@ export const extractionClient = {
   async get(workId: string, id: string, signal?: AbortSignal) {
     return parseJob(await httpClient.get(path(workId) + '/' + encodeURIComponent(id), { signal }))
   },
-  async preview(work: Work, ids: string[], signal?: AbortSignal): Promise<ExtractionPreview> {
-    const value = readRecord(
-      await httpClient.post(
-        path(work.id) + '/preview',
-        {
-          chapters: work.chapters
-            .filter((chapter) => ids.includes(chapter.id))
-            .map(({ id, revision }) => ({ id, revision })),
-        },
-        { signal },
-      ),
-    )
-    if (!Array.isArray(value.sources) || !value.sources.length || value.sources.length > 10)
-      throw new Error('전송 자료 확인 실패')
-    return {
-      sources: value.sources.map(parseSource),
-      token: readString(value, 'token'),
-      model: readString(value, 'model'),
-    }
-  },
-  async create(workId: string, preview: ExtractionPreview, requestId: string) {
+  async create(
+    workId: string,
+    chapters: { id: string; revision: number }[],
+    requestId: string,
+  ) {
     return parseJob(
       await httpClient.post(path(workId), {
-        chapters: preview.sources.map(({ id, revision }) => ({ id, revision })),
-        token: preview.token,
-        consent: true,
+        chapters,
         requestId,
       }),
     )

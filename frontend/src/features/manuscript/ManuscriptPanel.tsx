@@ -4,14 +4,11 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { Chapter, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
 import { ReviewPanel } from '../review/ReviewPanel'
-import { DecisionLedger } from '../review/DecisionLedger'
 import { useReviewReport } from '../review/useReviewReport'
 import { REVIEW_FILTERS, type ReviewFilter, type SourceLocation } from '../review/reviewClient'
-import { analysisClient, type Preview } from '../analysis/analysisClient'
+import { analysisClient } from '../analysis/analysisClient'
 import { settingsChanged } from '../analysis/analysisState'
 import { useAnalysisJobs } from '../analysis/useAnalysisJobs'
-import { AnalysisPreviewDialog } from '../analysis/AnalysisPreviewDialog'
-import { ApiError } from '../../shared/httpClient'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 import { ManuscriptTransfer } from './ManuscriptTransfer'
@@ -44,7 +41,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const [jumpError, setJumpError] = useState<{ id: string; message: string } | null>(null)
   const savedAnalysis = work.analyses.find((item) => item.chapterId === chapter?.id)
   const analysis = jobs.job?.result ?? savedAnalysis
-  const [ledgerOpen, setLedgerOpen] = useState(false)
   const [creating, setCreating] = useState(!!params.get('newChapter'))
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [settingIds, setSettingIds] = useState(
@@ -53,9 +49,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const [previousIds, setPreviousIds] = useState<string[]>([])
   const [consistency, setConsistency] = useState(true)
   const [motivation, setMotivation] = useState(true)
-  const [preparing, setPreparing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [preview, setPreview] = useState<Preview | null>(null)
   const analyzing = jobs.active
   const [error, setError] = useState('')
   const view = params.get('view') === 'review' ? '검토' : '원고'
@@ -193,10 +187,12 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       setOptionsOpen(true)
       return
     }
-    const controller = new AbortController()
+    if (submitting) return
+    const controller = new AbortController(),
+      context = jobs.context
     analysisRequest.current?.abort()
     analysisRequest.current = controller
-    setPreparing(true)
+    setSubmitting(true)
     setError('')
     try {
       await useWorksStore.getState().flushWorkspace(work.id)
@@ -213,7 +209,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           latest.chapters.findIndex((item) => item.id === id) <
             latest.chapters.findIndex((item) => item.id === chapter.id),
       )
-      const result = await analysisClient.preview(
+      const created = await analysisClient.create(
         work.id,
         {
           chapterId: chapter.id,
@@ -227,37 +223,12 @@ export function ManuscriptPanel({ work }: { work: Work }) {
         controller.signal,
       )
       if (controller.signal.aborted) return
-      setPreview(result)
-      setOptionsOpen(false)
-    } catch (failure) {
-      if (!controller.signal.aborted)
-        setError(failure instanceof Error ? failure.message : 'AI 검토에 실패했습니다.')
-    } finally {
-      if (!controller.signal.aborted) setPreparing(false)
-    }
-  }
-  async function confirmAnalysis() {
-    if (!preview || submitting) return
-    const controller = new AbortController(),
-      context = jobs.context
-    analysisRequest.current?.abort()
-    analysisRequest.current = controller
-    setSubmitting(true)
-    setError('')
-    try {
-      const created = await analysisClient.create(work.id, preview, controller.signal)
-      if (controller.signal.aborted) return
       jobs.accept(created, context)
-      setPreview(null)
+      setOptionsOpen(false)
       setView('검토')
     } catch (failure) {
       if (controller.signal.aborted) return
-      setError(failure instanceof Error ? failure.message : '분석 접수 실패')
-      if (failure instanceof ApiError && failure.status === 409) {
-        setPreview(null)
-        setOptionsOpen(true)
-      }
-      // 접수 응답만 유실되었다면 기존 서버 작업을 조회한다. 새 POST를 자동 실행하지 않는다.
+      setError(failure instanceof Error ? failure.message : 'AI 검토에 실패했습니다.')
       jobs.refresh()
     } finally {
       if (!controller.signal.aborted) setSubmitting(false)
@@ -277,7 +248,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       setSettingIds(nextSettingIds)
       setPreviousIds(nextPreviousIds)
     }
-    setPreview(null)
     setError('')
     setOptionsOpen(true)
   }
@@ -325,7 +295,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   }
   return (
     <div className="manuscript-workspace">
-      {ledgerOpen && <DecisionLedger workId={work.id} onClose={() => setLedgerOpen(false)} />}
       {jumpError && jumpError.id === selectedJobId && (
         <p className="error" role="alert">
           {jumpError.message}
@@ -350,7 +319,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
               <span className="sr-only">현재 회차</span>
               <select
                 value={chapter?.id || ''}
-                disabled={preparing || submitting || !chapter}
+                disabled={submitting || !chapter}
                 onChange={(event) => changeChapter(event.target.value)}
               >
                 {work.chapters.length ? (
@@ -367,7 +336,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             <button
               className="icon-button"
               aria-label="새 회차 추가"
-              disabled={preparing || submitting}
+              disabled={submitting}
               onClick={() => setCreating(true)}
             >
               <Icon name="plus" />
@@ -460,7 +429,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             {analyzing && <button onClick={() => void cancelAnalysis()}>AI 검토 취소</button>}
             <button
               className="primary"
-              disabled={analyzing || preparing || submitting || !chapter}
+              disabled={analyzing || submitting || !chapter}
               onClick={() => setOptionsOpen(true)}
             >
               {analyzing ? (
@@ -495,7 +464,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           <button
             className="nav-item"
             onClick={() => setCreating(true)}
-            disabled={preparing || submitting}
+            disabled={submitting}
           >
             <Icon name="plus" />
             회차 추가
@@ -554,7 +523,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                       <input
                         value={chapter.title}
                         maxLength={100}
-                        disabled={preparing || submitting}
+                        disabled={submitting}
                         onChange={(event) =>
                           updateWork({
                             ...work,
@@ -589,7 +558,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                 label="회차 원고"
                 value={chapter.content}
                 onChange={write}
-                disabled={preparing || submitting}
+                disabled={submitting}
                 maxLength={200000}
                 fontSize={fontSize}
                 lineHeight={lineHeight}
@@ -715,7 +684,6 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           retry={retryAnalysis}
           onJump={jump}
           onDecisionSaved={reportState.retry}
-          onOpenLedger={() => setLedgerOpen(true)}
         />
       </div>
       {savedToast && (
@@ -820,26 +788,14 @@ export function ManuscriptPanel({ work }: { work: Work }) {
               <button onClick={() => setOptionsOpen(false)}>닫기</button>
               <button
                 className="primary"
-                disabled={!chapter || analyzing || preparing || submitting}
+                disabled={!chapter || analyzing || submitting}
                 onClick={analyze}
               >
-                {preparing ? '전송 자료 준비 중…' : '전송 자료 미리보기'}
+                {submitting ? 'AI 검토 시작 중…' : 'AI 검토 시작'}
               </button>
             </div>
           </div>
         </Dialog>
-      )}
-      {preview && (
-        <AnalysisPreviewDialog
-          key={preview.previewToken}
-          preview={preview}
-          submitting={submitting}
-          error={error}
-          onConfirm={() => void confirmAnalysis()}
-          onClose={() => {
-            if (!submitting) setPreview(null)
-          }}
-        />
       )}
     </div>
   )

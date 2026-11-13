@@ -192,29 +192,15 @@ test('시점 없이 기준 사건 앞에 배치하고 결과가 없는 회차의
     }),
   )
 })
-test('전송할 원고를 확인하고 동의한 뒤에만 추출을 접수한다', async () => {
-  vi.spyOn(extractionClient, 'preview').mockResolvedValue({
-    sources: [{ ...work.chapters[0], chapterNo: 1 }],
-    token: 'signed',
-    model: 'synthetic-model',
-  })
+test('선택한 회차로 바로 사건 추출을 접수한다', async () => {
   const create = vi
     .spyOn(extractionClient, 'create')
     .mockResolvedValue({ ...job, status: 'QUEUED', candidates: [] })
   render(<ExtractionFlow work={work} />)
   fireEvent.click(screen.getByRole('button', { name: '원고에서 사건 찾기' }))
-  fireEvent.click(screen.getByRole('button', { name: '전송할 원고 확인' }))
-  await screen.findByRole('dialog', { name: '사건 추출 전송 확인' })
-  expect(create).not.toHaveBeenCalled()
-  expect(
-    (screen.getByRole('button', { name: '사건 후보 추출' }) as HTMLButtonElement).disabled,
-  ).toBe(true)
-  fireEvent.click(
-    screen.getByRole('checkbox', { name: '선택한 원고의 외부 AI 전송에 동의합니다.' }),
-  )
   fireEvent.click(screen.getByRole('button', { name: '사건 후보 추출' }))
   await waitFor(() => expect(create).toHaveBeenCalledOnce())
-  expect(create.mock.calls[0][1].sources[0].content).toBe(text)
+  expect(create.mock.calls[0][1]).toEqual([{ id: 'c', revision: 1 }])
 })
 test('후보 저장이 충돌하면 수정 내용과 보류 상태를 유지한다', async () => {
   vi.mocked(extractionClient.list).mockResolvedValue(page([job]))
