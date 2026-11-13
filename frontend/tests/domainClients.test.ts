@@ -204,9 +204,7 @@ test('분석 접수는 선택한 범위와 요청 ID를 바로 전송한다', as
   }
   request
     .mockResolvedValueOnce(csrf())
-    .mockResolvedValueOnce(
-      success({ id: 'job-1', status: 'QUEUED', error: null, result: null }),
-    )
+    .mockResolvedValueOnce(success({ id: 'job-1', status: 'QUEUED', error: null, result: null }))
   await analysisClient.create('1', selection)
   expect(request).toHaveBeenLastCalledWith(
     expect.objectContaining({

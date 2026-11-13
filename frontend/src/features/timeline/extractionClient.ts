@@ -1,6 +1,6 @@
 import { httpClient } from '../../shared/httpClient'
 import { parsePage, readRecord, readString, readInteger } from '../../shared/responseReader'
-import type { StoryEvent, Work } from '../works/workTypes'
+import type { StoryEvent } from '../works/workTypes'
 
 export interface ExtractionSource {
   id: string
@@ -104,11 +104,7 @@ export const extractionClient = {
   async get(workId: string, id: string, signal?: AbortSignal) {
     return parseJob(await httpClient.get(path(workId) + '/' + encodeURIComponent(id), { signal }))
   },
-  async create(
-    workId: string,
-    chapters: { id: string; revision: number }[],
-    requestId: string,
-  ) {
+  async create(workId: string, chapters: { id: string; revision: number }[], requestId: string) {
     return parseJob(
       await httpClient.post(path(workId), {
         chapters,

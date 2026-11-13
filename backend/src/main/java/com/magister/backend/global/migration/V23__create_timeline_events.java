@@ -77,7 +77,6 @@ public class V23__create_timeline_events extends BaseJavaMigration {
                 WorkspaceData data =
                         objectMapper.readValue(rows.getString("content"), WorkspaceData.class);
                 List<EventData> events = data.events() == null ? List.of() : data.events();
-                int fallbackSeq = 0;
                 for (EventData event : events) {
                     insert.setLong(1, rows.getLong("work_id"));
                     insert.setString(2, event.id());

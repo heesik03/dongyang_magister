@@ -109,8 +109,12 @@ class MySqlRefactoringTests {
     @MockitoSpyBean PasswordEncoder passwordEncoder;
 
     private AnalysisInput buildInput(Long workId, AnalysisRequest request) {
-        Work work = works.findById(workId).orElseThrow();
-        return inputFactory.create(workId, request, workspaceSnapshotService.getForOwnedWork(work));
+        return transaction.execute(
+                status -> {
+                    Work work = works.findById(workId).orElseThrow();
+                    return inputFactory.create(
+                            workId, request, workspaceSnapshotService.getForOwnedWork(work));
+                });
     }
 
     @Test

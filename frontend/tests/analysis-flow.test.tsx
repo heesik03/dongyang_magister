@@ -3,11 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ManuscriptPanel } from '../src/features/manuscript/ManuscriptPanel'
-import {
-  analysisClient,
-  type Job,
-  type JobSummary,
-} from '../src/features/analysis/analysisClient'
+import { analysisClient, type Job, type JobSummary } from '../src/features/analysis/analysisClient'
 import { useWorksStore } from '../src/features/works/useWorksStore'
 import { ApiError } from '../src/shared/httpClient'
 import type { Work, Analysis } from '../src/features/works/workTypes'

@@ -462,11 +462,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             <Icon name="file" />
             회차 목록
           </h2>
-          <button
-            className="nav-item"
-            onClick={() => setCreating(true)}
-            disabled={submitting}
-          >
+          <button className="nav-item" onClick={() => setCreating(true)} disabled={submitting}>
             <Icon name="plus" />
             회차 추가
           </button>

@@ -155,11 +155,19 @@ class ChapterMigrationTests {
                                 objectMapper
                                         .readTree(workspace.getString("content"))
                                         .get("events")
-                                        .get(0)
-                                        .get("chapterId")
-                                        .asString())
-                        .isEqualTo("같은-ID");
+                                        .size())
+                        .isZero();
                 assertThat(workspace.getLong("revision")).isEqualTo(5);
+            }
+            try (Connection connection = DriverManager.getConnection(url, "sa", "");
+                    Statement statement = connection.createStatement();
+                    ResultSet events =
+                            statement.executeQuery(
+                                    "SELECT event_key,chapter_id,title FROM timeline_events WHERE work_id=1")) {
+                assertThat(events.next()).isTrue();
+                assertThat(events.getString("event_key")).isEqualTo("event");
+                assertThat(events.getString("chapter_id")).isEqualTo("같은-ID");
+                assertThat(events.getString("title")).isEqualTo("사건");
             }
         }
     }
