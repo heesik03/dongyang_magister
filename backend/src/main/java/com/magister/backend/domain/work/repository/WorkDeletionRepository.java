@@ -71,6 +71,7 @@ public class WorkDeletionRepository {
                 workId);
         jdbcTemplate.update("DELETE FROM analysis_jobs WHERE work_id=?", workId);
         jdbcTemplate.update("DELETE FROM event_extractions WHERE work_id=?", workId);
+        jdbcTemplate.update("DELETE FROM timeline_events WHERE work_id=?", workId);
         jdbcTemplate.update("DELETE FROM workspaces WHERE work_id=?", workId);
         jdbcTemplate.update("DELETE FROM chapters WHERE work_id=?", workId);
         jdbcTemplate.update("DELETE FROM work_settings WHERE work_id=?", workId);

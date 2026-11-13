@@ -202,6 +202,13 @@ export function TimelinePanel({ work }: { work: Work }) {
               <Icon name="edit" />
               {rank === undefined ? '순서 정하기' : '사건 수정'}
             </button>
+            <button
+              onClick={() => {
+                persist(ordered.filter((item) => item.id !== event.id))
+              }}
+            >
+              사건 삭제
+            </button>
             {rank !== undefined && (
               <>
                 <button

@@ -1,6 +1,7 @@
 package com.magister.backend.domain.workspace.service;
 
 import com.magister.backend.domain.chapter.service.ChapterWorkspaceService;
+import com.magister.backend.domain.timeline.service.TimelineService;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
 import com.magister.backend.domain.work.service.WorkAccessService;
@@ -27,6 +28,7 @@ public class WorkspacePersistenceService {
     private final WorkAccessService workAccessService;
     private final WorkspaceRepository workspaceRepository;
     private final ChapterWorkspaceService chapterWorkspaceService;
+    private final TimelineService timelineService;
     private final WorkspaceReferenceValidator referenceValidator;
     private final WorkspaceSnapshotService snapshotService;
     private final WorkspaceCodec workspaceCodec;
@@ -83,6 +85,7 @@ public class WorkspacePersistenceService {
                         chapterWorkspaceService.read(workId),
                         effective.analyses(),
                         request.content().events()));
+        timelineService.syncForOwnedWork(work, request.content().events());
 
         workspace.replace(content, request.mutationId());
         // 프런트엔드의 workVersion 계약을 보존한다. 모든 하위 쓰기는 부모 잠금 순서를 따른다.

@@ -1,6 +1,7 @@
 package com.magister.backend.domain.workspace.service;
 
 import com.magister.backend.domain.chapter.service.ChapterWorkspaceService;
+import com.magister.backend.domain.timeline.service.TimelineService;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.workspace.converter.WorkspaceConverter;
 import com.magister.backend.domain.workspace.dto.WorkspaceResponse;
@@ -18,6 +19,7 @@ public class WorkspaceSnapshotService {
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceConverter converter;
     private final ChapterWorkspaceService chapterWorkspaceService;
+    private final TimelineService timelineService;
 
     /** 이미 소유권을 확인한 Work를 받아 같은 작품에 대한 재조회를 피한다. */
     @Transactional(propagation = Propagation.MANDATORY, readOnly = true)
@@ -27,6 +29,9 @@ public class WorkspaceSnapshotService {
                         .findById(work.getId())
                         .map(converter::toResponse)
                         .orElseGet(() -> converter.empty(work));
-        return converter.withChapters(stored, chapterWorkspaceService.read(work.getId()));
+        return converter.withChaptersAndEvents(
+                stored,
+                chapterWorkspaceService.read(work.getId()),
+                timelineService.readForOwnedWork(work.getId()));
     }
 }

@@ -17,9 +17,11 @@ import com.magister.backend.domain.timeline.dto.ExtractionData.Input;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Job;
 import com.magister.backend.domain.timeline.dto.ExtractionData.SaveCandidates;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Selection;
+import com.magister.backend.domain.timeline.dto.TimelineData.SaveEventRequest;
 import com.magister.backend.domain.timeline.service.ExtractionDispatcher;
 import com.magister.backend.domain.timeline.service.ExtractionService;
 import com.magister.backend.domain.timeline.service.ExtractionWorker;
+import com.magister.backend.domain.timeline.service.TimelineService;
 import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.work.entity.Work;
@@ -52,6 +54,7 @@ class ExtractionFlowTests {
     private static final String MANUSCRIPT = "린은 떠났다.\n\n린은 떠났다.";
     @Autowired ExtractionService extractionService;
     @Autowired ExtractionWorker extractionWorker;
+    @Autowired TimelineService timelineService;
     @Autowired WorkspaceService workspaceService;
     @Autowired ChapterService chapterService;
     @Autowired UserRepository userRepository;
@@ -294,5 +297,50 @@ class ExtractionFlowTests {
                                 .contentType("application/json")
                                 .content("{}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void timelineCrudPersistsEventsInDedicatedTable() {
+        SaveEventRequest createReq =
+                new SaveEventRequest(
+                        "ev-1",
+                        "첫 사건",
+                        "설명",
+                        "1일차",
+                        "린",
+                        "chapter",
+                        "린은 떠났다.",
+                        0,
+                        "CONFIRMED",
+                        1L,
+                        0,
+                        7,
+                        null);
+        EventData created = timelineService.create(ownerId, workId, createReq);
+        assertThat(created.title()).isEqualTo("첫 사건");
+        assertThat(timelineService.list(ownerId, workId)).hasSize(1);
+        assertThat(workspaceService.get(ownerId, workId).content().events()).hasSize(1);
+
+        SaveEventRequest updateReq =
+                new SaveEventRequest(
+                        "ev-1",
+                        "수정된 사건",
+                        "수정 설명",
+                        "2일차",
+                        "린",
+                        "chapter",
+                        "린은 떠났다.",
+                        0,
+                        "CONFIRMED",
+                        1L,
+                        0,
+                        7,
+                        null);
+        EventData updated = timelineService.update(ownerId, workId, "ev-1", updateReq);
+        assertThat(updated.title()).isEqualTo("수정된 사건");
+
+        timelineService.delete(ownerId, workId, "ev-1");
+        assertThat(timelineService.list(ownerId, workId)).isEmpty();
+        assertThat(workspaceService.get(ownerId, workId).content().events()).isEmpty();
     }
 }
