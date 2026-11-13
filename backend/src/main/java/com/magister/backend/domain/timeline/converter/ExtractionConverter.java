@@ -87,7 +87,7 @@ public class ExtractionConverter {
                 sequence);
     }
 
-    public EventData event(Candidate candidate, String extractionId) {
+    public EventData event(Candidate candidate, String extractionId, int sequence) {
         return new EventData(
                 candidate.id(),
                 candidate.title(),
@@ -96,7 +96,7 @@ public class ExtractionConverter {
                 candidate.chapterId(),
                 candidate.quote(),
                 candidate.description(),
-                candidate.sequence(),
+                sequence,
                 candidate.timeStatus(),
                 candidate.sourceRevision(),
                 candidate.startOffset(),

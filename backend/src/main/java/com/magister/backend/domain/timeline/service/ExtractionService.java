@@ -38,6 +38,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -205,9 +206,16 @@ public class ExtractionService {
         }
         WorkspaceResponse current = workspaceService.get(ownerId, workId);
         List<EventData> events = new ArrayList<>(current.content().events());
+        int nextSequence = events.size();
+        for (EventData event : events) {
+            if (event.sequence() != null && event.sequence() >= nextSequence) {
+                nextSequence = event.sequence() + 1;
+            }
+        }
         List<Candidate> included =
                 readCandidates(extraction.getResult()).stream()
                         .filter(candidate -> candidate.decision().equals("INCLUDE"))
+                        .sorted(Comparator.comparingInt(Candidate::sequence))
                         .toList();
         if (included.isEmpty()) {
             invalid();
@@ -219,7 +227,8 @@ public class ExtractionService {
             if (events.size() >= 1000) {
                 invalid();
             }
-            events.add(extractionConverter.event(candidate, id));
+            // 후보 순번은 추출 묶음 안에서만 유효하므로 작품 순서 끝에 이어 붙인다.
+            events.add(extractionConverter.event(candidate, id, nextSequence++));
         }
         if (events.equals(current.content().events())) {
             return current;

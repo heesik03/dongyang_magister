@@ -52,6 +52,7 @@ interface WorksState {
   forgetDeletedWork: (id: string) => Promise<void>
   saveWorkInfo: (work: Work, input: WorkInput) => Promise<void>
   saveSetting: (work: Work, input: SettingInput, existing?: Setting) => Promise<Setting>
+  deleteCharacter: (workId: string, setting: Setting) => Promise<void>
   updateWork: (work: Work) => void
   retrySave: () => void
   flushWorkspace: (id: string) => Promise<void>
@@ -487,6 +488,39 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       }
     } else get().updateWork(next)
     return saved
+  },
+  async deleteCharacter(workId, setting) {
+    const revision = accountRevision
+    await settingClient.deleteCharacter(workId, setting)
+    if (revision !== accountRevision || deletedWorkIds.has(workId)) return
+    const view = get().settingView
+    if (view.workId === workId) settingRequest?.abort()
+    set({
+      works: get().works.map((work) =>
+        work.id === workId
+          ? { ...work, settings: work.settings.filter((item) => item.id !== setting.id) }
+          : work,
+      ),
+    })
+    if (view.workId === workId) await get().loadSettings(workId, view.kind)
+    try {
+      const metadata = await workClient.get(workId)
+      if (revision !== accountRevision || deletedWorkIds.has(workId)) return
+      const current = get().works.find((work) => work.id === workId)
+      if (current)
+        set({
+          works: mergeWorkByVersion(get().works, {
+            ...current,
+            ...metadata,
+            ...contentOf(current),
+            settings: current.settings,
+            workspaceVersion: current.workspaceVersion,
+          }),
+        })
+    } catch (error) {
+      if (revision === accountRevision)
+        set({ listError: '인물 삭제 후 작품 정보를 갱신하지 못했습니다. ' + message(error) })
+    }
   },
   updateWork(work) {
     const current = get().works.find((item) => item.id === work.id)

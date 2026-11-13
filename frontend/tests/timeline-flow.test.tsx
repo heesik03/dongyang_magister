@@ -110,8 +110,9 @@ test('수동 사건 등록은 반복된 두 번째 문장의 위치를 저장한
       <TimelinePanel work={work} />
     </MemoryRouter>,
   )
-  fireEvent.click(screen.getByRole('button', { name: '직접 추가', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: '사건 추가', exact: true }))
   fireEvent.change(screen.getByLabelText('사건명'), { target: { value: '두 번째 출발' } })
+  fireEvent.change(screen.getAllByLabelText('근거 회차')[1], { target: { value: 'c' } })
   fireEvent.change(screen.getByLabelText('근거 문장'), {
     target: { value: String(candidate.startOffset) },
   })
@@ -142,7 +143,7 @@ test('원고가 바뀐 사건의 제목을 수정해도 추출 당시 근거를 
       <TimelinePanel work={changed} />
     </MemoryRouter>,
   )
-  fireEvent.click(screen.getByRole('button', { name: '사건 수정' }))
+  fireEvent.click(screen.getByRole('button', { name: '순서 정하기' }))
   fireEvent.change(screen.getByLabelText('사건명'), { target: { value: '수정된 사건명' } })
   fireEvent.click(screen.getByRole('button', { name: '사건 저장' }))
   expect(useWorksStore.getState().updateWork).toHaveBeenCalledWith(
@@ -155,6 +156,38 @@ test('원고가 바뀐 사건의 제목을 수정해도 추출 당시 근거를 
           startOffset: candidate.startOffset,
           extractionId: 'job',
         }),
+      ],
+    }),
+  )
+})
+
+test('시점 없이 기준 사건 앞에 배치하고 결과가 없는 회차의 필터를 해제한다', () => {
+  const anchor: StoryEvent = { ...candidate, id: 'anchor', timeStatus: 'CONFIRMED' }
+  const emptyChapter = { id: 'empty', title: '2화', content: '', revision: 1 }
+  render(
+    <MemoryRouter>
+      <TimelinePanel
+        work={{ ...work, chapters: [...work.chapters, emptyChapter], events: [anchor] }}
+      />
+    </MemoryRouter>,
+  )
+  fireEvent.change(screen.getByLabelText('근거 회차'), { target: { value: emptyChapter.id } })
+  fireEvent.click(screen.getByRole('button', { name: '회차 필터 해제' }))
+  fireEvent.click(screen.getByRole('button', { name: '사건 추가', exact: true }))
+  fireEvent.change(screen.getByLabelText('사건명'), { target: { value: '이전 사건' } })
+  fireEvent.change(screen.getByLabelText('이야기 속 위치'), { target: { value: 'before' } })
+  fireEvent.change(screen.getByLabelText('기준 사건'), { target: { value: anchor.id } })
+  fireEvent.click(screen.getByRole('button', { name: '사건 저장' }))
+  expect(useWorksStore.getState().updateWork).toHaveBeenCalledWith(
+    expect.objectContaining({
+      events: [
+        expect.objectContaining({
+          title: '이전 사건',
+          time: '',
+          timeStatus: 'CONFIRMED',
+          sequence: 0,
+        }),
+        expect.objectContaining({ id: anchor.id, sequence: 1 }),
       ],
     }),
   )
@@ -271,7 +304,7 @@ test('미저장 입력이 있으면 최신 타임라인 조회로 덮어쓰지 �
   expect(useWorksStore.getState().reloadWorkspace).not.toHaveBeenCalled()
 })
 
-test('서술 회차 순서와 이야기 시간순 비교 흐름도에서 역순 서술과 시점 미확정을 구분한다', () => {
+test('이야기 순번과 원고 순서를 구분하고 회차를 필터링해도 순번을 유지한다', () => {
   const flowWork: Work = {
     ...work,
     chapters: [
@@ -321,16 +354,13 @@ test('서술 회차 순서와 이야기 시간순 비교 흐름도에서 역순 
     </MemoryRouter>,
   )
 
-  expect(screen.getByText('회차 서술 순서 ↔ 이야기 시간순 비교')).toBeTruthy()
   expect(document.querySelector('.timeline-rows summary strong')?.textContent).toBe(
     '어린 시절의 서약',
   )
-  fireEvent.click(screen.getByRole('button', { name: '회차에 나온 순서' }))
-  expect(document.querySelector('.timeline-rows summary strong')?.textContent).toBe('항구 도착')
-  fireEvent.click(screen.getByRole('button', { name: '흐름도 펼치기' }))
-  expect(screen.getAllByText(/서술 순서 역전/).length).toBeGreaterThan(0)
-
-  fireEvent.click(screen.getByRole('button', { name: '대조 목록 표' }))
-  expect(screen.getByText('서술 회차 순서와 이야기 시간순 대조 표')).toBeTruthy()
-  expect(screen.getByText('미배치 (확인 필요)')).toBeTruthy()
+  fireEvent.click(screen.getByText('원고에 나온 순서와 비교'))
+  expect(document.querySelector('.timeline-comparison-list strong')?.textContent).toBe('항구 도착')
+  expect(screen.getByText('앞서 일어난 사건')).toBeTruthy()
+  expect(screen.getByText('이야기 속 순서 미정')).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('근거 회차'), { target: { value: 'ch-1' } })
+  expect(document.querySelector('.timeline-rows summary')?.textContent).toContain('2번째')
 })

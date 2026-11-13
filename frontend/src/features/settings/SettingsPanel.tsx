@@ -6,9 +6,11 @@ import type { Setting, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
+import { CharacterImagePanel } from './CharacterImagePanel'
 
 export function SettingsPanel({ work }: { work: Work }) {
   const saveSetting = useWorksStore((state) => state.saveSetting)
+  const deleteCharacter = useWorksStore((state) => state.deleteCharacter)
   const loadSettings = useWorksStore((state) => state.loadSettings)
   const settingView = useWorksStore((state) => state.settingView)
   const [kind, setKind] = useState('전체')
@@ -23,6 +25,7 @@ export function SettingsPanel({ work }: { work: Work }) {
   }, [work.id, kind, loadSettings])
   const [selectedId, setSelectedId] = useState(work.settings[0]?.id || '')
   const [editing, setEditing] = useState<Setting | 'new' | null>(null)
+  const [deleting, setDeleting] = useState<Setting | null>(null)
   // 서버 페이지의 표시 순서는 유지하면서, 본문은 캐시에 병합된 최신 설정을 사용한다.
   const filtered =
     work.source === 'server'
@@ -172,10 +175,28 @@ export function SettingsPanel({ work }: { work: Work }) {
               <button className="text-button" onClick={() => setEditing(selected)}>
                 설정 수정
               </button>
+              {work.source === 'server' && selected.kind === '인물' && (
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setError('')
+                    setDeleting(selected)
+                  }}
+                >
+                  인물 삭제
+                </button>
+              )}
             </div>
             <span className="small muted">{selected.kind}</span>
             <h2>{selected.title}</h2>
             <MarkdownPreview content={selected.content} />
+            {work.source === 'server' && selected.kind === '인물' && (
+              <CharacterImagePanel
+                key={work.id + ':' + selected.id}
+                workId={work.id}
+                setting={selected}
+              />
+            )}
             <div className="notice small">
               {selected.status === '확정'
                 ? '작가님이 확정한 설정입니다. 검토 후보가 이 내용을 자동으로 변경하지 않습니다.'
@@ -219,6 +240,46 @@ export function SettingsPanel({ work }: { work: Work }) {
           <div className="setting-detail muted">인물과 세계관을 기록하고 원고와 연결해 보세요.</div>
         )}
       </div>
+      {deleting && (
+        <Dialog
+          title="인물 삭제"
+          onClose={() => {
+            if (!saving) setDeleting(null)
+          }}
+        >
+          <p>{deleting.title}의 인물 설정과 이미지 시안을 모두 삭제합니다.</p>
+          {error && (
+            <p role="alert" className="error">
+              {error}
+            </p>
+          )}
+          <div className="dialog-actions">
+            <button disabled={saving} onClick={() => setDeleting(null)}>
+              취소
+            </button>
+            <button
+              className="danger"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true)
+                setError('')
+                try {
+                  await deleteCharacter(work.id, deleting)
+                  setDeleting(null)
+                } catch (failure) {
+                  setError(
+                    failure instanceof Error ? failure.message : '인물을 삭제하지 못했습니다.',
+                  )
+                } finally {
+                  setSaving(false)
+                }
+              }}
+            >
+              인물 삭제
+            </button>
+          </div>
+        </Dialog>
+      )}
       {editing && (
         <Dialog
           title={editing === 'new' ? '설정 등록' : '설정 수정'}

@@ -47,4 +47,8 @@ export const settingClient = {
       await httpClient.put(path, { ...toSettingRequest(input), version: existing.version }),
     )
   },
+  async deleteCharacter(workId: string, setting: Setting): Promise<void> {
+    const path = settingsPath(workId) + '/' + encodeURIComponent(setting.id)
+    await httpClient.delete(path, { params: { version: setting.version } })
+  },
 }
