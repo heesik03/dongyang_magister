@@ -43,11 +43,6 @@ public class GeminiClient {
         return generateText(prompt, GeminiEventConfig.create());
     }
 
-    /** 장면 분석은 별도 JSON 출력을 사용한다. */
-    public String generateScene(String prompt) {
-        return generateText(prompt, GeminiSceneConfig.create());
-    }
-
     /** Gemini 이미지 응답에서 크기와 서명이 맞는 PNG/JPEG 한 장만 사용한다. */
     public GeneratedPortrait generatePortrait(String model, String prompt) {
         GenerateContentResponse response = generate(

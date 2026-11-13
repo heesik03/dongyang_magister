@@ -19,7 +19,7 @@ class CharacterImageWorker {
     private final GeminiClient geminiClient;
 
     /** 커밋된 작업을 선점하고 공급자 응답을 트랜잭션 밖에서 기다린다. */
-    @Scheduled(fixedDelayString = "${character-image.poll-delay-ms:3000}", scheduler = "sceneBoardScheduler")
+    @Scheduled(fixedDelayString = "${character-image.poll-delay-ms:3000}")
     public void process() {
         Instant now = Instant.now();
         repository.expire(now);

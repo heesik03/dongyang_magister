@@ -44,11 +44,6 @@ public class WorkDeletionRepository {
                     + " work_id=? AND status IN ('QUEUED','RUNNING')",
                 workId);
         jdbcTemplate.update(
-                "DELETE FROM scene_image_jobs WHERE board_id IN (SELECT id FROM scene_boards WHERE"
-                    + " work_id=?)",
-                workId);
-        jdbcTemplate.update("DELETE FROM scene_boards WHERE work_id=?", workId);
-        jdbcTemplate.update(
                 "DELETE FROM analysis_decision_references WHERE job_id IN (SELECT id FROM"
                     + " analysis_jobs WHERE work_id=?)",
                 workId);

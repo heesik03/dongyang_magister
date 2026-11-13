@@ -667,8 +667,7 @@
   padding-inline: 0;
 }
 
-.review-comparison-box .comparison-card,
-.scene-board-flow :is(section, article) {
+.review-comparison-box .comparison-card {
   min-width: 0;
   overflow-wrap: anywhere;
 }

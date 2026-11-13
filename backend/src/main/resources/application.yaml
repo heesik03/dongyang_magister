@@ -31,9 +31,6 @@ gemini:
   model: ${GEMINI_MODEL:}
   timeout: ${GEMINI_TIMEOUT:30s}
 
-scene-board:
-  analysis-daily-limit: ${SCENE_ANALYSIS_DAILY_LIMIT:10}
-
 character-image:
   model: ${GEMINI_CHARACTER_IMAGE_MODEL:gemini-3.1-flash-image}
   daily-limit: ${CHARACTER_IMAGE_DAILY_LIMIT:3}

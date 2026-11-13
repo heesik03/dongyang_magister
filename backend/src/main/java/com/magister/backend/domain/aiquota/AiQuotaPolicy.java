@@ -11,7 +11,6 @@ public final class AiQuotaPolicy {
     private AiQuotaPolicy() {}
 
     public enum Feature {
-        SCENE_ANALYSIS,
         CHARACTER_IMAGE
     }
 

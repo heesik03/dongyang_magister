@@ -14,18 +14,15 @@ import java.time.Instant;
 @Service
 public class AiQuotaService {
     private final JdbcTemplate jdbcTemplate;
-    private final int sceneLimit;
     private final int characterImageLimit;
 
     public AiQuotaService(
             JdbcTemplate jdbcTemplate,
-            @Value("${scene-board.analysis-daily-limit:10}") int sceneLimit,
             @Value("${character-image.daily-limit:3}") int characterImageLimit) {
-        if (sceneLimit < 1 || characterImageLimit < 1) {
+        if (characterImageLimit < 1) {
             throw new IllegalArgumentException("AI daily limits must be positive");
         }
         this.jdbcTemplate = jdbcTemplate;
-        this.sceneLimit = sceneLimit;
         this.characterImageLimit = characterImageLimit;
     }
 
@@ -78,7 +75,6 @@ public class AiQuotaService {
 
     private int limit(Feature feature) {
         return switch (feature) {
-            case SCENE_ANALYSIS -> sceneLimit;
             case CHARACTER_IMAGE -> characterImageLimit;
         };
     }
