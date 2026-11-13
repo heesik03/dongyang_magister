@@ -12,6 +12,7 @@ import { useAnalysisJobs } from '../analysis/useAnalysisJobs'
 import { Dialog } from '../../shared/Dialog'
 import { Icon } from '../../shared/Icon'
 import { ManuscriptTransfer } from './ManuscriptTransfer'
+import { AiWritingAssistant } from './AiWritingAssistant'
 
 const reviewStatusLabels: Readonly<Record<string, string>> = {
   QUEUED: '대기',
@@ -659,6 +660,17 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                 인물·세계관 열기
               </Link>
             </section>
+            {work.source === 'server' && chapter && (
+              <AiWritingAssistant
+                content={chapter.content}
+                disabled={submitting}
+                onApply={(text) => {
+                  const separator =
+                    chapter.content.endsWith('\n') || !chapter.content.length ? '' : '\n\n'
+                  write(chapter.content + separator + text)
+                }}
+              />
+            )}
           </aside>
         )}
         <ReviewPanel

@@ -85,4 +85,16 @@ class GeminiServiceTests {
             second.close();
         }
     }
+
+    @Test
+    void formatsPromptWhenWritingActionIsProvided() {
+        GeminiClient client = mock(GeminiClient.class);
+        GeminiService service = new GeminiService(client, new GeminiRateLimiter());
+        when(client.generateText(
+                        "다음 소설 원고의 문체와 흐름을 유지하며 자연스럽게 이어질 다음 문단을 한국어로 작성해 주세요.\n\n린은 검을 뽑았다.",
+                        1024))
+                .thenReturn("차가운 달빛이 검신 위로 흘러내렸다.");
+        assertThat(service.generate(1L, new GeminiRequest("린은 검을 뽑았다.", "CONTINUE")).text())
+                .isEqualTo("차가운 달빛이 검신 위로 흘러내렸다.");
+    }
 }
