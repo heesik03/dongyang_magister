@@ -34,7 +34,7 @@ class DatabaseConfigurationTests {
                             assertThat(
                                             context.getEnvironment()
                                                     .getProperty("spring.jpa.hibernate.ddl-auto"))
-                                    .isEqualTo("validate");
+                                    .isEqualTo("update");
                             assertThat(
                                             context.getEnvironment()
                                                     .getProperty("spring.config.datasource.url"))

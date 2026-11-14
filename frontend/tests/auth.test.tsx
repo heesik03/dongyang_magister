@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '../src/features/auth/AuthProvider'
 import { AuthPage } from '../src/features/auth/AuthPage'
@@ -47,7 +47,7 @@ function renderAuth(path = '/works/demo/manuscript') {
   )
 }
 async function submitLogin() {
-  await screen.findByRole('heading', { name: '다시 만나 반가워요' })
+  await screen.findByRole('heading', { name: '로그인' })
   fireEvent.change(screen.getByLabelText('이메일'), { target: { value: user.email } })
   fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'Password1!' } })
   fireEvent.submit(screen.getByRole('button', { name: /로그인/ }).closest('form')!)
@@ -69,7 +69,7 @@ test('서버 연결 실패는 미로그인으로 오인하지 않고 재시도�
   renderAuth()
   expect((await screen.findByRole('alert')).textContent).toContain('서버 연결')
   fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
-  expect(await screen.findByRole('heading', { name: '다시 만나 반가워요' })).toBeTruthy()
+  expect(await screen.findByRole('heading', { name: '로그인' })).toBeTruthy()
 })
 test('로그인 실패 후 이메일 입력을 보존한다', async () => {
   vi.mocked(authClient.login).mockRejectedValue(
@@ -97,7 +97,7 @@ test('세션 만료 응답을 받으면 로그인 화면으로 이동한다', as
   renderAuth()
   await screen.findByRole('heading', { name: '보호된 원고' })
   window.dispatchEvent(new Event('auth-expired'))
-  expect(await screen.findByRole('heading', { name: '다시 만나 반가워요' })).toBeTruthy()
+  expect(await screen.findByRole('heading', { name: '로그인' })).toBeTruthy()
 })
 
 async function fillSignup() {
@@ -157,9 +157,15 @@ test('보호 주소에서 로그인 화면을 거쳐 회원가입 후 로그인�
   vi.mocked(authClient.signup).mockResolvedValue(user)
   vi.mocked(authClient.login).mockResolvedValue(user)
   renderAuth('/works/demo/manuscript')
-  await screen.findByRole('heading', { name: '다시 만나 반가워요' })
-  fireEvent.click(screen.getByRole('link', { name: '회원가입' }))
+  await screen.findByRole('heading', { name: '로그인' })
+  fireEvent.change(screen.getByLabelText('이메일'), { target: { value: 'draft@example.com' } })
+  fireEvent.click(
+    within(screen.getByRole('navigation', { name: '로그인 및 가입' })).getByRole('link', {
+      name: '회원가입',
+    }),
+  )
   await screen.findByLabelText('필명')
+  expect((screen.getByLabelText('이메일') as HTMLInputElement).value).toBe('')
   fireEvent.change(screen.getByLabelText('필명'), { target: { value: '작가' } })
   fireEvent.change(screen.getByLabelText('이메일'), { target: { value: user.email } })
   fireEvent.change(screen.getByLabelText('비밀번호', { exact: true }), {
@@ -170,6 +176,8 @@ test('보호 주소에서 로그인 화면을 거쳐 회원가입 후 로그인�
   await screen.findByText('사용할 수 있는 이메일입니다.')
   fireEvent.submit(screen.getByRole('button', { name: '회원가입하고 시작하기' }).closest('form')!)
   await screen.findByText('회원가입이 완료되었습니다.')
+  expect((screen.getByLabelText('이메일') as HTMLInputElement).value).toBe('')
+  fireEvent.change(screen.getByLabelText('이메일'), { target: { value: user.email } })
   fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'Password1!' } })
   fireEvent.submit(screen.getByRole('button', { name: /로그인/ }).closest('form')!)
   expect(await screen.findByRole('heading', { name: '보호된 원고' })).toBeTruthy()

@@ -14,31 +14,26 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  flyway:
-    locations: classpath:com/magister/backend/global/migration
-
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
         format_sql: true
+        hbm2ddl.halt_on_error: true
 
 gemini:
   api-key: ${GEMINI_API_KEY:}
   model: ${GEMINI_MODEL:}
   timeout: ${GEMINI_TIMEOUT:30s}
 
-scene-board:
-  image-model: ${GEMINI_IMAGE_MODEL:}
-  analysis-daily-limit: ${SCENE_ANALYSIS_DAILY_LIMIT:10}
-  image-daily-limit: ${SCENE_IMAGE_DAILY_LIMIT:3}
+character-image:
+  model: ${GEMINI_CHARACTER_IMAGE_MODEL:gemini-3.1-flash-image}
+  daily-limit: ${CHARACTER_IMAGE_DAILY_LIMIT:3}
 
 analysis:
-  # 비워 두면 프로세스별 임시 키. 여러 서버에서는 같은 32자 이상 비밀 값을 주입한다.
-  preview-signing-key: ${ANALYSIS_PREVIEW_SIGNING_KEY:}
   execution:
     threads: 2
     queue-capacity: 8

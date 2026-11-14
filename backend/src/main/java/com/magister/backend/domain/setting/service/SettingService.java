@@ -116,6 +116,21 @@ public class SettingService {
         return SettingConverter.toResponse(setting);
     }
 
+    /** 본인 인물의 최신 버전을 확인한 뒤 설정과 연결된 이미지 작업을 삭제한다. */
+    @Transactional
+    public void deleteCharacter(Long ownerId, Long workId, Long settingId, long expectedVersion) {
+        Work work = workAccessService.lockOwned(ownerId, workId);
+        WorkSetting setting = findSetting(workId, settingId);
+        if (setting.getKind() != SettingKind.CHARACTER) {
+            throw new CustomException(SettingErrorCode.SETTING_NOT_FOUND);
+        }
+        if (setting.getVersion() != expectedVersion) {
+            throw new CustomException(WorkErrorCode.VERSION_CONFLICT);
+        }
+        workSettingRepository.delete(setting);
+        work.touch();
+    }
+
     /** 설정 ID만 사용하지 않아 다른 작품 ID를 끼워 넣는 접근을 차단한다. */
     private WorkSetting findSetting(Long workId, Long settingId) {
         // 다른 작품의 설정 ID를 끼워 넣는 요청도 차단한다.

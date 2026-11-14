@@ -5,8 +5,6 @@ import com.magister.backend.domain.decision.dto.DecisionRequest;
 import com.magister.backend.domain.decision.dto.DecisionResponse;
 import com.magister.backend.domain.decision.service.DecisionService;
 import com.magister.backend.domain.user.security.LoginUser;
-import com.magister.backend.global.pagination.OffsetPageRequest;
-import com.magister.backend.global.pagination.OffsetPageResponse;
 import com.magister.backend.global.response.ApiResult;
 
 import lombok.RequiredArgsConstructor;
@@ -17,7 +15,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -43,32 +40,5 @@ public class DecisionController implements DecisionControllerDocs {
             @PathVariable Long workId,
             @PathVariable String reviewId) {
         return ApiResult.success(decisionService.get(user.id(), workId, reviewId));
-    }
-
-    @Override
-    @GetMapping("/review/{reviewId}/decision/history")
-    public ApiResult<OffsetPageResponse<DecisionResponse>> history(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @PathVariable String reviewId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResult.success(
-                decisionService.history(
-                        user.id(), workId, reviewId, OffsetPageRequest.of(page, size)));
-    }
-
-    @Override
-    @GetMapping("/decision")
-    public ApiResult<OffsetPageResponse<DecisionResponse>> list(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @RequestParam(required = false) String chapterId,
-            @RequestParam(required = false) String status,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResult.success(
-                decisionService.list(
-                        user.id(), workId, chapterId, status, OffsetPageRequest.of(page, size)));
     }
 }

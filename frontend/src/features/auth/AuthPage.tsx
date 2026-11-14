@@ -55,6 +55,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
         await authClient.signup(name, email, password)
         setPassword('')
         setConfirmation('')
+        emailCheck.setEmail('')
         navigate('/login', {
           state: { ...getLoginState(location.state), registered: true },
           replace: true,
@@ -74,50 +75,37 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
       setSaving(false)
     }
   }
+  function resetAuthForm() {
+    setError('')
+    setPassword('')
+    setConfirmation('')
+    emailCheck.setEmail('')
+  }
+
   return (
     <main className="auth-layout">
-      <section className="auth-story">
-        <Link className="brand" to="/login">
-          <Icon name="book" brand /> Magister
+      <header className="editorial-header">
+        <Link className="brand" to="/login" onClick={resetAuthForm}>
+          Magister
         </Link>
-        <p className="auth-tagline">작가를 위한 이야기 설계실</p>
-        <div className="story-copy">
-          <h1>
-            당신의 세계가,
-            <br />
-            흔들림 없이 이야기로.
-          </h1>
-          <p>
-            설정과 원고 사이의 작은 틈을 발견하고,
-            <br />
-            이야기의 다음 페이지를 자신 있게 펼치세요.
-          </p>
-          <div className="paper-preview">
-            <strong>하나의 문장, 더 단단한 이야기</strong>
-            <ol>
-              <li>
-                <span>원고</span>
-                <p>그는 금지된 마법을 능숙하게 시전했다.</p>
-              </li>
-              <li>
-                <span>근거</span>
-                <p>설정집: 이안은 마법을 사용할 수 없다.</p>
-              </li>
-              <li>
-                <span>작가의 판단</span>
-                <p>의도한 변화의 계기를 기록합니다.</p>
-              </li>
-            </ol>
-          </div>
-        </div>
-      </section>
+        <nav aria-label="로그인 및 가입" className="editorial-navigation">
+          <Link
+            className="nav-item"
+            to={signup ? '/login' : '/signup'}
+            state={getLoginState(location.state)}
+            onClick={resetAuthForm}
+          >
+            <Icon name={signup ? 'arrow' : 'plus'} />
+            {signup ? '로그인' : '회원가입'}
+          </Link>
+        </nav>
+      </header>
       <section className="auth-form-wrap">
+        <h1 className="auth-page-title">{signup ? '회원가입' : '로그인'}</h1>
         <form className="auth-form" onSubmit={submit} key={signup ? 'signup' : 'login'}>
           <div className="auth-form-heading">
-            <h2>{signup ? '새 이야기를 시작해요' : '다시 만나 반가워요'}</h2>
-            <p className="muted">
-              {signup ? '작가님의 세계를 함께 준비할게요.' : '이어 쓰던 이야기가 기다리고 있어요.'}
-            </p>
+            <h2>{signup ? '계정 정보' : '이메일로 로그인'}</h2>
+            {signup && <p className="muted">이메일과 필명을 입력해 계정을 만듭니다.</p>}
           </div>
           {!signup && location.state?.registered && (
             <div role="status" className="signup-success">
@@ -275,11 +263,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
             <Link
               to={signup ? '/login' : '/signup'}
               state={getLoginState(location.state)}
-              onClick={() => {
-                setError('')
-                setPassword('')
-                setConfirmation('')
-              }}
+              onClick={resetAuthForm}
             >
               {signup ? '로그인' : '회원가입'}
             </Link>

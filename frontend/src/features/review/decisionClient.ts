@@ -1,5 +1,5 @@
 import { httpClient } from '../../shared/httpClient'
-import { parsePage, readInteger, readRecord, readString } from '../../shared/responseReader'
+import { readInteger, readRecord, readString } from '../../shared/responseReader'
 import type { Decision } from '../works/workTypes'
 
 export interface DecisionScope {
@@ -163,23 +163,5 @@ export const decisionClient = {
   },
   async save(workId: string, reviewId: string, request: DecisionRequest) {
     return parseDecision(await httpClient.put(path(workId, reviewId), request))
-  },
-  async history(workId: string, reviewId: string, page = 0, signal?: AbortSignal) {
-    return parsePage(
-      await httpClient.get(path(workId, reviewId) + '/history', {
-        signal,
-        params: { page, size: 20 },
-      }),
-      parseDecision,
-    )
-  },
-  async list(workId: string, page = 0, status?: string, signal?: AbortSignal) {
-    return parsePage(
-      await httpClient.get('/work/' + encodeURIComponent(workId) + '/decision', {
-        signal,
-        params: { page, size: 20, status: status || undefined },
-      }),
-      parseDecision,
-    )
   },
 }

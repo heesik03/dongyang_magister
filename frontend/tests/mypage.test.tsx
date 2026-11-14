@@ -101,7 +101,7 @@ test('비밀번호 변경 성공 시 작업 상태를 비우고 로그인 화면
   vi.mocked(accountClient.changePassword).mockResolvedValue(undefined)
 
   renderMyPage()
-  await screen.findByRole('heading', { name: '마이페이지' })
+  await screen.findByRole('heading', { name: '내 계정' })
 
   fireEvent.click(screen.getByRole('tab', { name: '비밀번호 변경' }))
 
@@ -136,7 +136,7 @@ test('미저장 원고 자동 저장에 실패하면 비밀번호 변경으로 �
   })
 
   renderMyPage()
-  await screen.findByRole('heading', { name: '마이페이지' })
+  await screen.findByRole('heading', { name: '내 계정' })
   fireEvent.click(screen.getByRole('tab', { name: '비밀번호 변경' }))
 
   fireEvent.change(screen.getByLabelText('현재 비밀번호', { exact: true }), {
@@ -173,7 +173,7 @@ test('회원 탈퇴 모달에서 비밀번호와 동의 확인 후 브라우저 
   renderMyPage()
   await screen.findByText(/잿빛 항구의 연대기 · 3화 안개 낀 부두/)
 
-  fireEvent.click(screen.getByRole('button', { name: '회원 탈퇴...' }))
+  fireEvent.click(screen.getByRole('button', { name: '회원 탈퇴 안내' }))
 
   expect(await screen.findByRole('heading', { name: '정말로 탈퇴하시겠습니까?' })).toBeTruthy()
   expect(screen.getByText(/보유 작품 2편 및 설정집 전체/)).toBeTruthy()

@@ -3,6 +3,8 @@ import { BrowserRouter, useRoutes } from 'react-router-dom'
 import { AuthProvider } from './features/auth/AuthProvider'
 import { routes } from './routes'
 import './App.css'
+import './workspaceDesign.css'
+import './editorialLayout.css'
 
 export default function App() {
   return (

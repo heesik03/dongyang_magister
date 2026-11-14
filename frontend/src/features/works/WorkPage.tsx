@@ -4,7 +4,7 @@ import { DeleteWorkDialog } from './DeleteWorkDialog'
 import { WorkspaceStatus } from '../workspace/WorkspaceStatus'
 import { GENRES } from './workGenres'
 import { Dialog } from '../../shared/Dialog'
-import { Link, Navigate, NavLink, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useWorksStore } from './useWorksStore'
 import { SettingsPanel } from '../settings/SettingsPanel'
 import { Icon } from '../../shared/Icon'
@@ -13,7 +13,7 @@ import { TimelinePanel } from '../timeline/TimelinePanel'
 
 export function WorkPage() {
   const { workId, tab } = useParams()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const loaded = useWorksStore((state) => !!workId && state.loadedIds.includes(workId))
   const works = useWorksStore((state) => state.works)
   const loadWork = useWorksStore((state) => state.loadWork)
@@ -23,7 +23,13 @@ export function WorkPage() {
   const saveWorkInfo = useWorksStore((state) => state.saveWorkInfo)
   const deleted = useWorksStore((state) => !!workId && state.deletedIds.includes(workId))
   const [deleting, setDeleting] = useState(false)
-  const [managing, setManaging] = useState(false)
+  const managing = searchParams.get('manage') === '1'
+  function setManaging(open: boolean) {
+    const next = new URLSearchParams(searchParams)
+    if (open) next.set('manage', '1')
+    else next.delete('manage')
+    setSearchParams(next, { replace: true })
+  }
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -53,7 +59,12 @@ export function WorkPage() {
   }
   if (deleted) return <Navigate to="/" replace />
   if ((!loaded && !detailError) || (detailLoading && !work))
-    return <p role="status">작품을 불러오고 있습니다.</p>
+    return (
+      <p className="work-page" role="status">
+        <Icon name="clock" />
+        작품을 불러오고 있습니다.
+      </p>
+    )
   if (detailError)
     return (
       <ErrorPage
@@ -84,14 +95,19 @@ export function WorkPage() {
   return (
     <main className="work-page">
       <div className="work-heading">
-        <Link to="/" className="small muted">
-          작품 보관함 /
-        </Link>
         <div className="row">
           <div>
-            <h1>{work.title}</h1>
+            <h1>
+              {tab === 'manuscript'
+                ? searchParams.get('view') === 'review'
+                  ? '검토 결과'
+                  : '원고 쓰기'
+                : tab === 'settings'
+                  ? '인물·세계관'
+                  : '사건 순서'}
+            </h1>
             <p className="small muted">
-              {work.genre} · {work.era || '시대 미정'}
+              {work.title} · {work.genre}
             </p>
           </div>
           <button
@@ -188,18 +204,6 @@ export function WorkPage() {
           </form>
         </Dialog>
       )}
-      <nav className="work-tabs" aria-label="작품 메뉴">
-        {[
-          ['manuscript', '원고 · 검토', 'file'],
-          ['settings', '설정집', 'book'],
-          ['timeline', '사건 타임라인', 'clock'],
-        ].map(([path, label, icon]) => (
-          <NavLink to={`/works/${work.id}/${path}`} key={path}>
-            <Icon name={icon === 'file' ? 'file' : icon === 'book' ? 'book' : 'clock'} />
-            {label}
-          </NavLink>
-        ))}
-      </nav>
       <div className="work-content">
         {tab === 'settings' ? (
           <SettingsPanel key={work.id} work={work} />

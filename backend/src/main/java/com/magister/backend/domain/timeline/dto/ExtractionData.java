@@ -1,7 +1,6 @@
 package com.magister.backend.domain.timeline.dto;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -18,17 +17,10 @@ public final class ExtractionData {
 
     public record Selection(@NotBlank @Size(max = 64) String id, @Min(1) long revision) {}
 
-    public record PreviewRequest(
-            @NotEmpty @Size(max = 10) List<@Valid @NotNull Selection> chapters) {}
-
     public record Source(String id, String title, long revision, int chapterNo, String content) {}
-
-    public record Preview(List<Source> sources, String token, String model) {}
 
     public record CreateRequest(
             @NotEmpty @Size(max = 10) List<@Valid @NotNull Selection> chapters,
-            @NotBlank @Size(max = 100) String token,
-            @AssertTrue boolean consent,
             @NotBlank @Size(max = 64) String requestId) {}
 
     public record Input(List<Source> sources, String model) {}

@@ -8,6 +8,7 @@ import { ApiError } from '../../shared/httpClient'
 import { readStoredWorks, isWorks } from './workStorage'
 import { mergeWorkByVersion, mergeSettingsByVersion } from './workCache'
 import type { Work, Setting } from './workTypes'
+import type { TimelineSnapshot } from '../timeline/timelineClient'
 
 interface SettingView {
   workId: string
@@ -52,7 +53,9 @@ interface WorksState {
   forgetDeletedWork: (id: string) => Promise<void>
   saveWorkInfo: (work: Work, input: WorkInput) => Promise<void>
   saveSetting: (work: Work, input: SettingInput, existing?: Setting) => Promise<Setting>
+  deleteCharacter: (workId: string, setting: Setting) => Promise<void>
   updateWork: (work: Work) => void
+  acceptTimeline: (id: string, snapshot: TimelineSnapshot) => void
   retrySave: () => void
   flushWorkspace: (id: string) => Promise<void>
   reloadWorkspace: (id: string) => Promise<void>
@@ -488,19 +491,51 @@ export const useWorksStore = create<WorksState>((set, get) => ({
     } else get().updateWork(next)
     return saved
   },
+  async deleteCharacter(workId, setting) {
+    const revision = accountRevision
+    await settingClient.deleteCharacter(workId, setting)
+    if (revision !== accountRevision || deletedWorkIds.has(workId)) return
+    const view = get().settingView
+    if (view.workId === workId) settingRequest?.abort()
+    set({
+      works: get().works.map((work) =>
+        work.id === workId
+          ? { ...work, settings: work.settings.filter((item) => item.id !== setting.id) }
+          : work,
+      ),
+    })
+    if (view.workId === workId) await get().loadSettings(workId, view.kind)
+    try {
+      const metadata = await workClient.get(workId)
+      if (revision !== accountRevision || deletedWorkIds.has(workId)) return
+      const current = get().works.find((work) => work.id === workId)
+      if (current)
+        set({
+          works: mergeWorkByVersion(get().works, {
+            ...current,
+            ...metadata,
+            ...contentOf(current),
+            settings: current.settings,
+            workspaceVersion: current.workspaceVersion,
+          }),
+        })
+    } catch (error) {
+      if (revision === accountRevision)
+        set({ listError: '인물 삭제 후 작품 정보를 갱신하지 못했습니다. ' + message(error) })
+    }
+  },
   updateWork(work) {
     const current = get().works.find((item) => item.id === work.id)
     if (!current) return
     const next =
       current.source === 'server'
-        ? { ...current, ...contentOf(work) }
+        ? { ...current, ...contentOf(work), events: current.events }
         : { ...work, updatedAt: new Date().toISOString() }
     set({ works: mergeWorkByVersion(get().works, next) })
     if (next.source === 'server') {
       if (
-        (current.analyses !== next.analyses || current.events !== next.events) &&
-        JSON.stringify([current.analyses, current.events]) !==
-          JSON.stringify([next.analyses, next.events])
+        current.analyses !== next.analyses &&
+        JSON.stringify(current.analyses) !== JSON.stringify(next.analyses)
       )
         workspaceDirty.add(next.id)
       try {
@@ -524,6 +559,26 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         'legacy',
         setTimeout(() => get().retrySave(), 600),
       )
+    }
+  },
+  acceptTimeline(id, snapshot) {
+    const current = get().works.find((item) => item.id === id)
+    if (!current || (current.workspaceVersion ?? 0) > snapshot.version) return
+    set({
+      works: mergeWorkByVersion(get().works, {
+        ...current,
+        events: snapshot.events,
+        workspaceVersion: snapshot.version,
+        version: Math.max(current.version ?? 0, snapshot.workVersion),
+      }),
+    })
+    try {
+      localStorage.setItem(
+        'magister.workspace-saved:' + get().account,
+        JSON.stringify({ id, version: snapshot.version }),
+      )
+    } catch {
+      set({ storageError: '사건은 저장했지만 다른 탭에 알리지 못했습니다.' })
     }
   },
   async flushWorkspace(id) {
@@ -578,7 +633,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
           const latest = get().works.find((item) => item.id === id)
           if (!latest) return
           const content = contentOf(latest),
-            body = JSON.stringify([content.analyses, content.events]),
+            body = JSON.stringify(content.analyses),
             previous = mutations.get(id)
           const mutation =
             previous?.body === body
@@ -589,14 +644,17 @@ export const useWorksStore = create<WorksState>((set, get) => ({
           if (revision !== accountRevision || deletedWorkIds.has(id)) return
           const current = get().works.find((item) => item.id === id)
           if (!current) return
-          if (current.analyses === content.analyses && current.events === content.events)
-            workspaceDirty.delete(id)
+          if (current.analyses === content.analyses) workspaceDirty.delete(id)
           set({
             works: get().works.map((item) =>
               item.id === id
                 ? {
                     ...item,
-                    workspaceVersion: response.version,
+                    workspaceVersion: Math.max(item.workspaceVersion ?? 0, response.version),
+                    events:
+                      (item.workspaceVersion ?? 0) > response.version
+                        ? item.events
+                        : response.content.events,
                     version: Math.max(item.version ?? 0, response.workVersion),
                     updatedAt: response.updatedAt,
                   }

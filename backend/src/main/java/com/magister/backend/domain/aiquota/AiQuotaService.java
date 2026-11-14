@@ -14,19 +14,16 @@ import java.time.Instant;
 @Service
 public class AiQuotaService {
     private final JdbcTemplate jdbcTemplate;
-    private final int sceneLimit;
-    private final int imageLimit;
+    private final int characterImageLimit;
 
     public AiQuotaService(
             JdbcTemplate jdbcTemplate,
-            @Value("${scene-board.analysis-daily-limit:10}") int sceneLimit,
-            @Value("${scene-board.image-daily-limit:3}") int imageLimit) {
-        if (sceneLimit < 1 || imageLimit < 1) {
+            @Value("${character-image.daily-limit:3}") int characterImageLimit) {
+        if (characterImageLimit < 1) {
             throw new IllegalArgumentException("AI daily limits must be positive");
         }
         this.jdbcTemplate = jdbcTemplate;
-        this.sceneLimit = sceneLimit;
-        this.imageLimit = imageLimit;
+        this.characterImageLimit = characterImageLimit;
     }
 
     /** 새 작업을 저장하는 트랜잭션에서만 호출한다. 재전송 판정은 호출자가 먼저 수행한다. */
@@ -78,8 +75,7 @@ public class AiQuotaService {
 
     private int limit(Feature feature) {
         return switch (feature) {
-            case SCENE_ANALYSIS -> sceneLimit;
-            case SCENE_IMAGE -> imageLimit;
+            case CHARACTER_IMAGE -> characterImageLimit;
         };
     }
 

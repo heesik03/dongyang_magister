@@ -2,13 +2,8 @@ package com.magister.backend.domain.analysis.docs;
 
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
-import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
-import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
-import com.magister.backend.domain.analysis.dto.AnalysisSourceResponse;
-import com.magister.backend.domain.analysis.dto.ReviewComparisonResponse;
 import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
-import com.magister.backend.domain.analysis.dto.WorkReviewOverviewResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.pagination.OffsetPageResponse;
@@ -35,16 +30,9 @@ import org.springframework.http.ResponseEntity;
 @SecurityRequirement(name = "session")
 public interface AnalysisControllerDocs {
     @Operation(
-            summary = "작품 회차별 검토 현황 집계",
-            description =
-                    "각 회차의 가장 최근 성공(SUCCEEDED) 분석 1건만 기준으로 설정 충돌 후보·설명 보완·미검토 분포를 반환합니다."
-                        + " 미분석·최신 원고·수정 전 원고 상태를 구분하며 중복 재분석 이력을 합산하지 않습니다.")
-    ApiResult<WorkReviewOverviewResponse> overview(LoginUser user, @Positive Long workId);
-
-    @Operation(
             summary = "근거가 연결된 검토 후보",
             description =
-                    "본인 작업만 조회. 후보·다중 근거·UTF-16 위치·4단계 구조화 설명·선택지·범위 종합 요약과 legacy/stale 반환."
+                    "본인 작업만 조회. 후보·다중 근거·UTF-16 위치와 legacy/stale 반환."
                         + " page=0,size=20(최대100). 200/400/401/404/409. 과거 결과의 없는 위치는 추정하지 않습니다.")
     ApiResult<ReviewReportResponse> reviews(
             LoginUser user,
@@ -52,39 +40,6 @@ public interface AnalysisControllerDocs {
             @NotBlank @Size(max = 36) String id,
             @Min(0) int page,
             @Min(1) @Max(100) int size);
-
-    @Operation(
-            summary = "원고 수정 전후 검토 결과 비교",
-            description =
-                    "같은 회차의 이전 완료 분석과 현재 완료 분석을 비교하여 유지된 쟁점·새 후보·이번 결과에서 다시 나오지 않은 후보·비교 불가 항목을"
-                        + " 반환합니다. 다시 나오지 않은 후보는 자동 해결로 간주하지 않습니다. "
-                        + "비교 대상은 같은 회차의 완료 분석이며, 현재 분석 미완료는 409, 잘못된 기준 작업은 400으로 응답합니다.")
-    ApiResult<ReviewComparisonResponse> compare(
-            LoginUser user,
-            @Positive Long workId,
-            @NotBlank @Size(max = 36) String id,
-            @Size(max = 36) String baseJobId);
-
-    @Operation(
-            summary = "분석 당시 근거 원문",
-            description =
-                    "본인 작업에 속한 출처의 고정 원문·제목·버전 반환. 인용 위치는 UTF-16 [startOffset,endOffset)."
-                        + " 200/400/401/404.")
-    ApiResult<AnalysisSourceResponse> source(
-            LoginUser user,
-            @Positive Long workId,
-            @NotBlank @Size(max = 36) String id,
-            @Positive Long sourceId);
-
-    @Operation(
-            summary = "AI 전송 자료 미리보기",
-            description =
-                    "AI 호출·작업 생성 없이 실제 전송할 원고·확정 설정·이전 회차·같은 회차의 저장 판단과 정책을 반환합니다."
-                        + " requestId·chapterId·workspaceVersion·settingIds·previousIds·consistency·motivation을"
-                        + " 보내며 chapterRevision을 권장합니다. 반환한 previewToken은 사용자·작품·자료·정책·모델에 묶여 10분"
-                        + " 동안 유효합니다. CSRF 필요. 200/400/401/403/404/409.")
-    ApiResult<AnalysisPreviewResponse> preview(
-            LoginUser user, @Positive Long workId, @Valid AnalysisRequest request);
 
     @Operation(
             summary = "분석 작업 이력",
@@ -98,14 +53,6 @@ public interface AnalysisControllerDocs {
             AnalysisJobStatus status,
             @Min(0) int page,
             @Min(1) @Max(100) int size);
-
-    @Operation(
-            summary = "분석 당시 전송 자료",
-            description =
-                    "입력·개별 원고 및 설정 스냅샷·현재 자료 변경 여부를 반환합니다. 기존 작업은 legacy=true로 기존 input을 보존합니다. 복원"
-                            + " 불가능한 기존 입력은 409. 본인 작품의 작업만 조회. 200/400/401/404/409.")
-    ApiResult<AnalysisSnapshotResponse> snapshot(
-            LoginUser user, @Positive Long workId, @NotBlank @Size(max = 36) String id);
 
     @Operation(
             summary = "비동기 AI 검토 접수",
@@ -125,7 +72,6 @@ public interface AnalysisControllerDocs {
                     - settingIds에는 같은 작품의 확정(CONFIRMED) 설정을 1~1,000개 지정합니다. 아이디어와 AI 후보는 사용할 수 없습니다.
                     - previousIds에는 같은 작업공간의 참고 회차를 최대 100개 지정합니다. 분석 대상 회차 자체는 참고 회차로 지정할 수 없습니다.
                     - 대상 원고·선택한 설정·참고 회차·해당 회차의 기존 판단을 접수 시점의 자료로 묶어 외부 Gemini API에 전송합니다. 직렬화된 분석 자료는 최대 200,000자입니다.
-                    - 먼저 preview를 조회하고 확인·동의한 previewToken과 consentPolicyVersion을 함께 전송해야 합니다. 자료 변경·만료는 409, 동의 누락은 400입니다.
                     - AI 결과는 작가가 판단할 검토 후보입니다. 원고와 설정을 자동으로 수정하지 않습니다. 작업 결과는 서버에 저장되어 화면 이동 후에도 조회할 수 있습니다. 작가 판단은 workspace 저장으로 보관합니다.
                     - 같은 작품에서 동일한 requestId와 요청 내용을 재전송하면 기존 작업을 반환합니다.
                       같은 ID로 내용을 바꾸면 400입니다.

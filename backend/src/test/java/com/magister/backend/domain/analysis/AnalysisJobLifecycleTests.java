@@ -16,7 +16,6 @@ import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisJobStateService;
-import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
 import com.magister.backend.domain.analysis.service.AnalysisWorker;
 import com.magister.backend.domain.chapter.entity.Chapter;
 import com.magister.backend.domain.chapter.repository.ChapterRepository;
@@ -71,7 +70,6 @@ import java.util.concurrent.TimeUnit;
         })
 @ActiveProfiles("test")
 public class AnalysisJobLifecycleTests {
-    @Autowired AnalysisPreviewService previewService;
     @Autowired ChapterRepository chapterRepository;
     @Autowired UserRepository users;
     @Autowired WorkRepository works;
@@ -151,11 +149,7 @@ public class AnalysisJobLifecycleTests {
                 service.create(
                         fixture.ownerId(),
                         fixture.workId(),
-                        AnalysisPreviewSupport.confirm(
-                                previewService,
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                fixture.request()));
+                        fixture.request());
         assertThat(jobs.findById(response.id()).orElseThrow().getStatus())
                 .isEqualTo(AnalysisJobStatus.FAILED);
     }
@@ -212,11 +206,7 @@ public class AnalysisJobLifecycleTests {
                 service.create(
                         fixture.ownerId(),
                         fixture.workId(),
-                        AnalysisPreviewSupport.confirm(
-                                previewService,
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                fixture.request()));
+                        fixture.request());
                 return true;
             } catch (CustomException error) {
                 assertThat(error.getErrorCode()).isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);
@@ -246,11 +236,7 @@ public class AnalysisJobLifecycleTests {
                 service.create(
                         fixture.ownerId(),
                         fixture.workId(),
-                        AnalysisPreviewSupport.confirm(
-                                previewService,
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                fixture.request()));
+                        fixture.request());
         assertThat(dispatcher.activeJobIds()).contains(response.id());
         assertThat(service.cancel(fixture.ownerId(), fixture.workId(), response.id()).status())
                 .isEqualTo("CANCELLED");
@@ -280,11 +266,7 @@ public class AnalysisJobLifecycleTests {
                 service.create(
                         fixture.ownerId(),
                         fixture.workId(),
-                        AnalysisPreviewSupport.confirm(
-                                previewService,
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                fixture.request()));
+                        fixture.request());
         try {
             assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(service.cancel(fixture.ownerId(), fixture.workId(), response.id()).status())

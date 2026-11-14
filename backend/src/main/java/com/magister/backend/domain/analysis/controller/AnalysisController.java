@@ -3,20 +3,11 @@ package com.magister.backend.domain.analysis.controller;
 import com.magister.backend.domain.analysis.docs.AnalysisControllerDocs;
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
-import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
-import com.magister.backend.domain.analysis.dto.AnalysisSnapshotResponse;
-import com.magister.backend.domain.analysis.dto.AnalysisSourceResponse;
-import com.magister.backend.domain.analysis.dto.ReviewComparisonResponse;
 import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
-import com.magister.backend.domain.analysis.dto.WorkReviewOverviewResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
-import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
-import com.magister.backend.domain.analysis.service.AnalysisSnapshotService;
-import com.magister.backend.domain.analysis.service.ReviewComparisonService;
 import com.magister.backend.domain.analysis.service.ReviewResultService;
-import com.magister.backend.domain.analysis.service.WorkReviewOverviewService;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.pagination.OffsetPageRequest;
 import com.magister.backend.global.pagination.OffsetPageResponse;
@@ -41,18 +32,7 @@ import java.net.URI;
 @RequestMapping("/api/work/{workId}/analysis")
 public class AnalysisController implements AnalysisControllerDocs {
     private final AnalysisJobService analysisJobService;
-    private final AnalysisPreviewService previewService;
-    private final AnalysisSnapshotService snapshotService;
     private final ReviewResultService reviewResultService;
-    private final WorkReviewOverviewService overviewService;
-    private final ReviewComparisonService comparisonService;
-
-    @Override
-    @GetMapping("/overview")
-    public ApiResult<WorkReviewOverviewResponse> overview(
-            @AuthenticationPrincipal LoginUser user, @PathVariable Long workId) {
-        return ApiResult.success(overviewService.getOverview(user.id(), workId));
-    }
 
     @Override
     @GetMapping("/{id}/review")
@@ -67,35 +47,6 @@ public class AnalysisController implements AnalysisControllerDocs {
     }
 
     @Override
-    @GetMapping("/{id}/compare")
-    public ApiResult<ReviewComparisonResponse> compare(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @PathVariable String id,
-            @RequestParam(required = false) String baseJobId) {
-        return ApiResult.success(comparisonService.compare(user.id(), workId, id, baseJobId));
-    }
-
-    @Override
-    @GetMapping("/{id}/source/{sourceId}")
-    public ApiResult<AnalysisSourceResponse> source(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @PathVariable String id,
-            @PathVariable Long sourceId) {
-        return ApiResult.success(snapshotService.getSource(user.id(), workId, id, sourceId));
-    }
-
-    @Override
-    @PostMapping("/preview")
-    public ApiResult<AnalysisPreviewResponse> preview(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @RequestBody AnalysisRequest request) {
-        return ApiResult.success(previewService.preview(user.id(), workId, request));
-    }
-
-    @Override
     @GetMapping
     public ApiResult<OffsetPageResponse<AnalysisJobSummary>> list(
             @AuthenticationPrincipal LoginUser user,
@@ -107,15 +58,6 @@ public class AnalysisController implements AnalysisControllerDocs {
         return ApiResult.success(
                 analysisJobService.list(
                         user.id(), workId, chapterId, status, OffsetPageRequest.of(page, size)));
-    }
-
-    @Override
-    @GetMapping("/{id}/snapshot")
-    public ApiResult<AnalysisSnapshotResponse> snapshot(
-            @AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId,
-            @PathVariable String id) {
-        return ApiResult.success(snapshotService.get(user.id(), workId, id));
     }
 
     @Override

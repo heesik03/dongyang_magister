@@ -71,20 +71,14 @@ class GeminiClientTests {
                         .items()
                         .orElseThrow();
         assertThat(candidate.required().orElseThrow())
-                .contains(
+                .containsExactly(
+                        "type",
                         "quote",
-                        "evidences",
                         "startOffset",
                         "endOffset",
-                        "issueGroupKey",
-                        "issueGroupTitle",
-                        "confirmedFact",
-                        "interpretation",
-                        "missingInfo",
-                        "options");
-        Schema option = candidate.properties().orElseThrow().get("options").items().orElseThrow();
-        assertThat(option.required().orElseThrow())
-                .containsExactly("title", "direction", "premise", "rationale");
+                        "evidences",
+                        "reason",
+                        "suggestion");
         Schema sourceType =
                 candidate
                         .properties()
@@ -119,6 +113,33 @@ class GeminiClientTests {
     }
 
     @Test
+    void portraitRequestsImageOutputAndRejectsAnInvalidImagePart() {
+        String model = "gemini-3.1-flash-image";
+        when(models.generateContent(eq(model), eq("portrait"), any(GenerateContentConfig.class)))
+                .thenReturn(GenerateContentResponse.fromJson("""
+                        {"candidates":[{"content":{"parts":[
+                          {"text":"portrait"},
+                          {"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jG1sAAAAASUVORK5CYII="}}
+                        ]}}]}
+                        """));
+        assertThat(client.generatePortrait(model, "portrait").mimeType()).isEqualTo("image/png");
+        ArgumentCaptor<GenerateContentConfig> captured =
+                ArgumentCaptor.forClass(GenerateContentConfig.class);
+        verify(models).generateContent(eq(model), eq("portrait"), captured.capture());
+        assertThat(captured.getValue().responseModalities().orElseThrow())
+                .containsExactly("IMAGE");
+
+        when(models.generateContent(eq(model), eq("invalid"), any(GenerateContentConfig.class)))
+                .thenReturn(GenerateContentResponse.fromJson("""
+                        {"candidates":[{"content":{"parts":[
+                          {"inlineData":{"mimeType":"image/png","data":"AAAAAAAAAAA="}}
+                        ]}}]}
+                        """));
+        assertThatThrownBy(() -> client.generatePortrait(model, "invalid"))
+                .isInstanceOf(GeminiApiException.class);
+    }
+
+    @Test
     void eventsUseTheirOwnSchemaWithoutChangingReviewContract() {
         when(models.generateContent(
                         eq("test-model"), eq("events"), any(GenerateContentConfig.class)))
@@ -135,31 +156,10 @@ class GeminiClientTests {
     }
 
     @Test
-    void sceneUsesDedicatedJsonSchema() {
-        when(models.generateContent(
-                        eq("test-model"), eq("scene"), any(GenerateContentConfig.class)))
-                .thenReturn(
-                        GenerateContentResponse.fromJson(
-                                "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{}\"}]}}]}"));
-        client.generateScene("scene");
-        ArgumentCaptor<GenerateContentConfig> captured =
-                ArgumentCaptor.forClass(GenerateContentConfig.class);
-        verify(models).generateContent(eq("test-model"), eq("scene"), captured.capture());
-        assertThat(captured.getValue().maxOutputTokens()).contains(4096);
-        assertThat(captured.getValue().responseMimeType()).contains("application/json");
-        assertThat(captured.getValue().responseSchema().orElseThrow().required().orElseThrow())
-                .containsExactly("facts", "inferences", "gaps", "options", "references");
-    }
-
-    @Test
     void rejectsBlankInputWithoutCallingProvider() {
         assertThatThrownBy(() -> client.generateText(" "))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> client.generateText(null))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> client.generateSceneImage(" ", "prompt"))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> client.generateSceneImage("imagen-3", " "))
                 .isInstanceOf(IllegalArgumentException.class);
         verifyNoInteractions(models);
     }

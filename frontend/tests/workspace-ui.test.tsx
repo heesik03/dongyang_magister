@@ -125,7 +125,7 @@ test('작품 상세 로딩 완료 전에는 원고 패널을 마운트하지 않
   expect(screen.getByRole('status').textContent).toContain('작품을 불러오고')
   expect(screen.queryByRole('button', { name: '분석 설정' })).toBeNull()
   act(() => useWorksStore.setState({ works: [work], loadedIds: ['1'] }))
-  expect(screen.getByRole('heading', { name: '검증 작품' })).toBeTruthy()
+  expect(screen.getByRole('heading', { name: '원고 쓰기' })).toBeTruthy()
 })
 test('설정 저장 후 편집 유형이 바뀌어도 현재 필터로 한 번만 재조회한다', async () => {
   const load = vi.fn(async (id: string, kind = '전체') => {

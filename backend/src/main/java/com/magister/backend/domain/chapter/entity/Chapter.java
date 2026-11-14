@@ -11,16 +11,25 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import org.hibernate.annotations.Check;
+
 import java.time.Instant;
 
 @Entity
-@Table(name = "chapters")
+@Table(
+        name = "chapters",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uk_chapters_key", columnNames = {"work_id", "chapter_key"}),
+            @UniqueConstraint(name = "uk_chapters_number", columnNames = {"work_id", "chapter_no"})
+        })
+@Check(constraints = "chapter_no BETWEEN 1 AND 100 AND revision >= 1")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Chapter {

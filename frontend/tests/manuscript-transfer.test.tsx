@@ -65,6 +65,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 async function openPreview() {
+  fireEvent.click(screen.getByText('파일 메뉴'))
   fireEvent.click(screen.getByRole('button', { name: '원고 가져오기' }))
   fireEvent.change(screen.getByLabelText('원고 파일'), {
     target: { files: [new File(['새 원고'], '원고.md')] },
@@ -117,7 +118,8 @@ test('저장 실패로 남은 입력이 있으면 다운로드를 시작하지 �
   const download = vi.spyOn(manuscriptTransferClient, 'exportFile')
   useWorksStore.setState({ dirtyIds: ['1'] })
   render(<ManuscriptTransfer work={work} chapter={chapter} onImported={vi.fn()} />)
-  fireEvent.click(screen.getByRole('button', { name: '원고 내보내기' }))
+  fireEvent.click(screen.getByText('파일 메뉴'))
+  fireEvent.click(screen.getByRole('button', { name: '원고 내려받기' }))
   fireEvent.click(screen.getByRole('button', { name: '파일 내려받기' }))
   await screen.findByRole('alert')
   expect(download).not.toHaveBeenCalled()

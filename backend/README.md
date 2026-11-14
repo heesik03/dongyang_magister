@@ -68,7 +68,7 @@ Spring Boot 4.1에 맞는 `springdoc-openapi-starter-webmvc-ui:3.1.1`을 사용�
 
 `backend/`에서 `.\gradlew.bat test`와 `.\gradlew.bat build`를 실행한다. 일반 통합 테스트는 격리된 H2 MySQL 모드와 가짜 Gemini 설정·SDK 테스트 대역을 사용하며 실제 Gemini API 호출이나 과금이 발생하지 않는다. 실제 MySQL 잠금·실행 계획과 공급자 연동은 별도로 검증한다.
 
-MySQL 검증은 별도로 준비한 임시 DB만 사용한다. `MAGISTER_MYSQL_TEST_SCHEMA`에 `magister_refactor_` 뒤 12자리 소문자 16진수 이름을 지정하고 `.\gradlew.bat mysqlTest`를 실행한다. 테스트는 해당 DB에 마이그레이션·검증 데이터를 생성하며 일반 `test`에서는 제외된다. 연결 비밀번호는 로컬 `.env`의 `DB_PASSWORD`에서 읽고 출력하지 않는다. 검증 후에는 자신이 만든 임시 DB만 정리한다.
+MySQL 검증은 별도로 준비한 임시 DB만 사용한다. `MAGISTER_MYSQL_TEST_SCHEMA`에 `magister_refactor_` 뒤 12자리 소문자 16진수 이름을 지정하고 `.\gradlew.bat mysqlTest`를 실행한다. 테스트는 해당 DB에 Hibernate로 테이블을 만들고 검증 데이터를 저장하며 일반 `test`에서는 제외된다. 연결 비밀번호는 로컬 `.env`의 `DB_PASSWORD`에서 읽고 출력하지 않는다. 검증 후에는 자신이 만든 임시 DB만 정리한다.
 
 Hibernate JDBC 오류 전문은 중복 이메일 등 입력값을 포함할 수 있어 직접 출력하지 않는다. 애플리케이션 예외 처리기가 오류 코드·타입·코드 위치·SQLState·벤더 오류 번호를 기록하며 비밀번호·원고·SQL 전문은 기록하지 않는다.
 
@@ -110,7 +110,7 @@ Hibernate JDBC 오류 전문은 중복 이메일 등 입력값을 포함할 수 
 - `GET /api/work/{workId}/analysis/{jobId}/source/{sourceId}`: 분석 당시 고정한 원문 반환. 숫자 `id`는 스냅샷 ID, 문자열 `sourceId`는 원래 회차/설정의 키입니다. 다른 작업의 출처와 다른 사용자의 작품은 404, 미인증 401, 잘못된 페이지·ID는 400입니다. 구형 입력 복원 불가는 409입니다.
 - 위치는 Java와 JavaScript가 공통으로 사용하는 UTF-16 코드 단위의 `[startOffset,endOffset)`입니다. 인용문·범위·출처·요청한 검토 종류를 모두 검사하며 서로게이트 쌍을 자른 위치도 거절합니다. 하나라도 잘못되면 부분 결과나 빈 성공으로 바꾸지 않고 작업을 실패 처리합니다.
 - 예시 공급자 결과: `{"reviews":[{"type":"설정 충돌 후보","quote":"마법 사용","startOffset":0,"endOffset":5,"evidences":[{"sourceType":"SETTING","sourceKey":"1","quote":"마법 불가","startOffset":0,"endOffset":5,"explanation":"능력 제약"}],"reason":"변화의 계기 확인","suggestion":"계기 설명 보완"}]}`. `PREVIOUS` 근거는 선택한 이전 회차 키를 사용합니다. 근거 없는 단정은 피하고 빈 후보를 작품 전체의 통과 판정으로 해석하지 않습니다.
-- Flyway V11은 `review_candidates`, `review_evidences`, `analysis_jobs.result_format_version`을 추가합니다. 작업 완료와 후보·근거 저장은 같은 트랜잭션입니다. 복합 FK로 다른 분석의 스냅샷 연결을 차단하고 작업 삭제 시 함께 삭제합니다. 기존 JSON 결과는 보존하되 없는 위치를 만들어 이관하지 않습니다(`legacy=true`).
+- 작업 완료와 후보·근거 저장은 같은 트랜잭션입니다. 복합 FK로 다른 분석의 스냅샷 연결을 차단하고 작업 삭제 시 함께 삭제합니다. 기존 JSON 결과는 보존하되 없는 위치를 만들어 이관하지 않습니다(`legacy=true`).
 - 화면은 반복 문장도 검증된 위치를 선택합니다. 현재 원고와 버전이 같으면 해당 회차로 이동하고, 변경된 원고·설정은 읽기 전용 스냅샷을 엽니다. 대상 원고·이전 회차·설정 변경은 이전 결과로 표시합니다.
 - 결과 JSON의 기존 호환 필드 `settingId`는 이전 회차만 근거인 경우 `previous:<회차 키>`로 표현합니다. 위치·범위 없는 과거 workspace 판단은 보존만 하고 새로운 후보에 자동 복사하지 않습니다. 현재 판단 저장·다음 회차 반영은 아래 전용 API를 사용합니다. 실제 Gemini 품질 평가는 후속 단계입니다.
 
@@ -133,7 +133,7 @@ Hibernate JDBC 오류 전문은 중복 이메일 등 입력값을 포함할 수 
 - 현재 대상 원고·관련 근거의 전체 내용/버전/메타데이터가 달라지면 해당 판단은 분석 입력에서 제외됩니다. 인용 위치와 확정 상태가 유지되면 변경 자료를 직접 확인한 후 `reconfirm=true`로 새 버전을 저장할 수 있습니다. 인용 자체가 달라졌으면 재분석하며 철회는 계속 가능합니다.
 - 미리보기/접수는 최신 유효 판단 중 적용 회차·장면이 맞고 원래 근거가 모두 현재 선택에 포함된 것만 `input.decisionReferences`에 고정합니다. 조건·원래 문제 문장·관련 인용·정확한 판단 버전과 범위를 함께 전송하며, 최대 100개를 넘으면 400으로 범위를 제한하도록 합니다. 미리보기 이후 판단이 변경·철회되면 접수를 409로 거절합니다.
 - 판단은 관련 상황의 참고 정보이며 후보를 자동 제거하거나 새 후보의 처리 상태로 복사하지 않습니다. 상충하는 판단도 임의로 우선순위를 정하지 않고 프롬프트에서 확인 질문을 요구합니다. 실제 모델의 조건 해석·오탐 평가는 5단계에서 확인합니다.
-- Flyway V12는 `review_decisions`, `review_decision_scopes`, `analysis_decision_references`를 추가합니다. `(review_id,decision_version)`와 `(review_id,mutation_id)`가 유일합니다. 실제 전송한 참조는 FK로 추적하며 판단 수정 후에도 당시 입력·참조는 유지합니다. 판단 이력이 있는 작업은 자동 보관 정리에서 제외하고, 삭제 직전에도 다시 검사합니다. 작품 삭제 시 참조 작업을 먼저 삭제하는 의존 순서가 필요합니다.
+- `(review_id,decision_version)`와 `(review_id,mutation_id)`가 유일합니다. 실제 전송한 참조는 FK로 추적하며 판단 수정 후에도 당시 입력·참조는 유지합니다. 판단 이력이 있는 작업은 자동 보관 정리에서 제외하고, 삭제 직전에도 다시 검사합니다. 작품 삭제 시 참조 작업을 먼저 삭제하는 의존 순서가 필요합니다.
 
 이 단계의 검증은 변경 영향 범위로 제한합니다. 백엔드는 `DecisionFlowTests`, `AnalysisFlowTests`, `AnalysisJobLifecycleTests`, `WorkspaceApiTests`, MySQL은 `MySqlRefactoringTests.decisionVersionsScopesAndReferencesOnMySql`, 프런트엔드는 `decision-flow`, `domainClients`, `review-flow`, `analysis-flow` 테스트를 선택 실행합니다.
 
@@ -145,11 +145,10 @@ Hibernate JDBC 오류 전문은 중복 이메일 등 입력값을 포함할 수 
 
 저장 예시: `{"title":"1화","content":"수정 원고","version":0,"mutationId":"save-1"}`. 같은 mutationId·내용을 다시 보내면 중복 저장하지 않습니다. 이전 버전이나 같은 키의 다른 내용은 409, 입력 오류는 400, 미인증은 401, CSRF 실패는 403, 타인 작품·없는 회차는 404입니다. 원고의 version은 다른 회차·검토 판단·사건 저장과 독립적입니다.
 
-Flyway V9는 기존 workspace JSON의 회차 ID·순서·본문·revision을 `chapters`로 이관하고 검토·사건 참조와 workspace 버전을 보존합니다. 물리 PK와 작품별 공개 ID를 구분해 서로 다른 작품의 같은 ID도 보존합니다. 이후 원고의 저장 원본은 `chapters` 한 곳입니다. workspace 조회와 기존 분석은 이 테이블의 현재 원고를 합쳐 읽습니다.
+회차 원고는 `chapters` 테이블에 저장합니다. 물리 PK와 작품별 공개 ID를 구분해 서로 다른 작품에서 같은 공개 ID를 사용할 수 있습니다. 작업공간 조회와 분석은 이 테이블의 원고를 읽습니다.
 
 새 workspace 저장은 `separateChapters:true`와 빈 `content.chapters`를 보내 검토·사건만 저장합니다. 구형 workspace 쓰기는 최초 빈 작품의 초안 가져오기만 허용하고, 이후 회차 변경은 409로 거절합니다. 기존 클라이언트는 새 회차 API로 전환해야 합니다. 새 분석 요청은 저장된 `chapterRevision`을 함께 보내 최신 원고 여부를 검사하며, 참고 회차는 대상보다 앞선 회차만 허용합니다.
 
-적용된 V1~V9 마이그레이션은 DB 이력 검증과 새 환경 구축에 필요하므로 유지합니다. 임시 스크립트는 검증 후 제거합니다. 마이그레이션 파일 삭제는 기준 스키마 통합과 기존 DB 전환이 완료된 뒤 진행해야 합니다.
 
 `analysis.execution`의 기본값은 실행 스레드 2개, 대기 8개, 전체 활성 접수 10개, 사용자별 활성 접수 1개다. 접수 검사는 공유 DB 행 잠금으로 직렬화하며 동일 작품의 같은 `requestId`·본문은 기존 작업을 반환한다.
 
@@ -162,7 +161,13 @@ Flyway V9는 기존 workspace JSON의 회차 ID·순서·본문·revision을 `ch
 - 설정 커서는 ID 내림차순 위치다. 다른 사용자·작품·종류·상태 필터에 재사용하면 400이며 권한도 매 요청 재검사한다. 필터 변경 시 커서를 버리고 처음부터 조회한다.
 - 설정 더 보기는 count 없이 size+1개만 읽는다. 작품 부분 검색은 기존 문자열 포함 의미를 유지하며 지정된 필터만 동적 질의에 포함한다.
 
-`users` 스키마는 Flyway Java 마이그레이션으로 생성하고 Hibernate는 `validate`로 확인합니다. Spring Security·Flyway·테스트 H2 버전은 Spring Boot 4.1.1의 의존성 관리에 따릅니다. 테스트는 `test` 프로필에서 격리된 H2의 MySQL 모드와 실제 마이그레이션을 사용하며, 실제 MySQL 동작은 E2E로 별도 검증합니다.
+로컬 MySQL에 빈 `magister` 데이터베이스를 만든 뒤 `backend/.env`에 `DB_PASSWORD`를 설정하고 실행합니다. Hibernate의 `ddl-auto=update`가 엔티티 매핑을 기준으로 테이블과 제약을 생성합니다. MySQL 데이터베이스 자체는 미리 만들어야 합니다.
+
+```sql
+CREATE DATABASE magister CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+```
+
+테스트는 H2 MySQL 모드에서 동일한 엔티티 매핑으로 스키마를 생성합니다.
 
 ```powershell
 # 비밀 값은 .env 또는 OS 환경 변수로 설정
@@ -180,7 +185,6 @@ Java 코드는 google-java-format 1.28.0의 AOSP 스타일(4칸 들여쓰기)로
 - 한 트랜잭션에서 활성 작업 종료 → 재분석 판단 참조 → 판단 범위·이력 → 검토 근거·후보 → 분석 원본·작업 → workspace·회차·설정 → 작품 순으로 삭제한다. 커밋 후 실행기를 취소하며 늦은 결과는 버린다. 다른 노드 실행기도 다음 유지보수에서 없어진 작업을 중단한다.
 - 외부 공급자 자료와 내려받은 파일·다른 브라우저 사본의 삭제는 보장하지 않는다. 자동 보관 기간은 `ANALYSIS_JOB_RETENTION`을 따른다(기본 0: 자동 삭제 없음). 판단 이력이 있는 분석은 자동 정리에서 보호하며 작품 삭제로 제거할 수 있다.
 - 최신 workspace 저장은 `separateChapters=true`, `separateReviews=true`, `content.chapters=[]`, `content.analyses=[]`와 `events`를 보낸다. 서버는 과거 검토 JSON을 보존한다. 구형 전체 문서는 초기 revision 0에서만 가져올 수 있고 이후 검토·판단 변경은 거절한다. 새 판단은 판단 API를 사용한다.
-- 필요한 V1–V13 Flyway 이력을 유지한다. 이번 단계에는 스키마 변경이 없다.
 
 ### 실제 Gemini 합성 품질 평가
 

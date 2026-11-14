@@ -2,14 +2,13 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { DecisionEditor } from '../src/features/review/DecisionEditor'
-import { DecisionLedger } from '../src/features/review/DecisionLedger'
 import { decisionClient, type SavedDecision } from '../src/features/review/decisionClient'
 import type { LinkedReview } from '../src/features/review/reviewClient'
 import type { Work } from '../src/features/works/workTypes'
 
 vi.mock('../src/features/review/decisionClient', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/features/review/decisionClient')>()),
-  decisionClient: { get: vi.fn(), save: vi.fn(), history: vi.fn(), list: vi.fn() },
+  decisionClient: { get: vi.fn(), save: vi.fn() },
 }))
 const review: LinkedReview = {
   id: 'review',
@@ -200,48 +199,6 @@ test('변경된 근거는 명시적으로 재확인하고 인용이 달라졌으
     expectedVersion: 1,
     scopes: [],
   })
-})
-
-test('저장 이력과 작품 전체의 최신 판단을 별도로 다시 확인한다', async () => {
-  vi.mocked(decisionClient.history).mockResolvedValue({
-    items: [{ ...initial, id: 1, version: 1, status: '보류', reason: '추가 확인' }],
-    page: 0,
-    size: 20,
-    totalPages: 1,
-    totalElements: 1,
-  })
-  await show()
-  fireEvent.click(screen.getByRole('button', { name: '변경 이력 보기' }))
-  await screen.findByText('버전 1 · 보류')
-  cleanup()
-  vi.mocked(decisionClient.list).mockResolvedValue({
-    items: [
-      {
-        ...initial,
-        id: 2,
-        version: 2,
-        status: '의도된 설정',
-        reason: '이전 회차의 반전',
-        stale: true,
-      },
-    ],
-    page: 0,
-    size: 20,
-    totalPages: 1,
-    totalElements: 1,
-  })
-  render(<DecisionLedger workId="1" onClose={onClose} />)
-  await screen.findByText('이전 회차의 반전')
-  expect(screen.getByText(/근거 변경, 재확인 필요/)).toBeTruthy()
-  fireEvent.change(screen.getByLabelText('판단 필터'), { target: { value: '의도된 설정' } })
-  await waitFor(() =>
-    expect(decisionClient.list).toHaveBeenLastCalledWith(
-      '1',
-      0,
-      '의도된 설정',
-      expect.any(AbortSignal),
-    ),
-  )
 })
 
 test('재개한 초안은 실패한 요청의 식별자와 이전 버전을 유지한다', async () => {

@@ -5,13 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 
-import com.magister.backend.domain.analysis.AnalysisPreviewSupport;
-import com.magister.backend.domain.analysis.dto.AnalysisPreviewResponse;
+import com.magister.backend.domain.analysis.dto.AnalysisInput;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
 import com.magister.backend.domain.analysis.service.AnalysisJobStateService;
-import com.magister.backend.domain.analysis.service.AnalysisPreviewService;
+import com.magister.backend.domain.analysis.service.support.AnalysisInputFactory;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.chapter.dto.ChapterResponse;
 import com.magister.backend.domain.chapter.dto.CreateChapterRequest;
@@ -35,13 +34,12 @@ import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.repository.WorkRepository;
 import com.magister.backend.domain.work.service.WorkDeletionService;
 import com.magister.backend.domain.workspace.dto.WorkspaceData;
-import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
 import com.magister.backend.domain.workspace.entity.Workspace;
 import com.magister.backend.domain.workspace.repository.WorkspaceRepository;
+import com.magister.backend.domain.workspace.service.WorkspaceSnapshotService;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +47,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -65,9 +62,6 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -88,7 +82,8 @@ import java.util.concurrent.TimeUnit;
         named = "MAGISTER_MYSQL_TEST_SCHEMA",
         matches = "magister_refactor_[a-f0-9]{12}")
 class MySqlRefactoringTests {
-    @Autowired AnalysisPreviewService previewService;
+    @Autowired AnalysisInputFactory inputFactory;
+    @Autowired WorkspaceSnapshotService workspaceSnapshotService;
     @Autowired AnalysisJobStateService stateService;
     @Autowired AnalysisResultProcessor resultProcessor;
     @Autowired DecisionService decisionService;
@@ -107,6 +102,15 @@ class MySqlRefactoringTests {
     @MockitoBean AnalysisDispatcher dispatcher;
     @MockitoSpyBean PasswordEncoder passwordEncoder;
 
+    private AnalysisInput buildInput(Long workId, AnalysisRequest request) {
+        return transaction.execute(
+                status -> {
+                    Work work = works.findById(workId).orElseThrow();
+                    return inputFactory.create(
+                            workId, request, workspaceSnapshotService.getForOwnedWork(work));
+                });
+    }
+
     @Test
     void decisionVersionsScopesReferencesAndWorkDeletionOnMySql() {
         Fixture fixture = fixture(null);
@@ -115,22 +119,15 @@ class MySqlRefactoringTests {
                 fixture.workId(),
                 new CreateChapterRequest("c2", "next", "text", "create-next"));
         AnalysisRequest selection = fixture.request();
-        AnalysisPreviewResponse preview =
-                previewService.preview(fixture.ownerId(), fixture.workId(), selection);
-        String jobId =
-                jobs.create(
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                selection.confirmed(
-                                        preview.previewToken(), preview.policyVersion()))
-                        .id();
+        AnalysisInput input = buildInput(fixture.workId(), selection);
+        String jobId = jobs.create(fixture.ownerId(), fixture.workId(), selection).id();
         stateService.claim(jobId).orElseThrow();
         String provider =
                 """
                 {"reviews":[{"type":"설정 충돌 후보","quote":"text","startOffset":0,"endOffset":4,"evidences":[{"sourceType":"SETTING","sourceKey":"%s","quote":"evidence","startOffset":0,"endOffset":8,"explanation":"rule"}],"reason":"check","suggestion":"explain"}]}
                 """
                         .formatted(fixture.settingId());
-        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, preview.input()));
+        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, input));
         String reviewId =
                 jobs.get(fixture.ownerId(), fixture.workId(), jobId)
                         .result()
@@ -186,16 +183,9 @@ class MySqlRefactoringTests {
                         true,
                         true,
                         1L);
-        AnalysisPreviewResponse nextPreview =
-                previewService.preview(fixture.ownerId(), fixture.workId(), next);
-        assertThat(nextPreview.input().decisionReferences()).hasSize(1);
-        String nextId =
-                jobs.create(
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                next.confirmed(
-                                        nextPreview.previewToken(), nextPreview.policyVersion()))
-                        .id();
+        AnalysisInput nextInput = buildInput(fixture.workId(), next);
+        assertThat(nextInput.decisionReferences()).hasSize(1);
+        String nextId = jobs.create(fixture.ownerId(), fixture.workId(), next).id();
         assertThat(
                         jdbc.queryForObject(
                                 "SELECT COUNT(*) FROM analysis_decision_references WHERE job_id=?",
@@ -252,7 +242,7 @@ class MySqlRefactoringTests {
                                 nextId))
                 .isZero();
         stateService.succeed(
-                nextId, resultProcessor.validateDetailed(provider, nextPreview.input()));
+                nextId, resultProcessor.validateDetailed(provider, nextInput));
         assertThat(stateService.claim(nextId)).isEmpty();
         assertThat(stateService.maintain(List.of(nextId))).contains(nextId);
     }
@@ -261,14 +251,8 @@ class MySqlRefactoringTests {
     void reviewEvidencePersistsAtomicallyAndRejectsOtherJobSourcesOnMySql() {
         Fixture fixture = fixture(null);
         AnalysisRequest request = fixture.request();
-        AnalysisPreviewResponse preview =
-                previewService.preview(fixture.ownerId(), fixture.workId(), request);
-        String jobId =
-                jobs.create(
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                request.confirmed(preview.previewToken(), preview.policyVersion()))
-                        .id();
+        AnalysisInput input = buildInput(fixture.workId(), request);
+        String jobId = jobs.create(fixture.ownerId(), fixture.workId(), request).id();
         stateService.claim(jobId).orElseThrow();
         String provider =
                 """
@@ -277,7 +261,7 @@ class MySqlRefactoringTests {
                 "reason":"check","suggestion":"explain"}]}
                 """
                         .formatted(fixture.settingId());
-        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, preview.input()));
+        stateService.succeed(jobId, resultProcessor.validateDetailed(provider, input));
         assertThat(jobs.get(fixture.ownerId(), fixture.workId(), jobId).status())
                 .isEqualTo("SUCCEEDED");
         assertThat(
@@ -295,11 +279,7 @@ class MySqlRefactoringTests {
                 jobs.create(
                                 fixture.ownerId(),
                                 fixture.workId(),
-                                AnalysisPreviewSupport.confirm(
-                                        previewService,
-                                        fixture.ownerId(),
-                                        fixture.workId(),
-                                        fixture.request()))
+                                fixture.request())
                         .id();
         assertThatThrownBy(
                         () ->
@@ -353,84 +333,6 @@ class MySqlRefactoringTests {
         }
         assertThat(chapterService.get(fixture.ownerId(), fixture.workId(), "c1").content())
                 .isEqualTo("saved text");
-    }
-
-    @Test
-    void migratesRealMySqlLegacyWorkspaceWithoutChangingReferences() throws Exception {
-        String schema =
-                "magister_refactor_"
-                        + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        if (!schema.matches("magister_refactor_[a-f0-9]{12}")) {
-            throw new IllegalStateException("Invalid verification schema");
-        }
-        try (Connection connection = jdbc.getDataSource().getConnection();
-                Statement statement = connection.createStatement()) {
-            String originalSchema = connection.getCatalog();
-            statement.execute("CREATE DATABASE " + schema + " CHARACTER SET utf8mb4");
-            try {
-                connection.setCatalog(schema);
-                SingleConnectionDataSource isolated =
-                        new SingleConnectionDataSource(connection, true);
-                String location = "classpath:com/magister/backend/global/migration";
-                Flyway.configure()
-                        .dataSource(isolated)
-                        .defaultSchema(schema)
-                        .locations(location)
-                        .target("8")
-                        .load()
-                        .migrate();
-                // MySQL Statement는 생성 당시 catalog를 기억하므로 스키마를 바꾼 뒤 새로 만든다.
-                try (Statement seed = connection.createStatement()) {
-                    seed.execute(
-                            "INSERT INTO "
-                                    + schema
-                                    + ".users(id,email,name,password_hash)"
-                                    + " VALUES(1,'chapter-migration@example.com','author','hash')");
-                    seed.execute(
-                            "INSERT INTO "
-                                    + schema
-                                    + ".works(id,owner_id,title,genre,era,description,created_at,updated_at,version)"
-                                    + " VALUES(1,1,'work','fantasy','','',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,0)");
-                }
-                WorkspaceData legacy =
-                        new WorkspaceData(
-                                List.of(
-                                        new ChapterData("Case", "chapter 1", "한국어 😀\r\n원고", 9),
-                                        new ChapterData("case", "chapter 2", "second", 2)),
-                                List.of(),
-                                List.of());
-                try (PreparedStatement insert =
-                        connection.prepareStatement(
-                                "INSERT INTO "
-                                        + schema
-                                        + ".workspaces(work_id,content,revision,version,updated_at)"
-                                        + " VALUES(1,?,3,0,CURRENT_TIMESTAMP)")) {
-                    insert.setString(1, json.writeValueAsString(legacy));
-                    insert.executeUpdate();
-                }
-                Flyway.configure()
-                        .dataSource(isolated)
-                        .defaultSchema(schema)
-                        .locations(location)
-                        .load()
-                        .migrate();
-                try (ResultSet rows =
-                        statement.executeQuery(
-                                "SELECT chapter_key,content,revision FROM "
-                                        + schema
-                                        + ".chapters ORDER BY chapter_no")) {
-                    assertThat(rows.next()).isTrue();
-                    assertThat(rows.getString("chapter_key")).isEqualTo("Case");
-                    assertThat(rows.getString("content")).isEqualTo("한국어 😀\r\n원고");
-                    assertThat(rows.getLong("revision")).isEqualTo(9);
-                    assertThat(rows.next()).isTrue();
-                    assertThat(rows.getString("chapter_key")).isEqualTo("case");
-                }
-            } finally {
-                connection.setCatalog(originalSchema);
-                statement.execute("DROP DATABASE " + schema);
-            }
-        }
     }
 
     @DynamicPropertySource
@@ -536,11 +438,7 @@ class MySqlRefactoringTests {
                 jobs.create(
                         fixture.ownerId(),
                         fixture.workId(),
-                        AnalysisPreviewSupport.confirm(
-                                previewService,
-                                fixture.ownerId(),
-                                fixture.workId(),
-                                fixture.request()));
+                        fixture.request());
                 return true;
             } catch (CustomException error) {
                 assertThat(error.getErrorCode()).isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);

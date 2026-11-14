@@ -6,20 +6,34 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import java.time.Instant;
 
 /** 원고 스냅샷·후보 편집·외부 호출 상태를 새로고침과 재시작 뒤에도 보존한다. */
 @Entity
-@Table(name = "event_extractions")
+@Table(
+        name = "event_extractions",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uk_extraction_request", columnNames = {"work_id", "request_id"})
+        },
+        indexes = {
+            @Index(name = "ix_extraction_history", columnList = "work_id,created_at,id"),
+            @Index(name = "ix_extraction_work_status", columnList = "work_id,status"),
+            @Index(name = "ix_extraction_active", columnList = "status,lease_until")
+        })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EventExtraction {
@@ -28,6 +42,7 @@ public class EventExtraction {
     private String id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "work_id")
     private Work work;
 

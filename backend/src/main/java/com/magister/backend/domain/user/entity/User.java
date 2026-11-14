@@ -16,6 +16,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import org.hibernate.annotations.ColumnDefault;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +41,7 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @ColumnDefault("0")
     @Column(name = "security_version", nullable = false)
     private long securityVersion;
 

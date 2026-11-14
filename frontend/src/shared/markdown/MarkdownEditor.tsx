@@ -4,12 +4,12 @@ import { formatMarkdown, type MarkdownFormat } from './markdownFormatting'
 
 const tools: { label: string; title: string; format: MarkdownFormat }[] = [
   ...(['h1', 'h2', 'h3', 'h4'] as const).map((format) => ({
-    label: format,
+    label: format.toUpperCase(),
     title: format + ' 제목',
     format,
   })),
-  { label: 'B', title: '굵게', format: 'bold' },
-  { label: 'I', title: '기울임', format: 'italic' },
+  { label: '굵게', title: '굵게', format: 'bold' },
+  { label: '기울임', title: '기울임', format: 'italic' },
   { label: '취소선', title: '취소선', format: 'strike' },
   { label: '인용', title: '인용', format: 'quote' },
   { label: '목록', title: '글머리 목록', format: 'bullet' },
@@ -18,6 +18,7 @@ const tools: { label: string; title: string; format: MarkdownFormat }[] = [
 export function MarkdownEditor({
   value,
   header,
+  toolbarAccessory,
   defaultValue = '',
   onChange,
   inputRef,
@@ -33,6 +34,7 @@ export function MarkdownEditor({
   onPreviewModeChange,
 }: {
   header?: ReactNode
+  toolbarAccessory?: ReactNode
   value?: string
   defaultValue?: string
   onChange?: (value: string) => void
@@ -84,7 +86,6 @@ export function MarkdownEditor({
   }
   return (
     <div className="markdown-editor" style={{ fontSize, lineHeight }}>
-      {header}
       <div className="markdown-toolbar">
         <div className="markdown-modes" role="group" aria-label="편집 보기">
           <button
@@ -117,34 +118,38 @@ export function MarkdownEditor({
             ))}
           </div>
         )}
+        {toolbarAccessory}
       </div>
-      <label htmlFor={id} className="sr-only">
-        {label}
-      </label>
-      <textarea
-        id={id}
-        ref={ref}
-        name={name}
-        onInvalid={(event) => {
-          event.preventDefault()
-          setPreview(false)
-          setNotice(label + '을 입력해 주세요.')
-          queueMicrotask(() => ref.current?.focus())
-        }}
-        value={content}
-        hidden={preview}
-        disabled={disabled}
-        required={!!name}
-        maxLength={maxLength}
-        placeholder={placeholder}
-        style={{ fontSize, lineHeight }}
-        onChange={(event) => change(event.target.value)}
-      />
-      {preview && (
-        <div className="markdown-preview-scroll" aria-label={label + ' 미리보기'}>
-          <MarkdownPreview content={content} />
-        </div>
-      )}
+      <div className="markdown-document">
+        {header}
+        <label htmlFor={id} className="sr-only">
+          {label}
+        </label>
+        <textarea
+          id={id}
+          ref={ref}
+          name={name}
+          onInvalid={(event) => {
+            event.preventDefault()
+            setPreview(false)
+            setNotice(label + '을 입력해 주세요.')
+            queueMicrotask(() => ref.current?.focus())
+          }}
+          value={content}
+          hidden={preview}
+          disabled={disabled}
+          required={!!name}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          style={{ fontSize, lineHeight }}
+          onChange={(event) => change(event.target.value)}
+        />
+        {preview && (
+          <div className="markdown-preview-scroll" aria-label={label + ' 미리보기'}>
+            <MarkdownPreview content={content} />
+          </div>
+        )}
+      </div>
       {notice && (
         <p role="status" className="error">
           {notice}

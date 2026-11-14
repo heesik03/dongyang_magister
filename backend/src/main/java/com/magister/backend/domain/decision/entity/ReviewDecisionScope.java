@@ -11,7 +11,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+
+import org.hibernate.annotations.Check;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -19,7 +24,26 @@ import lombok.NoArgsConstructor;
 
 /** 판단 버전과 그 적용 범위는 추가만 허용하고 과거 값을 수정하지 않는다. */
 @Entity
-@Table(name = "review_decision_scopes")
+@Table(
+        name = "review_decision_scopes",
+        indexes = {
+            @Index(name = "ix_scope_decision", columnList = "decision_id,id")
+        })
+@Check(constraints = """
+        (scope_type = 'CHAPTER_RANGE'
+            AND from_chapter_id IS NOT NULL
+            AND scene_source_id IS NULL
+            AND start_offset IS NULL
+            AND end_offset IS NULL)
+        OR (scope_type = 'SCENE'
+            AND from_chapter_id IS NULL
+            AND to_chapter_id IS NULL
+            AND scene_source_id IS NOT NULL
+            AND start_offset IS NOT NULL
+            AND end_offset IS NOT NULL
+            AND start_offset >= 0
+            AND end_offset > start_offset)
+        """)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReviewDecisionScope {
@@ -28,6 +52,7 @@ public class ReviewDecisionScope {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "decision_id", nullable = false, updatable = false)
     private ReviewDecision decision;
 

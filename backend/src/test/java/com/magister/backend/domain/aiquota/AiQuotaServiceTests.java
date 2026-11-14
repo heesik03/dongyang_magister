@@ -22,14 +22,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ActiveProfiles("test")
-@SpringBootTest(properties = {"scene-board.analysis-daily-limit=1", "scene-board.image-daily-limit=1"})
+@SpringBootTest(properties = {"character-image.daily-limit=1"})
 class AiQuotaServiceTests {
     @Autowired private AiQuotaService quota;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private PlatformTransactionManager transactionManager;
 
     @Test
-    void concurrentRequestsCannotExceedLimitAndUsersAndFeaturesAreIndependent() throws Exception {
+    void concurrentRequestsCannotExceedLimitAndUsersAreIndependent() throws Exception {
         long first = createUser();
         long second = createUser();
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
@@ -39,11 +39,9 @@ class AiQuotaServiceTests {
             start.countDown();
             assertThat(one.get(10, TimeUnit.SECONDS)).isNotEqualTo(two.get(10, TimeUnit.SECONDS));
 
-            charge(second, Feature.SCENE_ANALYSIS);
-            charge(first, Feature.SCENE_IMAGE);
-            assertThat(quota.usage(first, Feature.SCENE_ANALYSIS, Instant.now()).used()).isEqualTo(1);
-            assertThat(quota.usage(second, Feature.SCENE_ANALYSIS, Instant.now()).used()).isEqualTo(1);
-            assertThat(quota.usage(first, Feature.SCENE_IMAGE, Instant.now()).used()).isEqualTo(1);
+            charge(second, Feature.CHARACTER_IMAGE);
+            assertThat(quota.usage(first, Feature.CHARACTER_IMAGE, Instant.now()).used()).isEqualTo(1);
+            assertThat(quota.usage(second, Feature.CHARACTER_IMAGE, Instant.now()).used()).isEqualTo(1);
         } finally {
             jdbcTemplate.update("DELETE FROM users WHERE id IN (?, ?)", first, second);
         }
@@ -54,10 +52,10 @@ class AiQuotaServiceTests {
         long userId = createUser();
         try {
             assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-                quota.charge(userId, Feature.SCENE_ANALYSIS);
+                quota.charge(userId, Feature.CHARACTER_IMAGE);
                 throw new IllegalStateException("simulated job insert failure");
             })).isInstanceOf(IllegalStateException.class);
-            assertThat(quota.usage(userId, Feature.SCENE_ANALYSIS, Instant.now()).used()).isZero();
+            assertThat(quota.usage(userId, Feature.CHARACTER_IMAGE, Instant.now()).used()).isZero();
             assertThat(AiQuotaPolicy.periodAt(Instant.parse("2026-11-10T14:59:59Z")).resetAt())
                     .isEqualTo(Instant.parse("2026-11-10T15:00:00Z"));
         } finally {
@@ -68,7 +66,7 @@ class AiQuotaServiceTests {
     private boolean chargeAfter(CountDownLatch start, long userId) throws InterruptedException {
         start.await();
         try {
-            charge(userId, Feature.SCENE_ANALYSIS);
+            charge(userId, Feature.CHARACTER_IMAGE);
             return true;
         } catch (AiQuotaExceededException exception) {
             return false;

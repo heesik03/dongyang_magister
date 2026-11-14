@@ -1,3 +1,4 @@
+import { Icon } from '../../shared/Icon'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Dialog } from '../../shared/Dialog'
@@ -159,8 +160,7 @@ export function MyPage() {
     <main className="mypage-container">
       <section className="mypage-header">
         <div>
-          <span className="mypage-eyebrow">PERSONAL ACCOUNT</span>
-          <h1>마이페이지</h1>
+          <h1>내 계정</h1>
           <p className="muted">작가 프로필과 창작 공간 현황, 계정 보안을 관리합니다.</p>
         </div>
         <div className="mypage-tabs" role="tablist" aria-label="마이페이지 메뉴">
@@ -373,7 +373,8 @@ export function MyPage() {
               </p>
             </div>
             <button type="button" className="danger" onClick={() => setShowWithdrawDialog(true)}>
-              회원 탈퇴...
+              <Icon name="trash" />
+              회원 탈퇴 안내
             </button>
           </section>
         </div>

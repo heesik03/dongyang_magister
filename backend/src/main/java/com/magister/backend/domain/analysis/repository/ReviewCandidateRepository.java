@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface ReviewCandidateRepository extends JpaRepository<ReviewCandidate, String> {
@@ -21,8 +20,4 @@ public interface ReviewCandidateRepository extends JpaRepository<ReviewCandidate
     /** 소유권 확인된 작업만 ID 순서로 페이지 조회하며 대상 자료를 함께 읽는다. */
     @EntityGraph(attributePaths = "targetSource")
     Page<ReviewCandidate> findByJob_Id(String jobId, Pageable pageable);
-
-    /** 범위 요약·수정 전후 비교를 위해 작업의 전체 후보(최대 100건)를 ID 순서로 읽는다. */
-    @EntityGraph(attributePaths = "targetSource")
-    List<ReviewCandidate> findAllByJob_IdOrderByIdAsc(String jobId);
 }

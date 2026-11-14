@@ -12,11 +12,14 @@ import com.magister.backend.global.pagination.CursorPageRequest;
 import com.magister.backend.global.pagination.CursorPageResponse;
 import com.magister.backend.global.pagination.OffsetPageResponse;
 import com.magister.backend.global.response.ApiResult;
+import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.constraints.Min;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,6 +36,18 @@ import java.net.URI;
 @RequiredArgsConstructor
 public class SettingController implements SettingControllerDocs {
     private final SettingService settingService;
+
+    @DeleteMapping("/{settingId}")
+    @Operation(summary = "인물 설정과 연결된 이미지 삭제",
+            description = "본인 작품의 인물만 삭제합니다. version은 조회한 설정 버전입니다. 204 삭제, 404 접근 불가 또는 인물 없음, 409 버전 충돌.")
+    public ResponseEntity<Void> deleteCharacter(
+            @AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId,
+            @PathVariable Long settingId,
+            @RequestParam @Min(0) long version) {
+        settingService.deleteCharacter(user.id(), workId, settingId, version);
+        return ResponseEntity.noContent().build();
+    }
 
     @Override
     @PostMapping

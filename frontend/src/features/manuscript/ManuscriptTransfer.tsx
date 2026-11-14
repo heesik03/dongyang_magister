@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dialog } from '../../shared/Dialog'
+import { Icon } from '../../shared/Icon'
 import { ApiError } from '../../shared/httpClient'
 import type { Chapter, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
@@ -184,12 +185,33 @@ export function ManuscriptTransfer({
       if (active.current) setBusy(false)
     }
   }
+  function openFromMenu(button: HTMLButtonElement, next: 'import' | 'export') {
+    const menu = button.closest('details')
+    if (menu) {
+      menu.open = false
+      menu.querySelector('summary')?.focus()
+    }
+    open(next)
+  }
   return (
     <>
-      <button onClick={() => open('import')}>원고 가져오기</button>
-      <button disabled={!chapter} onClick={() => open('export')}>
-        원고 내보내기
-      </button>
+      <details className="workspace-disclosure manuscript-file-menu">
+        <summary>
+          <Icon name="file" />
+          파일 메뉴
+        </summary>
+        <div className="file-menu-actions">
+          <button onClick={(event) => openFromMenu(event.currentTarget, 'import')}>
+            원고 가져오기
+          </button>
+          <button
+            disabled={!chapter}
+            onClick={(event) => openFromMenu(event.currentTarget, 'export')}
+          >
+            원고 내려받기
+          </button>
+        </div>
+      </details>
       {message && (
         <span className="small" role="status">
           {message}

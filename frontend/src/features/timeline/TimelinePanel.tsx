@@ -7,352 +7,391 @@ import { Icon } from '../../shared/Icon'
 import { eventLocation, orderedEvents, sourceLines } from './timelineEvidence'
 import { ExtractionFlow } from './ExtractionFlow'
 import { ExtractionSourceButton } from './ExtractionSourceButton'
+import { timelineClient } from './timelineClient'
+import { workspaceClient } from '../workspace/workspaceClient'
+import { ApiError } from '../../shared/httpClient'
+
+function isPlaced(event: StoryEvent) {
+  return event.timeStatus === 'CONFIRMED' || (event.timeStatus == null && Boolean(event.time))
+}
 
 export function TimelinePanel({ work }: { work: Work }) {
   const updateWork = useWorksStore((state) => state.updateWork)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [editVersion, setEditVersion] = useState(0)
   const [editing, setEditing] = useState<StoryEvent | 'new' | null>(null)
+  const [selectedId, setSelectedId] = useState('')
   const [filterChapter, setFilterChapter] = useState('')
-  const [chapterId, setChapterId] = useState(work.chapters[0]?.id || '')
-  const [flowOpen, setFlowOpen] = useState(true)
-  const [flowMode, setFlowMode] = useState<'matrix' | 'table'>('matrix')
+  const [chapterId, setChapterId] = useState('')
+  const [placement, setPlacement] = useState('later')
   const draft = editing && editing !== 'new' ? editing : null
-  const sourceChapter = work.chapters.find((chapter) => chapter.id === chapterId)
-  const paragraphs = sourceLines(sourceChapter?.content || '')
-  function open(event: StoryEvent | 'new') {
-    setEditing(event)
-    setChapterId(event === 'new' ? work.chapters[0]?.id || '' : event.chapterId)
+  const chapterMap = new Map(
+    work.chapters.map((chapter, index) => [chapter.id, { chapter, index }]),
+  )
+  const sourceChapter = chapterMap.get(chapterId)?.chapter
+  const paragraphs = sourceLines(sourceChapter?.content ?? '')
+  const ordered = orderedEvents(work.events)
+  const placed = ordered.filter(isPlaced)
+  const ranks = new Map(placed.map((event, index) => [event.id, index + 1]))
+  const matches = (event: StoryEvent) => !filterChapter || event.chapterId === filterChapter
+  const visible = placed.filter(matches)
+  const pending = ordered.filter((event) => !isPlaced(event) && matches(event))
+  const displayed = [...visible, ...pending]
+  const selected = displayed.find((event) => event.id === selectedId) ?? displayed[0]
+  const anchors = placed.filter((event) => event.id !== draft?.id)
+  const sources = new Map(
+    ordered.map((event) => [
+      event.id,
+      eventLocation(event, chapterMap.get(event.chapterId)?.chapter),
+    ]),
+  )
+  const manuscript = ordered
+    .filter((event) => chapterMap.has(event.chapterId))
+    .sort(
+      (left, right) =>
+        (chapterMap.get(left.chapterId)?.index ?? 0) -
+          (chapterMap.get(right.chapterId)?.index ?? 0) ||
+        (sources.get(left.id)?.start ?? Infinity) - (sources.get(right.id)?.start ?? Infinity),
+    )
+  const earlier = new Set<string>()
+  let highest = 0
+  for (const event of manuscript) {
+    const rank = ranks.get(event.id)
+    if (!rank) continue
+    if (rank < highest) earlier.add(event.id)
+    highest = Math.max(highest, rank)
   }
-  function save(event: FormEvent<HTMLFormElement>) {
+
+  function open(event: StoryEvent | 'new') {
+    setSaveError('')
+    setEditVersion(work.workspaceVersion ?? 0)
+    setPlacement(event !== 'new' && isPlaced(event) ? 'keep' : 'later')
+    setEditing(event)
+    setChapterId(event === 'new' ? filterChapter : event.chapterId)
+  }
+
+  async function persist(events: StoryEvent[], version = work.workspaceVersion ?? 0) {
+    const next = events.map((event, sequence) => ({ ...event, sequence }))
+    if (work.source !== 'server') {
+      updateWork({ ...work, events: next })
+      return true
+    }
+    if (saving) return false
+    const { account } = useWorksStore.getState()
+    setSaving(true)
+    setSaveError('')
+    try {
+      const result = await timelineClient.replaceAll(work.id, version, next)
+      const state = useWorksStore.getState()
+      if (state.account !== account) return false
+      state.acceptTimeline(work.id, result)
+      return true
+    } catch (failure) {
+      setSaveError(
+        failure instanceof ApiError && failure.status === 409
+          ? '다른 곳에서 사건이 변경되었습니다. 최신 목록을 불러온 뒤 다시 확인해 주세요.'
+          : failure instanceof Error
+            ? failure.message
+            : '사건을 저장하지 못했습니다.',
+      )
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function refreshTimeline() {
+    const { account } = useWorksStore.getState()
+    setSaving(true)
+    try {
+      const result = await workspaceClient.get(work.id)
+      const state = useWorksStore.getState()
+      if (state.account !== account) return
+      state.acceptTimeline(work.id, { ...result, events: result.content.events })
+      setEditing(null)
+      setSaveError('')
+    } catch (failure) {
+      setSaveError(failure instanceof Error ? failure.message : '사건을 불러오지 못했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const title = String(data.get('title')).trim()
     if (!title) return
-    const keepEvidence = data.get('quote') === 'stored' && !!draft
+    const keepEvidence = data.get('quote') === 'stored' && draft?.chapterId === chapterId
     const selectedLine = paragraphs.find((line) => String(line.start) === data.get('quote'))
     const next: StoryEvent = {
-      ...draft,
-      id: draft?.id || crypto.randomUUID(),
+      id: draft?.id ?? crypto.randomUUID(),
       title,
       description: String(data.get('description') || ''),
       time: String(data.get('time')).trim(),
       characters: String(data.get('characters')).trim(),
       chapterId,
-      quote: keepEvidence ? draft.quote : selectedLine?.quote || '',
+      quote: keepEvidence ? draft.quote : (selectedLine?.quote ?? ''),
       sourceRevision: keepEvidence
         ? draft.sourceRevision
         : selectedLine
           ? sourceChapter?.revision
           : undefined,
-      startOffset: keepEvidence ? draft.startOffset : selectedLine?.start,
-      endOffset: keepEvidence ? draft.endOffset : selectedLine?.end,
+      startOffset: keepEvidence
+        ? draft.startOffset
+        : sourceChapter?.revision == null
+          ? undefined
+          : selectedLine?.start,
+      endOffset: keepEvidence
+        ? draft.endOffset
+        : sourceChapter?.revision == null
+          ? undefined
+          : selectedLine?.end,
       extractionId: keepEvidence ? draft.extractionId : null,
-      sequence: Number(data.get('sequence')),
-      timeStatus: data.get('timeConfirmed') ? 'CONFIRMED' : 'UNRESOLVED',
+      timeStatus: placement === 'later' ? 'UNRESOLVED' : 'CONFIRMED',
     }
-    updateWork({
-      ...work,
-      events: draft
-        ? work.events.map((item) => (item.id === next.id ? next : item))
-        : [...work.events, next],
-    })
+    let saved: boolean
+    if (placement === 'keep') {
+      saved = await persist(
+        ordered.map((item) => (item.id === next.id ? next : item)),
+        editVersion,
+      )
+    } else {
+      const remaining = ordered.filter((item) => item.id !== next.id)
+      const anchorIndex = remaining.findIndex(
+        (item) => isPlaced(item) && item.id === data.get('anchor'),
+      )
+      if ((placement === 'before' || placement === 'after') && anchorIndex < 0) return
+      const index =
+        placement === 'before'
+          ? anchorIndex
+          : placement === 'after'
+            ? anchorIndex + 1
+            : remaining.length
+      remaining.splice(index, 0, next)
+      saved = await persist(remaining, editVersion)
+    }
+    if (!saved) return
+    setSelectedId(next.id)
     setEditing(null)
   }
-  // 시점이 없는 사건을 임의로 시간순에 끼워 넣지 않고 별도 목록으로 표시한다.
-  const displayed = work.events.filter(
-    (event) => !filterChapter || event.chapterId === filterChapter,
-  )
-  const known = orderedEvents(
-    displayed.filter((event) => event.time && event.timeStatus !== 'UNRESOLVED'),
-  )
-  const unknown = orderedEvents(
-    displayed.filter((event) => !event.time || event.timeStatus === 'UNRESOLVED'),
-  )
 
-  // 회차 필터를 바꿔도 전체 작품의 시간순과 역전 여부는 유지한다.
-  const chapterIndexMap = new Map(work.chapters.map((chapter, index) => [chapter.id, index]))
-  const allKnown = orderedEvents(
-    work.events.filter((event) => event.time && event.timeStatus !== 'UNRESOLVED'),
-  )
-  const knownOrderMap = new Map(allKnown.map((event, index) => [event.id, index + 1]))
-  const reversedEventIds = new Set<string>()
-  let maxEarlierSequence = -1
-  for (const chapter of work.chapters) {
-    let maxChapterSequence = maxEarlierSequence
-    for (const event of allKnown) {
-      if (event.chapterId !== chapter.id || event.sequence == null) continue
-      if (event.sequence < maxEarlierSequence) reversedEventIds.add(event.id)
-      maxChapterSequence = Math.max(maxChapterSequence, event.sequence)
-    }
-    maxEarlierSequence = maxChapterSequence
+  function move(event: StoryEvent, offset: number) {
+    const rank = ranks.get(event.id)
+    if (rank === undefined) return
+    const neighbor = placed[rank - 1 + offset]
+    if (!neighbor) return
+    void persist(
+      ordered.map((item) =>
+        item.id === event.id ? neighbor : item.id === neighbor.id ? event : item,
+      ),
+    )
   }
 
-  function move(event: StoryEvent, direction: number) {
-    const sorted = orderedEvents(work.events)
-    const index = sorted.findIndex((item) => item.id === event.id)
-    const target = index + direction
-    if (target < 0 || target >= sorted.length) return
-    ;[sorted[index], sorted[target]] = [sorted[target], sorted[index]]
-    updateWork({ ...work, events: sorted.map((item, sequence) => ({ ...item, sequence })) })
-  }
-  function renderEvent(event: StoryEvent, index: number) {
-    const chapter = work.chapters.find((item) => item.id === event.chapterId)
-    // 원고에서 인용문이 사라졌다면 기존 위치로 이동시키지 않고 근거 변경을 표시한다.
-    const location = eventLocation(event, chapter)
-    const isReversed = reversedEventIds.has(event.id)
+  function sourceLink(event: StoryEvent) {
+    const location = sources.get(event.id)
+    if (!event.quote) return <span className="small muted">원문 미지정</span>
+    if (!location) return <span className="badge warning">원문 재확인 필요</span>
+    const query = new URLSearchParams({
+      chapter: event.chapterId,
+      quote: event.quote,
+      start: String(location.start),
+      end: String(location.end),
+    })
     return (
-      <article className="event-card" key={event.id}>
-        <div className="event-order">
-          <strong>{String(index + 1).padStart(2, '0')}</strong>
-          <span>{event.time || '시점 미상'}</span>
-          <span className="small muted">사건 순서 {index + 1}</span>
-          {isReversed && <span className="badge warning">서술 순서 역전</span>}
-          <button onClick={() => move(event, -1)} aria-label={`${event.title} 앞 순서로`}>
-            ↑
-          </button>
-          <button onClick={() => move(event, 1)} aria-label={`${event.title} 뒤 순서로`}>
-            ↓
-          </button>
-        </div>
+      <Link className="button" to={'/works/' + work.id + '/manuscript?' + query}>
+        원문으로 이동 <Icon name="arrow" />
+      </Link>
+    )
+  }
+
+  function renderEvent(event: StoryEvent) {
+    const rank = ranks.get(event.id)
+    return (
+      <li className="event-list-item" key={event.id}>
+        <button
+          type="button"
+          className="workspace-list-row"
+          aria-pressed={selected?.id === event.id}
+          onClick={() => setSelectedId(event.id)}
+        >
+          <span>{rank === undefined ? '순서 미정' : rank + '번째'}</span>
+          <strong>{event.title}</strong>
+          <span>{event.time || '시점 미정'}</span>
+          <span>{chapterMap.get(event.chapterId)?.chapter.title || '회차 미지정'}</span>
+        </button>
+      </li>
+    )
+  }
+
+  function eventDetail(event: StoryEvent) {
+    const rank = ranks.get(event.id)
+    return (
+      <article className="timeline-detail" aria-label="선택한 사건">
+        <header className="editorial-section-title">
+          <h2>
+            <Icon name="clock" />
+            {event.title}
+          </h2>
+          <p className="muted">
+            {event.time || '시점 미정'} ·{' '}
+            {chapterMap.get(event.chapterId)?.chapter.title || '회차 미지정'}
+          </p>
+        </header>
         <div className="event-body">
-          <div className="row">
-            <h2>{event.title}</h2>
-            <button className="text-button" onClick={() => open(event)}>
-              사건 수정
-            </button>
-          </div>
           {event.description && <p>{event.description}</p>}
-          <p className="small muted">등장인물 · {event.characters || '미정'}</p>
-          {event.quote && <blockquote>{event.quote}</blockquote>}
-          <div className="row">
-            <strong className="event-source">근거 회차 · {chapter?.title || '회차 미지정'}</strong>
-            {location ? (
-              <Link
-                className="button"
-                to={`/works/${work.id}/manuscript?chapter=${encodeURIComponent(event.chapterId)}&quote=${encodeURIComponent(event.quote)}&start=${location.start}&end=${location.end}`}
-              >
-                원문으로 이동 <Icon name="arrow" />
-              </Link>
-            ) : (
-              <span className="badge warning">
-                {event.sourceRevision != null && event.sourceRevision !== chapter?.revision
-                  ? '근거 변경 · 재확인 필요'
-                  : '원문 위치 확인 필요'}
-              </span>
-            )}
+          {event.characters && <p className="small muted">등장인물 · {event.characters}</p>}
+          {event.quote && (
+            <section className="timeline-source">
+              <h3>
+                <Icon name="file" />
+                근거 원문
+              </h3>
+              <blockquote>{event.quote}</blockquote>
+            </section>
+          )}
+          <div className="timeline-event-actions">
+            {sourceLink(event)}
             {event.extractionId && <ExtractionSourceButton workId={work.id} event={event} />}
+            <button disabled={saving} onClick={() => open(event)}>
+              <Icon name="edit" />
+              {rank === undefined ? '순서 정하기' : '사건 수정'}
+            </button>
+            <button
+              disabled={saving}
+              onClick={() => {
+                void persist(ordered.filter((item) => item.id !== event.id))
+              }}
+            >
+              사건 삭제
+            </button>
+            {rank !== undefined && (
+              <>
+                <button
+                  disabled={saving || rank === 1}
+                  onClick={() => move(event, -1)}
+                  aria-label={event.title + ' 앞 순서로'}
+                >
+                  ↑ 앞
+                </button>
+                <button
+                  disabled={saving || rank === placed.length}
+                  onClick={() => move(event, 1)}
+                  aria-label={event.title + ' 뒤 순서로'}
+                >
+                  ↓ 뒤
+                </button>
+              </>
+            )}
           </div>
         </div>
       </article>
     )
   }
+
   return (
     <section className="timeline-panel">
-      <div className="section-line">
-        <div>
-          <h1>사건 타임라인</h1>
-          <p className="small muted">
-            등록한 사건을 시간순으로 살펴보고, 시점과 원문을 직접 정리하세요.
-          </p>
+      <p className="muted">소설 속에서 먼저 일어난 일부터 정리하세요.</p>
+      <div className="timeline-actions">
+        <div className="timeline-event-actions">
+          <button className="primary" disabled={saving} onClick={() => open('new')}>
+            <Icon name="plus" /> 사건 추가
+          </button>
+          <ExtractionFlow work={work} />
         </div>
-        <button className="primary" onClick={() => open('new')}>
-          <Icon name="plus" />
-          사건 추가
-        </button>
+        <label className="timeline-filter">
+          근거 회차
+          <select value={filterChapter} onChange={(event) => setFilterChapter(event.target.value)}>
+            <option value="">전체 회차</option>
+            {work.chapters.map((chapter) => (
+              <option key={chapter.id} value={chapter.id}>
+                {chapter.title}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
-      <ExtractionFlow work={work} />
-
-      {work.events.length > 0 && (
-        <section className="timeline-flow-comparison" aria-label="서술 순서와 사건 순서 비교">
-          <div className="review-overview-header">
-            <div>
-              <strong>회차 서술 순서 ↔ 이야기 시간순 비교</strong>
-              <p className="small muted">
-                각 회차에 서술된 사건이 이야기 시간순(순번)에서 어디에 놓이는지 비교하고, 회상·역순
-                서술과 시점 미확정 사건을 구분합니다.
-              </p>
-            </div>
-            <div className="review-overview-actions">
-              <div className="filter-tabs" role="group" aria-label="사건 흐름 보기 방식">
-                <button
-                  type="button"
-                  aria-pressed={flowMode === 'matrix'}
-                  className={flowMode === 'matrix' ? 'selected' : ''}
-                  onClick={() => setFlowMode('matrix')}
-                >
-                  회차별 흐름도
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={flowMode === 'table'}
-                  className={flowMode === 'table' ? 'selected' : ''}
-                  onClick={() => setFlowMode('table')}
-                >
-                  대조 목록 표
-                </button>
-              </div>
-              <button
-                type="button"
-                className="ghost small"
-                onClick={() => setFlowOpen((prev) => !prev)}
-              >
-                {flowOpen ? '흐름도 접기' : '흐름도 펼치기'}
-              </button>
-            </div>
-          </div>
-
-          {flowOpen && (
-            <>
-              <div className="review-overview-legend" aria-label="사건 흐름 범례">
-                <span>
-                  <i className="legend-dot legend-dot--normal" aria-hidden="true" /> 시간순 배치
-                </span>
-                <span>
-                  <i className="legend-dot legend-dot--supplement" aria-hidden="true" /> 서술 순서
-                  역전 (앞 회차보다 이른 사건)
-                </span>
-                <span>
-                  <i className="legend-dot legend-dot--unreviewed" aria-hidden="true" /> 시점 미확정
-                  (작가 확인 필요 · 시간순 미배치)
-                </span>
-              </div>
-
-              {flowMode === 'matrix' ? (
-                <div className="timeline-flow-lanes" role="list">
-                  {work.chapters.map((chapter, chapterIdx) => {
-                    const chapterEvents = displayed.filter((item) => item.chapterId === chapter.id)
-                    return (
-                      <div className="timeline-flow-lane" role="listitem" key={chapter.id}>
-                        <div className="timeline-flow-lane-header">
-                          <strong>
-                            서술 {chapterIdx + 1}순 · {chapter.title}
-                          </strong>
-                          <span className="small muted">사건 {chapterEvents.length}건</span>
-                        </div>
-                        {chapterEvents.length === 0 ? (
-                          <p className="small muted">이 회차에 연결된 사건이 없습니다.</p>
-                        ) : (
-                          <div className="timeline-flow-chips">
-                            {chapterEvents.map((event) => {
-                              const isUnresolved = !event.time || event.timeStatus === 'UNRESOLVED'
-                              const isReversed = reversedEventIds.has(event.id)
-                              const orderNo = knownOrderMap.get(event.id)
-                              return (
-                                <button
-                                  type="button"
-                                  key={event.id}
-                                  className={`timeline-flow-chip ${
-                                    isUnresolved
-                                      ? 'timeline-flow-chip--unresolved'
-                                      : isReversed
-                                        ? 'timeline-flow-chip--reversed'
-                                        : 'timeline-flow-chip--normal'
-                                  }`}
-                                  onClick={() => open(event)}
-                                >
-                                  <span className="timeline-chip-order">
-                                    {isUnresolved
-                                      ? '시점 미확정'
-                                      : `시간순 #${orderNo ?? (event.sequence ?? 0) + 1}`}
-                                  </span>
-                                  <strong>{event.title}</strong>
-                                  <span className="small muted">
-                                    {event.time || '시점 미상'}
-                                    {isReversed ? ' · 서술 순서 역전' : ''}
-                                  </span>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="review-overview-table-wrap">
-                  <table className="review-overview-table">
-                    <caption>서술 회차 순서와 이야기 시간순 대조 표</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">사건명</th>
-                        <th scope="col">서술 회차</th>
-                        <th scope="col">이야기 시간순</th>
-                        <th scope="col">시점 표현</th>
-                        <th scope="col">배치 구분</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayed.map((event) => {
-                        const chapterIdx = chapterIndexMap.get(event.chapterId)
-                        const chapterTitle =
-                          work.chapters.find((c) => c.id === event.chapterId)?.title ||
-                          '회차 미지정'
-                        const isUnresolved = !event.time || event.timeStatus === 'UNRESOLVED'
-                        const isReversed = reversedEventIds.has(event.id)
-                        const orderNo = knownOrderMap.get(event.id)
-                        return (
-                          <tr key={event.id}>
-                            <td>{event.title}</td>
-                            <td>
-                              {chapterIdx !== undefined ? `${chapterIdx + 1}순 · ` : ''}
-                              {chapterTitle}
-                            </td>
-                            <td>
-                              {isUnresolved
-                                ? '미배치 (확인 필요)'
-                                : `시간순 #${orderNo ?? (event.sequence ?? 0) + 1}`}
-                            </td>
-                            <td>{event.time || '시점 미상'}</td>
-                            <td>
-                              {isUnresolved
-                                ? '시점 미확정'
-                                : isReversed
-                                  ? '서술 순서 역전'
-                                  : '시간순 배치'}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-      )}
-
-      <label className="timeline-filter">
-        근거 회차
-        <select value={filterChapter} onChange={(event) => setFilterChapter(event.target.value)}>
-          <option value="">전체 회차</option>
-          {work.chapters.map((chapter) => (
-            <option key={chapter.id} value={chapter.id}>
-              {chapter.title}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="notice small">
-        사건은 작가가 지정한 이야기 순서로 배치합니다. 회차의 서술 순서와 다를 수 있습니다. 기준이
-        불명확한 상대 시점·회상은 확인 전까지 시점 미상으로 남겨 주세요.
-      </p>
-      <div className="timeline-list">{known.map(renderEvent)}</div>
-      {unknown.length > 0 && (
-        <>
-          <h3 className="unknown-heading">시점 미상 · 작가의 확인이 필요한 사건</h3>
-          <div className="timeline-list">{unknown.map(renderEvent)}</div>
-        </>
-      )}
-      {!work.events.length && (
+      {filterChapter && !visible.length && !pending.length ? (
+        <div className="empty">
+          <p>이 회차에 연결된 사건이 없습니다.</p>
+          <button onClick={() => setFilterChapter('')}>회차 필터 해제</button>
+        </div>
+      ) : !work.events.length ? (
         <div className="empty">
           <Icon name="clock" />
-          <h3>아직 기록한 사건이 없어요</h3>
-          <p>주요 사건을 추가하고 근거 문장과 연결해 보세요.</p>
+          <h3>아직 등록한 사건이 없습니다</h3>
+          <p>사건을 직접 추가하거나 원고에서 찾아 등록하세요.</p>
+        </div>
+      ) : (
+        <div className="timeline-workbench editorial-surface">
+          <div className="timeline-list-pane">
+            {visible.length > 0 && (
+              <section aria-labelledby="story-order-heading">
+                <h2 id="story-order-heading">이야기 속 순서</h2>
+                <ul className="workspace-list timeline-list timeline-rows">
+                  <li className="workspace-list-row workspace-list-header" aria-hidden="true">
+                    <span>순서</span>
+                    <span>사건</span>
+                    <span>시점</span>
+                    <span>등장 회차</span>
+                  </li>
+                  {visible.map(renderEvent)}
+                </ul>
+              </section>
+            )}
+            {pending.length > 0 && (
+              <section aria-labelledby="pending-story-order">
+                <h2 id="pending-story-order">
+                  순서를 정할 사건 <span className="badge warning">{pending.length}개</span>
+                </h2>
+                <ul className="workspace-list timeline-list timeline-rows">
+                  {pending.map(renderEvent)}
+                </ul>
+              </section>
+            )}
+            <details className="workspace-disclosure timeline-help">
+              <summary>원고에 나온 순서와 비교</summary>
+              <p>
+                회차와 원문 위치 순으로 표시합니다. 회상처럼 먼저 일어난 사건이 뒤에서 공개될 수
+                있습니다.
+              </p>
+              <ol className="timeline-comparison-list">
+                {manuscript.filter(matches).map((event) => (
+                  <li key={event.id}>
+                    <div>
+                      <span className="small muted">
+                        {chapterMap.get(event.chapterId)?.chapter.title}
+                      </span>
+                      <strong>{event.title}</strong>
+                      <span className="small">
+                        {ranks.has(event.id)
+                          ? '이야기 속 ' + ranks.get(event.id) + '번째'
+                          : '이야기 속 순서 미정'}
+                      </span>
+                      {earlier.has(event.id) && (
+                        <span className="badge warning">앞서 일어난 사건</span>
+                      )}
+                    </div>
+                    {sourceLink(event)}
+                  </li>
+                ))}
+              </ol>
+              {!manuscript.some(matches) && (
+                <p className="small muted">회차에 연결된 사건이 없습니다.</p>
+              )}
+            </details>
+          </div>
+          {selected && eventDetail(selected)}
         </div>
       )}
       {editing && (
-        <Dialog title={draft ? '사건 수정' : '사건 추가'} onClose={() => setEditing(null)}>
+        <Dialog
+          title={draft ? '사건 수정' : '사건 추가'}
+          onClose={() => {
+            if (!saving) setEditing(null)
+          }}
+        >
           <form className="stack" onSubmit={save}>
             <label>
               사건명
@@ -378,29 +417,30 @@ export function TimelinePanel({ work }: { work: Work }) {
               />
             </label>
             <label>
-              이야기 순서
-              <input
-                name="sequence"
-                type="number"
-                min={0}
-                max={10000}
-                required
-                defaultValue={
-                  draft?.sequence ??
-                  (draft
-                    ? work.events.findIndex((item) => item.id === draft.id)
-                    : work.events.length)
-                }
-              />
+              이야기 속 위치
+              <select value={placement} onChange={(event) => setPlacement(event.target.value)}>
+                <option value="later">나중에 정하기</option>
+                {draft && isPlaced(draft) && <option value="keep">현재 순서 유지</option>}
+                <option value="last">{anchors.length ? '맨 뒤에 배치' : '첫 사건으로 배치'}</option>
+                {anchors.length > 0 && <option value="before">기준 사건 앞에 배치</option>}
+                {anchors.length > 0 && <option value="after">기준 사건 뒤에 배치</option>}
+              </select>
             </label>
-            <label>
-              <input
-                name="timeConfirmed"
-                type="checkbox"
-                defaultChecked={!!draft?.time && draft.timeStatus !== 'UNRESOLVED'}
-              />
-              시점과 이야기 속 순서를 확인했습니다
-            </label>
+            {(placement === 'before' || placement === 'after') && (
+              <label>
+                기준 사건
+                <select name="anchor" required defaultValue="">
+                  <option value="" disabled>
+                    사건 선택
+                  </option>
+                  {anchors.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {ranks.get(event.id)}번째 · {event.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               등장인물
               <input name="characters" defaultValue={draft?.characters} maxLength={500} />
@@ -435,13 +475,35 @@ export function TimelinePanel({ work }: { work: Work }) {
               </select>
             </label>
             <div className="dialog-actions">
-              <button type="button" onClick={() => setEditing(null)}>
+              <button type="button" disabled={saving} onClick={() => setEditing(null)}>
                 취소
               </button>
-              <button className="primary">사건 저장</button>
+              <button className="primary" disabled={saving}>
+                사건 저장
+              </button>
             </div>
+            {saveError && (
+              <p role="alert" className="error">
+                {saveError}
+              </p>
+            )}
+            {saveError && work.source === 'server' && (
+              <button type="button" disabled={saving} onClick={() => void refreshTimeline()}>
+                최신 사건 목록 불러오기
+              </button>
+            )}
           </form>
         </Dialog>
+      )}
+      {!editing && saveError && (
+        <div className="stack">
+          <p role="alert" className="error">
+            {saveError}
+          </p>
+          <button disabled={saving} onClick={() => void refreshTimeline()}>
+            최신 사건 목록 불러오기
+          </button>
+        </div>
       )}
     </section>
   )

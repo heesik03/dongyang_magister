@@ -3,14 +3,11 @@ package com.magister.backend.domain.timeline.service;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.repository.AnalysisAdmissionRepository;
 import com.magister.backend.domain.analysis.repository.AnalysisJobRepository;
-import com.magister.backend.domain.analysis.service.support.AnalysisPreviewToken;
 import com.magister.backend.domain.timeline.converter.ExtractionConverter;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Candidate;
 import com.magister.backend.domain.timeline.dto.ExtractionData.CreateRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Input;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Job;
-import com.magister.backend.domain.timeline.dto.ExtractionData.Preview;
-import com.magister.backend.domain.timeline.dto.ExtractionData.PreviewRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.SaveCandidates;
 import com.magister.backend.domain.timeline.entity.EventExtraction;
 import com.magister.backend.domain.timeline.repository.EventExtractionRepository;
@@ -36,8 +33,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -56,22 +53,11 @@ public class ExtractionService {
     private final WorkAccessService workAccessService;
     private final ExtractionInputService extractionInputService;
     private final ExtractionConverter extractionConverter;
-    private final AnalysisPreviewToken previewToken;
     private final ExtractionDispatcher extractionDispatcher;
     private final AnalysisExecutionProperties executionProperties;
     private final ObjectMapper objectMapper;
     private final WorkspaceService workspaceService;
-
-    /** 외부 통신 없이 실제 전송할 원고·모델·10분 유효 토큰을 반환한다. */
-    @Transactional(readOnly = true)
-    public Preview preview(Long ownerId, Long workId, PreviewRequest request) {
-        workAccessService.requireOwned(ownerId, workId);
-        Input input = extractionInputService.snapshot(workId, request.chapters());
-        return extractionConverter.preview(
-                input,
-                previewToken.issue(
-                        payload(ownerId, workId, input), Instant.now().plusSeconds(600)));
-    }
+    private final TimelineService timelineService;
 
     /** 동일 키 재시도는 기존 작업을 반환한다. 공통 잠금으로 분석·사건 추출 합산 한도를 지킨다. */
     @Transactional
@@ -90,9 +76,6 @@ public class ExtractionService {
             }
             return toJob(existing);
         }
-        if (!request.consent()) {
-            invalid();
-        }
         long own =
                 eventExtractionRepository.countByWork_Owner_IdAndStatusIn(ownerId, ACTIVE)
                         + analysisJobRepository.countByWork_Owner_IdAndStatusIn(
@@ -104,7 +87,6 @@ public class ExtractionService {
             throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
         }
         Input input = extractionInputService.snapshot(workId, request.chapters());
-        previewToken.verify(request.token(), payload(ownerId, workId, input));
         EventExtraction extraction =
                 new EventExtraction(
                         UUID.randomUUID().toString(),
@@ -198,20 +180,28 @@ public class ExtractionService {
             long version,
             long workspaceVersion,
             String mutationId) {
-        workAccessService.lockOwned(ownerId, workId);
+        Work work = workAccessService.lockOwned(ownerId, workId);
         EventExtraction extraction = owned(ownerId, workId, id, true);
         if (!extraction.getStatus().equals("SUCCEEDED") || extraction.getVersion() != version) {
             conflict();
         }
         WorkspaceResponse current = workspaceService.get(ownerId, workId);
         List<EventData> events = new ArrayList<>(current.content().events());
+        int nextSequence = events.size();
+        for (EventData event : events) {
+            if (event.sequence() != null && event.sequence() >= nextSequence) {
+                nextSequence = event.sequence() + 1;
+            }
+        }
         List<Candidate> included =
                 readCandidates(extraction.getResult()).stream()
                         .filter(candidate -> candidate.decision().equals("INCLUDE"))
+                        .sorted(Comparator.comparingInt(Candidate::sequence))
                         .toList();
         if (included.isEmpty()) {
             invalid();
         }
+        Set<String> verifiedExtractions = new HashSet<>();
         for (Candidate candidate : included) {
             if (events.stream().anyMatch(event -> event.id().equals(candidate.id()))) {
                 continue;
@@ -219,7 +209,9 @@ public class ExtractionService {
             if (events.size() >= 1000) {
                 invalid();
             }
-            events.add(extractionConverter.event(candidate, id));
+            // 후보 순번은 추출 묶음 안에서만 유효하므로 작품 순서 끝에 이어 붙인다.
+            events.add(extractionConverter.event(candidate, id, nextSequence++));
+            verifiedExtractions.add(candidate.id());
         }
         if (events.equals(current.content().events())) {
             return current;
@@ -227,10 +219,9 @@ public class ExtractionService {
         if (current.version() != workspaceVersion) {
             conflict();
         }
-        return workspaceService.save(
-                ownerId,
-                workId,
-                extractionConverter.confirmation(workspaceVersion, mutationId, events));
+        timelineService.replaceForOwnedWork(
+                work, workspaceVersion, events, verifiedExtractions, mutationId);
+        return workspaceService.get(ownerId, workId);
     }
 
     /** DB 상태를 먼저 종료시켜 취소 후 늦게 온 결과가 성공으로 덮어쓰지 못하게 한다. */
@@ -267,15 +258,6 @@ public class ExtractionService {
             throw new CustomException(WorkErrorCode.WORK_NOT_FOUND);
         }
         return extraction;
-    }
-
-    private String payload(Long ownerId, Long workId, Input input) {
-        return "event-extraction:v1|"
-                + ownerId
-                + "|"
-                + workId
-                + "|"
-                + objectMapper.writeValueAsString(input);
     }
 
     private void afterCommit(Runnable action) {

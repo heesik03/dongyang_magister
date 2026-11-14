@@ -49,7 +49,7 @@ export function Dialog({
   }, [onOpen, initialFocus])
   return (
     <dialog
-      className={'dialog--' + size}
+      className={'dialog dialog--' + size}
       ref={ref}
       aria-labelledby={titleId}
       onInputCapture={(event) => {

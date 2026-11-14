@@ -1,15 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ManuscriptPanel } from '../src/features/manuscript/ManuscriptPanel'
-import {
-  analysisClient,
-  type Job,
-  type JobSummary,
-  type Preview,
-  type InputSnapshot,
-} from '../src/features/analysis/analysisClient'
+import { analysisClient, type Job, type JobSummary } from '../src/features/analysis/analysisClient'
 import { useWorksStore } from '../src/features/works/useWorksStore'
 import { ApiError } from '../src/shared/httpClient'
 import type { Work, Analysis } from '../src/features/works/workTypes'
@@ -19,11 +13,9 @@ vi.mock('../src/features/analysis/analysisClient', async (importOriginal) => {
   return {
     ...original,
     analysisClient: {
-      preview: vi.fn(),
       create: vi.fn(),
       list: vi.fn(),
       get: vi.fn(),
-      snapshot: vi.fn(),
       cancel: vi.fn(),
     },
   }
@@ -48,35 +40,6 @@ const work: Work = {
   ],
   analyses: [],
   events: [],
-}
-const input: InputSnapshot = {
-  chapter: work.chapters[1],
-  previous: [work.chapters[0]],
-  settings: [{ ...work.settings[0], version: 0 }],
-  decisions: [],
-  consistency: true,
-  motivation: true,
-}
-const preview: Preview = {
-  previewToken: 'token',
-  policyVersion: 'policy',
-  expiresAt: '2026-10-26T00:10:00Z',
-  input,
-  provider: 'Google Gemini API',
-  model: 'test-model',
-  retentionNotice: '서버 보관 안내',
-  deletionNotice: '삭제 안내',
-  providerPolicyUrl: 'https://ai.google.dev/gemini-api/terms',
-  request: {
-    requestId: 'request-1',
-    chapterId: 'target',
-    chapterRevision: 1,
-    workspaceVersion: 0,
-    settingIds: ['1'],
-    previousIds: ['previous'],
-    consistency: true,
-    motivation: true,
-  },
 }
 let history: JobSummary[], currentJob: Job
 function page(items: JobSummary[]) {
@@ -120,13 +83,6 @@ beforeEach(() => {
   currentJob = { id: 'job-1', status: 'QUEUED', error: null, result: null }
   vi.mocked(analysisClient.list).mockImplementation(async () => page(history))
   vi.mocked(analysisClient.get).mockImplementation(async () => currentJob)
-  vi.mocked(analysisClient.snapshot).mockResolvedValue({
-    jobId: 'job-1',
-    input,
-    legacy: false,
-    stale: false,
-  })
-  vi.mocked(analysisClient.preview).mockResolvedValue(preview)
   vi.mocked(analysisClient.create).mockImplementation(async () => {
     history = [summary('QUEUED')]
     return currentJob
@@ -169,26 +125,22 @@ test('저장 실패는 재시도할 수 있고 저장 중·충돌 상태에서�
   await waitFor(() => expect(analysisClient.list).toHaveBeenCalled())
 })
 
-test('실제 전송 자료를 확인하고 동의하기 전에는 분석을 접수하지 않는다', async () => {
+test('분석 범위를 선택하면 바로 분석을 접수한다', async () => {
   show()
-  fireEvent.click(screen.getByRole('button', { name: 'AI 검토', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: '설정과 맞는지 검토', exact: true }))
   fireEvent.click(screen.getByRole('checkbox', { name: '1화', exact: true }))
-  fireEvent.click(screen.getByRole('button', { name: '전송 자료 미리보기' }))
-  await screen.findByRole('dialog', { name: 'AI 전송 자료 확인' })
-  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'AI 전송 자료 확인' }))
-  expect(analysisClient.preview).toHaveBeenCalledWith(
+  fireEvent.click(screen.getByRole('button', { name: 'AI 검토 시작' }))
+  await waitFor(() => expect(analysisClient.create).toHaveBeenCalledTimes(1))
+  expect(analysisClient.create).toHaveBeenCalledWith(
     '1',
-    expect.objectContaining({ chapterId: 'target', chapterRevision: 1, previousIds: ['previous'] }),
+    expect.objectContaining({
+      chapterId: 'target',
+      chapterRevision: 1,
+      previousIds: ['previous'],
+      settingIds: ['1'],
+    }),
     expect.any(AbortSignal),
   )
-  expect(analysisClient.create).not.toHaveBeenCalled()
-  expect(
-    (screen.getByRole('button', { name: '동의하고 분석 시작' }) as HTMLButtonElement).disabled,
-  ).toBe(true)
-  fireEvent.click(screen.getByRole('checkbox', { name: /보관 안내를 확인/ }))
-  fireEvent.click(screen.getByRole('button', { name: '동의하고 분석 시작' }))
-  await waitFor(() => expect(analysisClient.create).toHaveBeenCalledTimes(1))
-  expect(analysisClient.create).toHaveBeenCalledWith('1', preview, expect.any(AbortSignal))
 })
 
 test('화면 이동 뒤 진행 중 작업과 완료 결과를 서버에서 복원하고 POST를 재실행하지 않는다', async () => {
@@ -221,25 +173,24 @@ test('화면 이동 뒤 진행 중 작업과 완료 결과를 서버에서 복�
   currentJob = { ...currentJob, status: 'SUCCEEDED', result }
   history = [summary('SUCCEEDED')]
   show()
-  await screen.findByText('연결 확인')
+  await within(screen.getByRole('complementary', { name: '작품 노트' })).findByText('연결 확인')
   expect(analysisClient.create).not.toHaveBeenCalled()
   expect(useWorksStore.getState().flushWorkspace).not.toHaveBeenCalled()
-  expect(screen.getByRole('button', { name: '분석 당시 전송 자료' })).toBeTruthy()
 })
 
-test('실패한 검토의 선택 범위를 복원하고 다시 미리보기를 거친다', async () => {
+test('실패한 검토는 분석 범위 설정을 다시 열고 바로 재접수한다', async () => {
   history = [summary('FAILED')]
   currentJob = { ...currentJob, status: 'FAILED', error: '공급자 응답 실패' }
   show()
+  fireEvent.click(screen.getByRole('button', { name: '검토', exact: true }))
   fireEvent.click(await screen.findByRole('button', { name: '다시 분석' }))
   await screen.findByRole('dialog', { name: '분석 범위 설정' })
   expect(
-    (screen.getByRole('checkbox', { name: '1화', exact: true }) as HTMLInputElement).checked,
+    (screen.getByRole('checkbox', { name: '능력', exact: true }) as HTMLInputElement).checked,
   ).toBe(true)
   expect(analysisClient.create).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: '전송 자료 미리보기' }))
-  await screen.findByRole('dialog', { name: 'AI 전송 자료 확인' })
-  expect(analysisClient.preview).toHaveBeenCalledTimes(1)
+  fireEvent.click(screen.getByRole('button', { name: 'AI 검토 시작' }))
+  await waitFor(() => expect(analysisClient.create).toHaveBeenCalledTimes(1))
 })
 
 test('이력 조회 실패를 빈 결과로 표시하지 않는다', async () => {
@@ -250,15 +201,14 @@ test('이력 조회 실패를 빈 결과로 표시하지 않는다', async () =>
   expect(screen.getByRole('button', { name: '작업 상태 다시 확인' })).toBeTruthy()
 })
 
-test('미리보기 이후 자료가 바뀌면 재확인하며 자동으로 다시 접수하지 않는다', async () => {
+test('접수 중 자료 충돌이 발생하면 오류를 표시하고 자동으로 다시 접수하지 않는다', async () => {
   vi.mocked(analysisClient.create).mockRejectedValue(new ApiError('자료가 바뀌었습니다.', 409))
   show()
-  fireEvent.click(screen.getByRole('button', { name: 'AI 검토', exact: true }))
-  fireEvent.click(screen.getByRole('button', { name: '전송 자료 미리보기' }))
-  await screen.findByRole('dialog', { name: 'AI 전송 자료 확인' })
-  fireEvent.click(screen.getByRole('checkbox', { name: /보관 안내를 확인/ }))
-  fireEvent.click(screen.getByRole('button', { name: '동의하고 분석 시작' }))
-  await screen.findByRole('dialog', { name: '분석 범위 설정' })
+  fireEvent.click(screen.getByRole('button', { name: '설정과 맞는지 검토', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: 'AI 검토 시작' }))
+  await within(screen.getByRole('dialog', { name: '분석 범위 설정' })).findByText(
+    '자료가 바뀌었습니다.',
+  )
   expect(analysisClient.create).toHaveBeenCalledTimes(1)
 })
 

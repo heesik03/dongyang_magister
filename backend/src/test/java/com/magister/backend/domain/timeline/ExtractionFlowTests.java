@@ -15,13 +15,13 @@ import com.magister.backend.domain.timeline.dto.ExtractionData.Candidate;
 import com.magister.backend.domain.timeline.dto.ExtractionData.CreateRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Input;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Job;
-import com.magister.backend.domain.timeline.dto.ExtractionData.Preview;
-import com.magister.backend.domain.timeline.dto.ExtractionData.PreviewRequest;
 import com.magister.backend.domain.timeline.dto.ExtractionData.SaveCandidates;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Selection;
+import com.magister.backend.domain.timeline.dto.TimelineData.SaveEventRequest;
 import com.magister.backend.domain.timeline.service.ExtractionDispatcher;
 import com.magister.backend.domain.timeline.service.ExtractionService;
 import com.magister.backend.domain.timeline.service.ExtractionWorker;
+import com.magister.backend.domain.timeline.service.TimelineService;
 import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.work.entity.Work;
@@ -54,6 +54,7 @@ class ExtractionFlowTests {
     private static final String MANUSCRIPT = "린은 떠났다.\n\n린은 떠났다.";
     @Autowired ExtractionService extractionService;
     @Autowired ExtractionWorker extractionWorker;
+    @Autowired TimelineService timelineService;
     @Autowired WorkspaceService workspaceService;
     @Autowired ChapterService chapterService;
     @Autowired UserRepository userRepository;
@@ -77,8 +78,7 @@ class ExtractionFlowTests {
 
     private CreateRequest request() {
         List<Selection> selection = List.of(new Selection("chapter", 1));
-        Preview preview = extractionService.preview(ownerId, workId, new PreviewRequest(selection));
-        return new CreateRequest(selection, preview.token(), true, UUID.randomUUID().toString());
+        return new CreateRequest(selection, UUID.randomUUID().toString());
     }
 
     private Job succeeded() {
@@ -177,19 +177,11 @@ class ExtractionFlowTests {
     }
 
     @Test
-    void changedPreviewAndUnconfirmedConsentNeverCallProvider() {
+    void changedChapterRevisionNeverCallsProvider() {
         CreateRequest prepared = request();
         chapterService.update(
                 ownerId, workId, "chapter", new UpdateChapterRequest("1화", "바뀐 원고", 0, "change"));
         assertThatThrownBy(() -> extractionService.create(ownerId, workId, prepared))
-                .isInstanceOf(CustomException.class);
-        CreateRequest noConsent =
-                new CreateRequest(
-                        List.of(new Selection("chapter", 2)),
-                        prepared.token(),
-                        false,
-                        "no-consent");
-        assertThatThrownBy(() -> extractionService.create(ownerId, workId, noConsent))
                 .isInstanceOf(CustomException.class);
         verifyNoInteractions(geminiClient);
     }
@@ -305,5 +297,74 @@ class ExtractionFlowTests {
                                 .contentType("application/json")
                                 .content("{}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void timelineCrudPersistsEventsInDedicatedTable() {
+        SaveEventRequest createReq =
+                new SaveEventRequest(
+                        "ev-1",
+                        "첫 사건",
+                        "설명",
+                        "1일차",
+                        "린",
+                        "chapter",
+                        "린은 떠났다.",
+                        0,
+                        "CONFIRMED",
+                        1L,
+                        0,
+                        7,
+                        null);
+        EventData created = timelineService.create(ownerId, workId, createReq);
+        assertThat(created.title()).isEqualTo("첫 사건");
+        assertThat(timelineService.list(ownerId, workId)).hasSize(1);
+        assertThat(workspaceService.get(ownerId, workId).content().events()).hasSize(1);
+
+        SaveEventRequest updateReq =
+                new SaveEventRequest(
+                        "ev-1",
+                        "수정된 사건",
+                        "수정 설명",
+                        "2일차",
+                        "린",
+                        "chapter",
+                        "린은 떠났다.",
+                        0,
+                        "CONFIRMED",
+                        1L,
+                        0,
+                        7,
+                        null);
+        EventData updated = timelineService.update(ownerId, workId, "ev-1", updateReq);
+        assertThat(updated.title()).isEqualTo("수정된 사건");
+
+        timelineService.delete(ownerId, workId, "ev-1");
+        assertThat(timelineService.list(ownerId, workId)).isEmpty();
+        assertThat(workspaceService.get(ownerId, workId).content().events()).isEmpty();
+    }
+
+    @Test
+    void timelineVersionRejectsStaleReplacementAndSeparateWorkspaceSaveKeepsEvents() {
+        EventData event = new EventData(
+                "new-event", "새 사건", "", "", "chapter", "", "");
+        long current = workspaceService.get(ownerId, workId).version();
+        long saved = timelineService.replaceAll(ownerId, workId, current, List.of(event)).version();
+        assertThatThrownBy(() -> timelineService.replaceAll(ownerId, workId, current, List.of()))
+                .isInstanceOf(CustomException.class);
+        WorkspaceResponse workspace = workspaceService.save(
+                ownerId, workId, new SaveWorkspaceRequest(
+                        saved, "separate-events", WorkspaceData.empty(), true, true, true));
+        assertThat(workspace.content().events()).containsExactly(event);
+    }
+
+    @Test
+    void timelineRejectsForgedQuoteOnDedicatedWrite() {
+        SaveEventRequest invalid = new SaveEventRequest(
+                "forged", "사건", "", "", "", "chapter", "없는 인용문",
+                0, "UNRESOLVED", 1L, 0, 6, null);
+        assertThatThrownBy(() -> timelineService.create(ownerId, workId, invalid))
+                .isInstanceOf(CustomException.class);
+        assertThat(timelineService.list(ownerId, workId)).isEmpty();
     }
 }
