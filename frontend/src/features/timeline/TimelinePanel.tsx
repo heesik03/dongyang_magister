@@ -7,6 +7,9 @@ import { Icon } from '../../shared/Icon'
 import { eventLocation, orderedEvents, sourceLines } from './timelineEvidence'
 import { ExtractionFlow } from './ExtractionFlow'
 import { ExtractionSourceButton } from './ExtractionSourceButton'
+import { timelineClient } from './timelineClient'
+import { workspaceClient } from '../workspace/workspaceClient'
+import { ApiError } from '../../shared/httpClient'
 
 function isPlaced(event: StoryEvent) {
   return event.timeStatus === 'CONFIRMED' || (event.timeStatus == null && Boolean(event.time))
@@ -14,6 +17,9 @@ function isPlaced(event: StoryEvent) {
 
 export function TimelinePanel({ work }: { work: Work }) {
   const updateWork = useWorksStore((state) => state.updateWork)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [editVersion, setEditVersion] = useState(0)
   const [editing, setEditing] = useState<StoryEvent | 'new' | null>(null)
   const [selectedId, setSelectedId] = useState('')
   const [filterChapter, setFilterChapter] = useState('')
@@ -58,16 +64,61 @@ export function TimelinePanel({ work }: { work: Work }) {
   }
 
   function open(event: StoryEvent | 'new') {
+    setSaveError('')
+    setEditVersion(work.workspaceVersion ?? 0)
     setPlacement(event !== 'new' && isPlaced(event) ? 'keep' : 'later')
     setEditing(event)
     setChapterId(event === 'new' ? filterChapter : event.chapterId)
   }
 
-  function persist(events: StoryEvent[]) {
-    updateWork({ ...work, events: events.map((event, sequence) => ({ ...event, sequence })) })
+  async function persist(events: StoryEvent[], version = work.workspaceVersion ?? 0) {
+    const next = events.map((event, sequence) => ({ ...event, sequence }))
+    if (work.source !== 'server') {
+      updateWork({ ...work, events: next })
+      return true
+    }
+    if (saving) return false
+    const { account } = useWorksStore.getState()
+    setSaving(true)
+    setSaveError('')
+    try {
+      const result = await timelineClient.replaceAll(work.id, version, next)
+      const state = useWorksStore.getState()
+      if (state.account !== account) return false
+      state.acceptTimeline(work.id, result)
+      return true
+    } catch (failure) {
+      setSaveError(
+        failure instanceof ApiError && failure.status === 409
+          ? '다른 곳에서 사건이 변경되었습니다. 최신 목록을 불러온 뒤 다시 확인해 주세요.'
+          : failure instanceof Error
+            ? failure.message
+            : '사건을 저장하지 못했습니다.',
+      )
+      return false
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function save(event: FormEvent<HTMLFormElement>) {
+  async function refreshTimeline() {
+    const { account } = useWorksStore.getState()
+    setSaving(true)
+    try {
+      const result = await workspaceClient.get(work.id)
+      const state = useWorksStore.getState()
+      if (state.account !== account) return
+      state.acceptTimeline(work.id, { ...result, events: result.content.events })
+      setEditing(null)
+      setSaveError('')
+    } catch (failure) {
+      setSaveError(failure instanceof Error ? failure.message : '사건을 불러오지 못했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const title = String(data.get('title')).trim()
@@ -100,8 +151,12 @@ export function TimelinePanel({ work }: { work: Work }) {
       extractionId: keepEvidence ? draft.extractionId : null,
       timeStatus: placement === 'later' ? 'UNRESOLVED' : 'CONFIRMED',
     }
+    let saved: boolean
     if (placement === 'keep') {
-      persist(ordered.map((item) => (item.id === next.id ? next : item)))
+      saved = await persist(
+        ordered.map((item) => (item.id === next.id ? next : item)),
+        editVersion,
+      )
     } else {
       const remaining = ordered.filter((item) => item.id !== next.id)
       const anchorIndex = remaining.findIndex(
@@ -115,8 +170,9 @@ export function TimelinePanel({ work }: { work: Work }) {
             ? anchorIndex + 1
             : remaining.length
       remaining.splice(index, 0, next)
-      persist(remaining)
+      saved = await persist(remaining, editVersion)
     }
+    if (!saved) return
     setSelectedId(next.id)
     setEditing(null)
   }
@@ -126,7 +182,7 @@ export function TimelinePanel({ work }: { work: Work }) {
     if (rank === undefined) return
     const neighbor = placed[rank - 1 + offset]
     if (!neighbor) return
-    persist(
+    void persist(
       ordered.map((item) =>
         item.id === event.id ? neighbor : item.id === neighbor.id ? event : item,
       ),
@@ -198,13 +254,14 @@ export function TimelinePanel({ work }: { work: Work }) {
           <div className="timeline-event-actions">
             {sourceLink(event)}
             {event.extractionId && <ExtractionSourceButton workId={work.id} event={event} />}
-            <button onClick={() => open(event)}>
+            <button disabled={saving} onClick={() => open(event)}>
               <Icon name="edit" />
               {rank === undefined ? '순서 정하기' : '사건 수정'}
             </button>
             <button
+              disabled={saving}
               onClick={() => {
-                persist(ordered.filter((item) => item.id !== event.id))
+                void persist(ordered.filter((item) => item.id !== event.id))
               }}
             >
               사건 삭제
@@ -212,14 +269,14 @@ export function TimelinePanel({ work }: { work: Work }) {
             {rank !== undefined && (
               <>
                 <button
-                  disabled={rank === 1}
+                  disabled={saving || rank === 1}
                   onClick={() => move(event, -1)}
                   aria-label={event.title + ' 앞 순서로'}
                 >
                   ↑ 앞
                 </button>
                 <button
-                  disabled={rank === placed.length}
+                  disabled={saving || rank === placed.length}
                   onClick={() => move(event, 1)}
                   aria-label={event.title + ' 뒤 순서로'}
                 >
@@ -238,7 +295,7 @@ export function TimelinePanel({ work }: { work: Work }) {
       <p className="muted">소설 속에서 먼저 일어난 일부터 정리하세요.</p>
       <div className="timeline-actions">
         <div className="timeline-event-actions">
-          <button className="primary" onClick={() => open('new')}>
+          <button className="primary" disabled={saving} onClick={() => open('new')}>
             <Icon name="plus" /> 사건 추가
           </button>
           <ExtractionFlow work={work} />
@@ -329,7 +386,12 @@ export function TimelinePanel({ work }: { work: Work }) {
         </div>
       )}
       {editing && (
-        <Dialog title={draft ? '사건 수정' : '사건 추가'} onClose={() => setEditing(null)}>
+        <Dialog
+          title={draft ? '사건 수정' : '사건 추가'}
+          onClose={() => {
+            if (!saving) setEditing(null)
+          }}
+        >
           <form className="stack" onSubmit={save}>
             <label>
               사건명
@@ -413,13 +475,35 @@ export function TimelinePanel({ work }: { work: Work }) {
               </select>
             </label>
             <div className="dialog-actions">
-              <button type="button" onClick={() => setEditing(null)}>
+              <button type="button" disabled={saving} onClick={() => setEditing(null)}>
                 취소
               </button>
-              <button className="primary">사건 저장</button>
+              <button className="primary" disabled={saving}>
+                사건 저장
+              </button>
             </div>
+            {saveError && (
+              <p role="alert" className="error">
+                {saveError}
+              </p>
+            )}
+            {saveError && work.source === 'server' && (
+              <button type="button" disabled={saving} onClick={() => void refreshTimeline()}>
+                최신 사건 목록 불러오기
+              </button>
+            )}
           </form>
         </Dialog>
+      )}
+      {!editing && saveError && (
+        <div className="stack">
+          <p role="alert" className="error">
+            {saveError}
+          </p>
+          <button disabled={saving} onClick={() => void refreshTimeline()}>
+            최신 사건 목록 불러오기
+          </button>
+        </div>
       )}
     </section>
   )

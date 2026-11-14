@@ -7,8 +7,6 @@ import com.magister.backend.domain.timeline.dto.ExtractionData.Job;
 import com.magister.backend.domain.timeline.dto.ExtractionData.Source;
 import com.magister.backend.domain.timeline.entity.EventExtraction;
 import com.magister.backend.domain.timeline.repository.ExtractionView;
-import com.magister.backend.domain.workspace.dto.SaveWorkspaceRequest;
-import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.EventData;
 
 import org.springframework.stereotype.Component;
@@ -99,9 +97,4 @@ public class ExtractionConverter {
                 extractionId);
     }
 
-    public SaveWorkspaceRequest confirmation(
-            long version, String mutationId, List<EventData> events) {
-        return new SaveWorkspaceRequest(
-                version, mutationId, new WorkspaceData(List.of(), List.of(), events), true, true);
-    }
 }

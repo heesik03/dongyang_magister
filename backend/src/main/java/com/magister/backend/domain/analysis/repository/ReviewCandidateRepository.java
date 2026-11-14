@@ -21,4 +21,3 @@ public interface ReviewCandidateRepository extends JpaRepository<ReviewCandidate
     @EntityGraph(attributePaths = "targetSource")
     Page<ReviewCandidate> findByJob_Id(String jobId, Pageable pageable);
 }
-

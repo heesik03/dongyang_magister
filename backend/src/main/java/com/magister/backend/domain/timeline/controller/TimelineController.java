@@ -2,12 +2,14 @@ package com.magister.backend.domain.timeline.controller;
 
 import com.magister.backend.domain.timeline.dto.TimelineData.ReplaceTimelineRequest;
 import com.magister.backend.domain.timeline.dto.TimelineData.SaveEventRequest;
+import com.magister.backend.domain.timeline.dto.TimelineData.TimelineResponse;
 import com.magister.backend.domain.timeline.service.TimelineService;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.EventData;
 import com.magister.backend.global.response.ApiResult;
 
 import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.Operation;
 
 import lombok.RequiredArgsConstructor;
 
@@ -74,10 +76,13 @@ public class TimelineController {
     }
 
     @PutMapping
-    public ApiResult<List<EventData>> replaceAll(
+    @Operation(summary = "작품의 타임라인 사건 목록 저장",
+            description = "현재 workspace 버전과 최대 1,000개 사건을 전송합니다. 성공 시 최신 버전과 사건 목록을 반환하며, 오래된 버전은 409로 거절합니다.")
+    public ApiResult<TimelineResponse> replaceAll(
             @AuthenticationPrincipal LoginUser user,
             @PathVariable Long workId,
             @Valid @RequestBody ReplaceTimelineRequest request) {
-        return ApiResult.success(timelineService.replaceAll(user.id(), workId, request.events()));
+        return ApiResult.success(
+                timelineService.replaceAll(user.id(), workId, request.version(), request.events()));
     }
 }

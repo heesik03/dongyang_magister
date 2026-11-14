@@ -85,7 +85,9 @@ public class WorkspacePersistenceService {
                         chapterWorkspaceService.read(workId),
                         effective.analyses(),
                         request.content().events()));
-        timelineService.syncForOwnedWork(work, request.content().events());
+        if (!Boolean.TRUE.equals(request.separateEvents())) {
+            timelineService.syncForOwnedWork(work, request.content().events());
+        }
 
         workspace.replace(content, request.mutationId());
         // 프런트엔드의 workVersion 계약을 보존한다. 모든 하위 쓰기는 부모 잠금 순서를 따른다.

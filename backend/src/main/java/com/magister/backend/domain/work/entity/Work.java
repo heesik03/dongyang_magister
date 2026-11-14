@@ -10,6 +10,7 @@ import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -29,7 +30,11 @@ import java.util.List;
 import java.util.Objects;
 
 @Entity
-@Table(name = "works")
+@Table(
+        name = "works",
+        indexes = {
+            @Index(name = "ix_works_owner_updated", columnList = "owner_id,updated_at,id")
+        })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Work {

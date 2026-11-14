@@ -343,4 +343,28 @@ class ExtractionFlowTests {
         assertThat(timelineService.list(ownerId, workId)).isEmpty();
         assertThat(workspaceService.get(ownerId, workId).content().events()).isEmpty();
     }
+
+    @Test
+    void timelineVersionRejectsStaleReplacementAndSeparateWorkspaceSaveKeepsEvents() {
+        EventData event = new EventData(
+                "new-event", "새 사건", "", "", "chapter", "", "");
+        long current = workspaceService.get(ownerId, workId).version();
+        long saved = timelineService.replaceAll(ownerId, workId, current, List.of(event)).version();
+        assertThatThrownBy(() -> timelineService.replaceAll(ownerId, workId, current, List.of()))
+                .isInstanceOf(CustomException.class);
+        WorkspaceResponse workspace = workspaceService.save(
+                ownerId, workId, new SaveWorkspaceRequest(
+                        saved, "separate-events", WorkspaceData.empty(), true, true, true));
+        assertThat(workspace.content().events()).containsExactly(event);
+    }
+
+    @Test
+    void timelineRejectsForgedQuoteOnDedicatedWrite() {
+        SaveEventRequest invalid = new SaveEventRequest(
+                "forged", "사건", "", "", "", "chapter", "없는 인용문",
+                0, "UNRESOLVED", 1L, 0, 6, null);
+        assertThatThrownBy(() -> timelineService.create(ownerId, workId, invalid))
+                .isInstanceOf(CustomException.class);
+        assertThat(timelineService.list(ownerId, workId)).isEmpty();
+    }
 }

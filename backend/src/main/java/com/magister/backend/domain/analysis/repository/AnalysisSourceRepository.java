@@ -14,4 +14,3 @@ public interface AnalysisSourceRepository extends JpaRepository<AnalysisSource, 
     /** 권한 확인한 작업에 속한 출처 ID만 조회한다. */
     Optional<AnalysisSource> findByIdAndJob_Id(Long id, String jobId);
 }
-

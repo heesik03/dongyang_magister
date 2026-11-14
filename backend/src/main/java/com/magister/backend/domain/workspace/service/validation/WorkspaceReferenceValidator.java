@@ -80,14 +80,22 @@ public class WorkspaceReferenceValidator {
                     invalid();
                 }
                 // 과거 버전의 근거는 보존한다. 현재 버전이라고 주장한 인용은 정확한 위치까지 검사한다.
-                if (event.sourceRevision() == chapter.revision()
-                        && (event.endOffset() > chapter.content().length()
-                                || !chapter.content()
-                                        .substring(event.startOffset(), event.endOffset())
-                                        .equals(event.quote()))) {
-                    invalid();
+                if (event.sourceRevision() == chapter.revision()) {
+                    validateEventQuote(event, chapter.content(), chapter.revision());
                 }
             }
+        }
+    }
+
+    /** 새 근거의 원고 버전과 UTF-16 위치를 원문과 대조한다. */
+    public void validateEventQuote(EventData event, String content, long revision) {
+        if (event.quote().isBlank()
+                || event.sourceRevision() == null || event.sourceRevision() != revision
+                || event.startOffset() == null || event.endOffset() == null
+                || event.startOffset() < 0 || event.endOffset() <= event.startOffset()
+                || event.endOffset() > content.length()
+                || !content.substring(event.startOffset(), event.endOffset()).equals(event.quote())) {
+            invalid();
         }
     }
 

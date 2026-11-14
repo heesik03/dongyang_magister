@@ -57,6 +57,7 @@ public class ExtractionService {
     private final AnalysisExecutionProperties executionProperties;
     private final ObjectMapper objectMapper;
     private final WorkspaceService workspaceService;
+    private final TimelineService timelineService;
 
     /** 동일 키 재시도는 기존 작업을 반환한다. 공통 잠금으로 분석·사건 추출 합산 한도를 지킨다. */
     @Transactional
@@ -179,7 +180,7 @@ public class ExtractionService {
             long version,
             long workspaceVersion,
             String mutationId) {
-        workAccessService.lockOwned(ownerId, workId);
+        Work work = workAccessService.lockOwned(ownerId, workId);
         EventExtraction extraction = owned(ownerId, workId, id, true);
         if (!extraction.getStatus().equals("SUCCEEDED") || extraction.getVersion() != version) {
             conflict();
@@ -200,6 +201,7 @@ public class ExtractionService {
         if (included.isEmpty()) {
             invalid();
         }
+        Set<String> verifiedExtractions = new HashSet<>();
         for (Candidate candidate : included) {
             if (events.stream().anyMatch(event -> event.id().equals(candidate.id()))) {
                 continue;
@@ -209,6 +211,7 @@ public class ExtractionService {
             }
             // 후보 순번은 추출 묶음 안에서만 유효하므로 작품 순서 끝에 이어 붙인다.
             events.add(extractionConverter.event(candidate, id, nextSequence++));
+            verifiedExtractions.add(candidate.id());
         }
         if (events.equals(current.content().events())) {
             return current;
@@ -216,10 +219,9 @@ public class ExtractionService {
         if (current.version() != workspaceVersion) {
             conflict();
         }
-        return workspaceService.save(
-                ownerId,
-                workId,
-                extractionConverter.confirmation(workspaceVersion, mutationId, events));
+        timelineService.replaceForOwnedWork(
+                work, workspaceVersion, events, verifiedExtractions, mutationId);
+        return workspaceService.get(ownerId, workId);
     }
 
     /** DB 상태를 먼저 종료시켜 취소 후 늦게 온 결과가 성공으로 덮어쓰지 못하게 한다. */

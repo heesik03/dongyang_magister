@@ -344,6 +344,7 @@ test('판단·사건 저장 요청은 원고 본문을 workspace로 다시 전�
         mutationId: 'decision',
         separateChapters: true,
         separateReviews: true,
+        separateEvents: true,
         content: { chapters: [], analyses: [], events: [] },
       },
     }),

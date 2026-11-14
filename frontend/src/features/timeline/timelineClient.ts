@@ -1,6 +1,13 @@
 import { httpClient } from '../../shared/httpClient'
 import { isWorks } from '../works/workStorage'
 import type { StoryEvent } from '../works/workTypes'
+import { readInteger, readRecord } from '../../shared/responseReader'
+
+export interface TimelineSnapshot {
+  version: number
+  workVersion: number
+  events: StoryEvent[]
+}
 
 function parseEvents(raw: unknown): StoryEvent[] {
   if (!Array.isArray(raw)) throw new Error('타임라인 응답 형식이 올바르지 않습니다.')
@@ -49,9 +56,14 @@ export const timelineClient = {
   async delete(workId: string, eventId: string): Promise<void> {
     await httpClient.delete(path(workId) + '/' + encodeURIComponent(eventId))
   },
-  async replaceAll(workId: string, events: StoryEvent[]): Promise<StoryEvent[]> {
-    return parseEvents(
+  async replaceAll(
+    workId: string,
+    version: number,
+    events: StoryEvent[],
+  ): Promise<TimelineSnapshot> {
+    const response = readRecord(
       await httpClient.put(path(workId), {
+        version,
         events: events.map((event, index) => ({
           ...event,
           description: event.description ?? '',
@@ -59,5 +71,10 @@ export const timelineClient = {
         })),
       }),
     )
+    return {
+      version: readInteger(response, 'version'),
+      workVersion: readInteger(response, 'workVersion'),
+      events: parseEvents(response.events),
+    }
   },
 }

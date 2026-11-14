@@ -55,6 +55,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
         await authClient.signup(name, email, password)
         setPassword('')
         setConfirmation('')
+        emailCheck.setEmail('')
         navigate('/login', {
           state: { ...getLoginState(location.state), registered: true },
           replace: true,
@@ -78,12 +79,13 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
     setError('')
     setPassword('')
     setConfirmation('')
+    emailCheck.setEmail('')
   }
 
   return (
     <main className="auth-layout">
       <header className="editorial-header">
-        <Link className="brand" to="/login">
+        <Link className="brand" to="/login" onClick={resetAuthForm}>
           Magister
         </Link>
         <nav aria-label="로그인 및 가입" className="editorial-navigation">

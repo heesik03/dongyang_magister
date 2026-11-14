@@ -8,18 +8,30 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import java.time.Instant;
 
 @Entity
-@Table(name = "timeline_events")
+@Table(
+        name = "timeline_events",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uk_timeline_events_key", columnNames = {"work_id", "event_key"})
+        },
+        indexes = {
+            @Index(name = "ix_timeline_events_work_seq", columnList = "work_id,sequence,id")
+        })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TimelineEvent {
@@ -28,6 +40,7 @@ public class TimelineEvent {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "work_id", nullable = false, updatable = false)
     private Work work;
 

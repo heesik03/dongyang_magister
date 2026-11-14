@@ -30,5 +30,8 @@ public final class TimelineData {
             @Size(max = 36) String extractionId) {}
 
     public record ReplaceTimelineRequest(
+            @NotNull @Min(0) Long version,
             @NotNull @Size(max = 1000) List<@NotNull @Valid EventData> events) {}
+
+    public record TimelineResponse(long version, long workVersion, List<EventData> events) {}
 }

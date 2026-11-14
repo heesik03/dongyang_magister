@@ -11,6 +11,7 @@ import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -27,7 +28,11 @@ import java.time.Instant;
 import java.util.Objects;
 
 @Entity
-@Table(name = "work_settings")
+@Table(
+        name = "work_settings",
+        indexes = {
+            @Index(name = "ix_settings_work_kind_id", columnList = "work_id,kind,id")
+        })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WorkSetting {

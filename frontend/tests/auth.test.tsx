@@ -158,12 +158,14 @@ test('보호 주소에서 로그인 화면을 거쳐 회원가입 후 로그인�
   vi.mocked(authClient.login).mockResolvedValue(user)
   renderAuth('/works/demo/manuscript')
   await screen.findByRole('heading', { name: '로그인' })
+  fireEvent.change(screen.getByLabelText('이메일'), { target: { value: 'draft@example.com' } })
   fireEvent.click(
     within(screen.getByRole('navigation', { name: '로그인 및 가입' })).getByRole('link', {
       name: '회원가입',
     }),
   )
   await screen.findByLabelText('필명')
+  expect((screen.getByLabelText('이메일') as HTMLInputElement).value).toBe('')
   fireEvent.change(screen.getByLabelText('필명'), { target: { value: '작가' } })
   fireEvent.change(screen.getByLabelText('이메일'), { target: { value: user.email } })
   fireEvent.change(screen.getByLabelText('비밀번호', { exact: true }), {
@@ -174,6 +176,8 @@ test('보호 주소에서 로그인 화면을 거쳐 회원가입 후 로그인�
   await screen.findByText('사용할 수 있는 이메일입니다.')
   fireEvent.submit(screen.getByRole('button', { name: '회원가입하고 시작하기' }).closest('form')!)
   await screen.findByText('회원가입이 완료되었습니다.')
+  expect((screen.getByLabelText('이메일') as HTMLInputElement).value).toBe('')
+  fireEvent.change(screen.getByLabelText('이메일'), { target: { value: user.email } })
   fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'Password1!' } })
   fireEvent.submit(screen.getByRole('button', { name: /로그인/ }).closest('form')!)
   expect(await screen.findByRole('heading', { name: '보호된 원고' })).toBeTruthy()

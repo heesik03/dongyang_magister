@@ -159,9 +159,10 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   }
   function write(content: string) {
     if (!chapter) return
+    const current = useWorksStore.getState().works.find((item) => item.id === work.id) ?? work
     updateWork({
-      ...work,
-      chapters: work.chapters.map((item) =>
+      ...current,
+      chapters: current.chapters.map((item) =>
         item.id === chapter.id ? { ...item, content, revision: item.revision + 1 } : item,
       ),
     })
@@ -658,12 +659,26 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             </section>
             {work.source === 'server' && chapter && (
               <AiWritingAssistant
+                key={JSON.stringify([work.id, chapter.id, chapter.revision])}
+                workId={work.id}
                 content={chapter.content}
+                confirmedSettings={work.settings.filter((setting) => setting.status === '확정')}
+                getSelection={() => {
+                  const area = editor.current
+                  return area && !area.hidden
+                    ? { start: area.selectionStart, end: area.selectionEnd }
+                    : null
+                }}
                 disabled={submitting}
-                onApply={(text) => {
-                  const separator =
-                    chapter.content.endsWith('\n') || !chapter.content.length ? '' : '\n\n'
-                  write(chapter.content + separator + text)
+                onApply={(content) => {
+                  const latest = useWorksStore
+                    .getState()
+                    .works.find((item) => item.id === work.id)
+                    ?.chapters.find((item) => item.id === chapter.id)
+                  if (latest?.revision !== chapter.revision || latest.content !== chapter.content)
+                    return false
+                  write(content)
+                  return true
                 }}
               />
             )}

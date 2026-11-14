@@ -3,13 +3,23 @@ import { readRecord, readString } from '../../shared/responseReader'
 
 export type WritingAction = 'CONTINUE' | 'DESCRIBE' | 'DIALOGUE'
 
+export interface WritingInput {
+  action: WritingAction
+  excerpt: string
+  before: string
+  after: string
+  settingIds: string[]
+}
+
 export const aiWritingClient = {
-  async assist(prompt: string, action: WritingAction, signal?: AbortSignal): Promise<string> {
-    const snippet = prompt.trim().slice(-1800)
-    if (!snippet) throw new Error('보조할 원고 내용을 먼저 입력해 주세요.')
+  async assist(workId: string, input: WritingInput, signal: AbortSignal): Promise<string> {
     const response = readRecord(
-      await httpClient.post('/gemini', { prompt: snippet, action }, { signal }),
+      await httpClient.post('/work/' + encodeURIComponent(workId) + '/writing-assist', input, {
+        signal,
+      }),
     )
-    return readString(response, 'text')
+    const suggestion = readString(response, 'text').trim()
+    if (!suggestion) throw new Error('AI가 제안 문장을 반환하지 않았습니다.')
+    return suggestion
   },
 }

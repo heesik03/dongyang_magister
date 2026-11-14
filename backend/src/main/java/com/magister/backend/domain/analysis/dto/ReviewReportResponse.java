@@ -10,4 +10,3 @@ public record ReviewReportResponse(
         boolean legacy,
         boolean stale,
         Map<String, DecisionResponse> decisions) {}
-

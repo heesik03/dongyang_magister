@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { TimelinePanel } from '../src/features/timeline/TimelinePanel'
+import { timelineClient } from '../src/features/timeline/timelineClient'
 import { ExtractionFlow } from '../src/features/timeline/ExtractionFlow'
 import {
   eventLocation,
@@ -72,6 +73,7 @@ beforeEach(() => {
     flushWorkspace: vi.fn().mockResolvedValue(undefined),
     reloadWorkspace: vi.fn().mockResolvedValue(undefined),
     updateWork: vi.fn(),
+    acceptTimeline: vi.fn(),
   })
   sessionStorage.clear()
   HTMLDialogElement.prototype.showModal = function () {
@@ -81,6 +83,11 @@ beforeEach(() => {
     this.removeAttribute('open')
   }
   vi.spyOn(extractionClient, 'list').mockResolvedValue(page([]))
+  vi.spyOn(timelineClient, 'replaceAll').mockImplementation(async (_id, version, events) => ({
+    version: version + 1,
+    workVersion: 1,
+    events,
+  }))
 })
 afterEach(() => {
   cleanup()
@@ -104,7 +111,7 @@ test('반복 문장과 과거 버전은 정확한 위치와 원고 버전으로 
     eventLocation({ ...candidate, startOffset: null, endOffset: null }, work.chapters[0]),
   ).toBeNull()
 })
-test('수동 사건 등록은 반복된 두 번째 문장의 위치를 저장한다', () => {
+test('수동 사건 등록은 반복된 두 번째 문장의 위치를 저장한다', async () => {
   render(
     <MemoryRouter>
       <TimelinePanel work={work} />
@@ -117,21 +124,18 @@ test('수동 사건 등록은 반복된 두 번째 문장의 위치를 저장한
     target: { value: String(candidate.startOffset) },
   })
   fireEvent.click(screen.getByRole('button', { name: '사건 저장' }))
-  expect(useWorksStore.getState().updateWork).toHaveBeenCalledWith(
+  expect(timelineClient.replaceAll).toHaveBeenCalledWith(work.id, work.workspaceVersion, [
     expect.objectContaining({
-      events: [
-        expect.objectContaining({
-          title: '두 번째 출발',
-          startOffset: candidate.startOffset,
-          endOffset: candidate.endOffset,
-          sourceRevision: 1,
-          timeStatus: 'UNRESOLVED',
-        }),
-      ],
+      title: '두 번째 출발',
+      startOffset: candidate.startOffset,
+      endOffset: candidate.endOffset,
+      sourceRevision: 1,
+      timeStatus: 'UNRESOLVED',
     }),
-  )
+  ])
+  await waitFor(() => expect(useWorksStore.getState().acceptTimeline).toHaveBeenCalledOnce())
 })
-test('원고가 바뀐 사건의 제목을 수정해도 추출 당시 근거를 보존한다', () => {
+test('원고가 바뀐 사건의 제목을 수정해도 추출 당시 근거를 보존한다', async () => {
   const event = { ...candidate, extractionId: 'job' },
     changed = {
       ...work,
@@ -146,22 +150,19 @@ test('원고가 바뀐 사건의 제목을 수정해도 추출 당시 근거를 
   fireEvent.click(screen.getByRole('button', { name: '순서 정하기' }))
   fireEvent.change(screen.getByLabelText('사건명'), { target: { value: '수정된 사건명' } })
   fireEvent.click(screen.getByRole('button', { name: '사건 저장' }))
-  expect(useWorksStore.getState().updateWork).toHaveBeenCalledWith(
+  expect(timelineClient.replaceAll).toHaveBeenCalledWith(work.id, work.workspaceVersion, [
     expect.objectContaining({
-      events: [
-        expect.objectContaining({
-          title: '수정된 사건명',
-          quote: candidate.quote,
-          sourceRevision: 1,
-          startOffset: candidate.startOffset,
-          extractionId: 'job',
-        }),
-      ],
+      title: '수정된 사건명',
+      quote: candidate.quote,
+      sourceRevision: 1,
+      startOffset: candidate.startOffset,
+      extractionId: 'job',
     }),
-  )
+  ])
+  await waitFor(() => expect(useWorksStore.getState().acceptTimeline).toHaveBeenCalledOnce())
 })
 
-test('시점 없이 기준 사건 앞에 배치하고 결과가 없는 회차의 필터를 해제한다', () => {
+test('시점 없이 기준 사건 앞에 배치하고 결과가 없는 회차의 필터를 해제한다', async () => {
   const anchor: StoryEvent = { ...candidate, id: 'anchor', timeStatus: 'CONFIRMED' }
   const emptyChapter = { id: 'empty', title: '2화', content: '', revision: 1 }
   render(
@@ -178,19 +179,16 @@ test('시점 없이 기준 사건 앞에 배치하고 결과가 없는 회차의
   fireEvent.change(screen.getByLabelText('이야기 속 위치'), { target: { value: 'before' } })
   fireEvent.change(screen.getByLabelText('기준 사건'), { target: { value: anchor.id } })
   fireEvent.click(screen.getByRole('button', { name: '사건 저장' }))
-  expect(useWorksStore.getState().updateWork).toHaveBeenCalledWith(
+  expect(timelineClient.replaceAll).toHaveBeenCalledWith(work.id, work.workspaceVersion, [
     expect.objectContaining({
-      events: [
-        expect.objectContaining({
-          title: '이전 사건',
-          time: '',
-          timeStatus: 'CONFIRMED',
-          sequence: 0,
-        }),
-        expect.objectContaining({ id: anchor.id, sequence: 1 }),
-      ],
+      title: '이전 사건',
+      time: '',
+      timeStatus: 'CONFIRMED',
+      sequence: 0,
     }),
-  )
+    expect.objectContaining({ id: anchor.id, sequence: 1 }),
+  ])
+  await waitFor(() => expect(useWorksStore.getState().acceptTimeline).toHaveBeenCalledOnce())
 })
 test('선택한 회차로 바로 사건 추출을 접수한다', async () => {
   const create = vi

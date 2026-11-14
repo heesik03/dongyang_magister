@@ -12,14 +12,30 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import org.hibernate.annotations.Check;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 /** 접수 시 한 번 저장하며 현재 원고·설정 수정으로 내용을 바꾸지 않는 근거 자료다. */
 @Entity
-@Table(name = "analysis_sources")
+@Table(
+        name = "analysis_sources",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uk_source_identity", columnNames = {"job_id", "source_type", "source_key"}),
+            @UniqueConstraint(name = "uk_source_job_id", columnNames = {"id", "job_id"})
+        })
+@Check(constraints = """
+        (source_type = 'SETTING'
+            AND chapter_id IS NULL)
+        OR (source_type IN ('TARGET','PREVIOUS')
+            AND chapter_id IS NOT NULL)
+        """)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AnalysisSource {
@@ -28,6 +44,7 @@ public class AnalysisSource {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "job_id", nullable = false, updatable = false)
     private AnalysisJob job;
 
@@ -36,6 +53,7 @@ public class AnalysisSource {
     private Chapter chapter;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     @JoinColumn(name = "setting_id", updatable = false)
     private WorkSetting setting;
 

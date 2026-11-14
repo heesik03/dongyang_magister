@@ -34,14 +34,12 @@ import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.repository.WorkRepository;
 import com.magister.backend.domain.work.service.WorkDeletionService;
 import com.magister.backend.domain.workspace.dto.WorkspaceData;
-import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
 import com.magister.backend.domain.workspace.entity.Workspace;
 import com.magister.backend.domain.workspace.repository.WorkspaceRepository;
 import com.magister.backend.domain.workspace.service.WorkspaceSnapshotService;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 
-import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +47,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -65,9 +62,6 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -339,84 +333,6 @@ class MySqlRefactoringTests {
         }
         assertThat(chapterService.get(fixture.ownerId(), fixture.workId(), "c1").content())
                 .isEqualTo("saved text");
-    }
-
-    @Test
-    void migratesRealMySqlLegacyWorkspaceWithoutChangingReferences() throws Exception {
-        String schema =
-                "magister_refactor_"
-                        + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        if (!schema.matches("magister_refactor_[a-f0-9]{12}")) {
-            throw new IllegalStateException("Invalid verification schema");
-        }
-        try (Connection connection = jdbc.getDataSource().getConnection();
-                Statement statement = connection.createStatement()) {
-            String originalSchema = connection.getCatalog();
-            statement.execute("CREATE DATABASE " + schema + " CHARACTER SET utf8mb4");
-            try {
-                connection.setCatalog(schema);
-                SingleConnectionDataSource isolated =
-                        new SingleConnectionDataSource(connection, true);
-                String location = "classpath:com/magister/backend/global/migration";
-                Flyway.configure()
-                        .dataSource(isolated)
-                        .defaultSchema(schema)
-                        .locations(location)
-                        .target("8")
-                        .load()
-                        .migrate();
-                // MySQL Statement는 생성 당시 catalog를 기억하므로 스키마를 바꾼 뒤 새로 만든다.
-                try (Statement seed = connection.createStatement()) {
-                    seed.execute(
-                            "INSERT INTO "
-                                    + schema
-                                    + ".users(id,email,name,password_hash)"
-                                    + " VALUES(1,'chapter-migration@example.com','author','hash')");
-                    seed.execute(
-                            "INSERT INTO "
-                                    + schema
-                                    + ".works(id,owner_id,title,genre,era,description,created_at,updated_at,version)"
-                                    + " VALUES(1,1,'work','fantasy','','',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,0)");
-                }
-                WorkspaceData legacy =
-                        new WorkspaceData(
-                                List.of(
-                                        new ChapterData("Case", "chapter 1", "한국어 😀\r\n원고", 9),
-                                        new ChapterData("case", "chapter 2", "second", 2)),
-                                List.of(),
-                                List.of());
-                try (PreparedStatement insert =
-                        connection.prepareStatement(
-                                "INSERT INTO "
-                                        + schema
-                                        + ".workspaces(work_id,content,revision,version,updated_at)"
-                                        + " VALUES(1,?,3,0,CURRENT_TIMESTAMP)")) {
-                    insert.setString(1, json.writeValueAsString(legacy));
-                    insert.executeUpdate();
-                }
-                Flyway.configure()
-                        .dataSource(isolated)
-                        .defaultSchema(schema)
-                        .locations(location)
-                        .load()
-                        .migrate();
-                try (ResultSet rows =
-                        statement.executeQuery(
-                                "SELECT chapter_key,content,revision FROM "
-                                        + schema
-                                        + ".chapters ORDER BY chapter_no")) {
-                    assertThat(rows.next()).isTrue();
-                    assertThat(rows.getString("chapter_key")).isEqualTo("Case");
-                    assertThat(rows.getString("content")).isEqualTo("한국어 😀\r\n원고");
-                    assertThat(rows.getLong("revision")).isEqualTo(9);
-                    assertThat(rows.next()).isTrue();
-                    assertThat(rows.getString("chapter_key")).isEqualTo("case");
-                }
-            } finally {
-                connection.setCatalog(originalSchema);
-                statement.execute("DROP DATABASE " + schema);
-            }
-        }
     }
 
     @DynamicPropertySource

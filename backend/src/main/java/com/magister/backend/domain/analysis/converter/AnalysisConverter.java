@@ -118,4 +118,3 @@ public class AnalysisConverter {
                 objectMapper.writeValueAsString(input.settings()));
     }
 }
-

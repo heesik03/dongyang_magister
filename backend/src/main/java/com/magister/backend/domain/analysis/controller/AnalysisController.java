@@ -90,4 +90,3 @@ public class AnalysisController implements AnalysisControllerDocs {
         return ApiResult.success(analysisJobService.cancel(user.id(), workId, id));
     }
 }
-

@@ -13,16 +13,23 @@ public record SaveWorkspaceRequest(
         @NotBlank @Size(max = 64) String mutationId,
         @NotNull @Valid WorkspaceData content,
         Boolean separateChapters,
-        Boolean separateReviews) {
+        Boolean separateReviews,
+        Boolean separateEvents) {
     @JsonCreator
     public SaveWorkspaceRequest {}
 
     public SaveWorkspaceRequest(
             long version, String mutationId, WorkspaceData content, Boolean separateChapters) {
-        this(version, mutationId, content, separateChapters, false);
+        this(version, mutationId, content, separateChapters, false, false);
+    }
+
+    public SaveWorkspaceRequest(
+            long version, String mutationId, WorkspaceData content,
+            Boolean separateChapters, Boolean separateReviews) {
+        this(version, mutationId, content, separateChapters, separateReviews, false);
     }
 
     public SaveWorkspaceRequest(long version, String mutationId, WorkspaceData content) {
-        this(version, mutationId, content, false, false);
+        this(version, mutationId, content, false, false, false);
     }
 }

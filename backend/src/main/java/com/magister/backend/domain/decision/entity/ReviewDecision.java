@@ -8,19 +8,34 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import org.hibernate.annotations.Check;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import java.time.Instant;
 
 /** 판단 버전과 그 적용 범위는 추가만 허용하고 과거 값을 수정하지 않는다. */
 @Entity
-@Table(name = "review_decisions")
+@Table(
+        name = "review_decisions",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uk_decision_version", columnNames = {"review_id", "decision_version"}),
+            @UniqueConstraint(name = "uk_decision_mutation", columnNames = {"review_id", "mutation_id"})
+        },
+        indexes = {
+            @Index(name = "ix_decision_status_id", columnList = "status,id")
+        })
+@Check(constraints = "decision_version > 0 AND status IN ('미검토','수용','보류','의도된 설정')")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReviewDecision {
@@ -29,6 +44,7 @@ public class ReviewDecision {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "review_id", nullable = false, updatable = false)
     private ReviewCandidate review;
 

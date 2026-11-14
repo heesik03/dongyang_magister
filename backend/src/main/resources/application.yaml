@@ -14,17 +14,15 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  flyway:
-    locations: classpath:com/magister/backend/global/migration
-
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
         format_sql: true
+        hbm2ddl.halt_on_error: true
 
 gemini:
   api-key: ${GEMINI_API_KEY:}

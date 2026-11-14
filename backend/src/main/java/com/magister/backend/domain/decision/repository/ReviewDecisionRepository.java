@@ -33,10 +33,10 @@ public interface ReviewDecisionRepository extends JpaRepository<ReviewDecision, 
                 ((s.scopeType='CHAPTER_RANGE' and fc.chapterNo<=:chapterNo and
                   (tc is null or tc.chapterNo>=:chapterNo)) or
                  (s.scopeType='SCENE' and ss.chapter.id=:chapterId)))
-              and exists(select e.id from ReviewEvidence e where e.review=r and
+              and exists(select e.id from ReviewEvidence e where e.reviewId=r.id and
                 ((e.source.type='SETTING' and e.source.sourceKey in :settingKeys) or
                  (e.source.type='PREVIOUS' and e.source.sourceKey in :previousKeys)))
-              and not exists(select e.id from ReviewEvidence e where e.review=r and
+              and not exists(select e.id from ReviewEvidence e where e.reviewId=r.id and
                 not ((e.source.type='SETTING' and e.source.sourceKey in :settingKeys) or
                      (e.source.type='PREVIOUS' and e.source.sourceKey in :previousKeys)))
             order by d.id

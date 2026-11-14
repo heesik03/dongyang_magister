@@ -357,6 +357,9 @@ export function ExtractionFlow({ work }: { work: Work }) {
             {mode === 'select' && (
               <>
                 <p>추출할 회차를 선택하세요. 최대 10회차·본문 합계 20만 자입니다.</p>
+                <p className="notice small">
+                  사건 후보 추출을 누르면 선택한 회차의 제목과 원고 본문을 Gemini에 전송합니다.
+                </p>
                 <fieldset disabled={busy}>
                   <legend>추출할 회차</legend>
                   {work.chapters.map((chapter) => (

@@ -9,9 +9,11 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 
 import lombok.AccessLevel;
@@ -22,7 +24,17 @@ import java.time.Duration;
 import java.time.Instant;
 
 @Entity
-@Table(name = "analysis_jobs")
+@Table(
+        name = "analysis_jobs",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uk_analysis_request", columnNames = {"work_id", "request_id"})
+        },
+        indexes = {
+            @Index(name = "ix_analysis_lease", columnList = "status,lease_until"),
+            @Index(name = "ix_analysis_retention", columnList = "status,updated_at,id"),
+            @Index(name = "ix_analysis_work_created", columnList = "work_id,created_at,id"),
+            @Index(name = "ix_analysis_chapter_created", columnList = "work_id,chapter_key_snapshot,created_at,id")
+        })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AnalysisJob {
