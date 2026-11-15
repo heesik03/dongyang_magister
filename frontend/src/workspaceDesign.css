@@ -41,7 +41,7 @@
   grid-template-columns: var(--list-columns);
   gap: 0;
   align-items: center;
-  min-height: 76px;
+  min-height: 56px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -52,7 +52,7 @@
 .workspace-list-row > * {
   position: relative;
   min-width: 0;
-  padding-inline: 16px;
+  padding-inline: 14px;
   overflow-wrap: anywhere;
 }
 
@@ -69,7 +69,7 @@
 
 .workspace-list-row > strong,
 .setting-item strong {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -247,15 +247,16 @@
 
 .editor-pane .chapter-title-field input {
   font: inherit;
-  font-size: 34px;
-  line-height: 1.4;
+  font-size: 22px;
+  line-height: 30px;
   font-weight: 700;
 }
 
 .editor-pane .markdown-document :is(textarea, .markdown-preview-scroll) {
+  flex: 1;
   width: 100%;
   max-width: none;
-  min-height: 390px;
+  min-height: 520px;
   padding-inline: 0;
 }
 
@@ -548,9 +549,7 @@
 
 .mypage-container {
   max-width: none;
-  gap: 28px;
-  padding-block: 28px 56px;
-  padding-inline: clamp(20px, 3vw, 48px);
+  gap: 16px;
 }
 
 .mypage-container .mypage-card {
@@ -567,7 +566,8 @@
 }
 
 .mypage-danger-card h2 {
-  font-size: 22px;
+  font-size: 16px;
+  line-height: 24px;
 }
 
 .material-consent,

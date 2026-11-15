@@ -11,16 +11,17 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  column-gap: 24px;
-  min-height: 88px;
-  padding: 12px var(--page-inset);
+  column-gap: 20px;
+  min-height: 64px;
+  padding: 10px var(--page-inset);
   border-block-end: 1px solid var(--color-border);
   background: var(--color-surface);
 }
 
 .editorial-header .brand {
   color: var(--color-primary);
-  font-size: 30px;
+  font-size: 22px;
+  line-height: 30px;
   white-space: nowrap;
 }
 
@@ -30,7 +31,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -44,12 +45,12 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  min-height: 48px;
+  padding: 7px 12px;
+  min-height: 38px;
   border: 0;
   border-radius: 8px;
   color: var(--color-text-muted);
-  font-size: 15px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -93,30 +94,77 @@
 .library-page,
 .work-page,
 .mypage-container {
-  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - (var(--page-inset) * 2));
   max-width: none;
-  margin: 0;
-  padding: var(--editorial-inset) var(--page-inset) 64px;
-  gap: var(--editorial-gap);
+  margin: 16px auto 20px;
+  padding: 16px 24px 20px;
+  gap: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
 }
 
 .page-heading,
 .work-heading,
-.mypage-header {
+.mypage-header,
+.auth-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   margin: 0;
-  padding: 0;
+  padding: 0 0 12px;
+  border-block-end: 1px solid var(--color-border);
+}
+
+.work-heading > .row {
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-page-header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
 :is(.page-heading, .work-heading, .mypage-header) h1,
 .auth-page-title {
   font-size: var(--page-heading-size);
-  line-height: 1.2;
-  margin: 0 0 12px;
+  line-height: 26px;
+  margin: 0 0 2px;
 }
 
-:is(.page-heading, .work-heading, .mypage-header) p {
+:is(.page-heading, .work-heading, .mypage-header, .auth-page-header) p {
+  font-size: 12px;
+  line-height: 18px;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+:is(.page-heading, .work-heading, .mypage-header) button,
+.work-page
+  .manuscript-toolbar
+  :is(button, select, .manuscript-file-menu > summary, .analysis-history > summary),
+.settings-panel > .section-line button,
+.timeline-actions :is(button, select) {
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.work-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .editorial-surface,
@@ -129,7 +177,7 @@
 
 .editorial-section-title {
   display: grid;
-  gap: 12px;
+  gap: 4px;
 }
 
 .editorial-section-title :is(h2, p),
@@ -145,7 +193,9 @@
 .timeline-source h3 {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  font-size: 16px;
+  line-height: 24px;
 }
 
 :is(
@@ -163,6 +213,7 @@
 .library-workbench,
 .settings-panel .settings-layout,
 .timeline-workbench {
+  flex: 1;
   display: grid;
   align-items: stretch;
   gap: 0;
@@ -170,19 +221,27 @@
 }
 
 .library-workbench {
-  grid-template-columns: minmax(320px, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(280px, 370px) minmax(0, 1fr);
 }
 
 .library-list-pane,
+.setting-list-pane {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 18px 20px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .library-detail-pane,
-.setting-list-pane,
 .settings-layout .setting-detail,
 .timeline-list-pane,
 .timeline-detail {
   display: grid;
   align-content: start;
-  gap: 28px;
-  padding: var(--editorial-inset);
+  gap: 18px;
+  padding: 22px 28px;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -197,11 +256,11 @@
   display: flex;
   align-items: stretch;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
 }
 
 .library-list-filters .search-field {
-  flex: 1 1 160px;
+  flex: 1 1 150px;
 }
 
 :is(.library-list-pane, .setting-list-pane) .search-field {
@@ -217,12 +276,12 @@
   gap: 8px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  padding-inline: 12px 4px;
+  padding-inline: 10px 4px;
 }
 
 .library-genre-field select,
 .search-field input {
-  min-height: 48px;
+  min-height: 40px;
   border: 0;
   background: transparent;
 }
@@ -236,7 +295,7 @@
 
 .editorial-list > li,
 .timeline-list .event-list-item {
-  padding-block: 12px;
+  padding-block: 6px;
   border-block-start: 1px solid var(--color-border);
 }
 
@@ -249,12 +308,13 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 104px;
+  min-height: 60px;
   justify-content: start;
   text-align: start;
-  gap: 16px;
-  padding: 16px 20px;
+  gap: 12px;
+  padding: 10px 14px;
   border: 0;
+  border-radius: 8px;
   background: transparent;
 }
 
@@ -271,25 +331,25 @@
 .editorial-list-copy {
   flex: 1;
   display: grid;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .editorial-list-copy strong {
-  font-size: 19px;
+  font-size: 15px;
 }
 
 .library-detail-pane > header,
 .library-last-chapter {
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .library-detail-pane h2,
 .settings-layout .setting-detail h2 {
-  font-size: clamp(28px, 2.5vw, 48px);
-  line-height: 1.2;
+  font-size: 22px;
+  line-height: 30px;
   margin: 0;
 }
 
@@ -299,7 +359,7 @@
 }
 
 .library-last-chapter {
-  padding-block-start: 32px;
+  padding-block-start: 20px;
   border-block-start: 1px solid var(--color-border);
 }
 
@@ -327,20 +387,24 @@
 }
 
 .manuscript-workspace {
-  gap: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   min-width: 0;
 }
 
 .manuscript-workspace .view-editor {
-  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 3fr) minmax(220px, 0.9fr);
+  flex: 1;
+  grid-template-columns: minmax(180px, 236px) minmax(0, 1fr) minmax(240px, 336px);
 }
 
 .editor-chapters:not([hidden]) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 14px;
-  padding: 24px;
+  gap: 10px;
+  padding: 18px;
   border-radius: 12px;
   background: var(--color-sidebar);
 }
@@ -348,12 +412,16 @@
 .editor-chapters h2 {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 20px;
+  gap: 8px;
+  font-size: 16px;
+  line-height: 24px;
   margin: 0;
 }
 
 .editor-chapters .nav-item {
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 14px;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -364,7 +432,9 @@
 }
 
 .manuscript-workspace .editor-pane {
-  padding: clamp(16px, 1.67vw, 32px);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 28px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
   background: var(--color-surface);
@@ -372,44 +442,48 @@
 }
 
 .editor-pane .markdown-document {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   border: 0;
   border-block-start: 1px solid var(--color-border);
   border-radius: 0;
-  padding: 32px clamp(8px, 1.67vw, 32px) 16px;
+  padding: 20px 16px 12px;
 }
 
 .editor-pane .markdown-toolbar {
   border-block-start: 0;
-  padding-block: 0 20px;
+  padding-block: 0 14px;
 }
 
 .editor-pane .chapter-title-field input {
-  font-size: clamp(28px, 2.5vw, 48px);
+  font-size: 22px;
+  line-height: 30px;
 }
 
 .editor-pane .editor-bottom {
   border-block-start: 1px solid var(--color-border);
-  padding-block-start: 20px;
+  padding-block-start: 14px;
 }
 
 .manuscript-notes {
   display: grid;
   align-content: start;
-  gap: 32px;
+  gap: 20px;
   min-width: 0;
-  padding: 28px 24px 32px 0;
+  padding: 18px 20px 20px 0;
   overflow-wrap: anywhere;
 }
 
 .manuscript-notes section {
   display: grid;
-  gap: 16px;
+  gap: 10px;
   justify-items: start;
 }
 
 .manuscript-notes section + section {
   border-block-start: 1px solid var(--color-border);
-  padding-block-start: 28px;
+  padding-block-start: 18px;
 }
 
 .manuscript-notes :is(h2, h3, p, ul) {
@@ -421,23 +495,23 @@
 }
 
 .manuscript-workspace .review-panel:not([hidden]) {
-  padding: var(--editorial-inset);
-  gap: var(--editorial-gap);
+  padding: 20px 24px;
+  gap: 18px;
 }
 
 .review-workbench {
-  grid-template-columns: minmax(240px, 0.58fr) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 350px) minmax(0, 1fr);
   gap: 0;
 }
 
 .review-workbench .review-candidates {
-  padding-inline-end: 28px;
+  padding-inline-end: 20px;
 }
 
 .review-workbench .review-detail {
   display: grid;
-  gap: 20px;
-  padding-inline-start: 32px;
+  gap: 16px;
+  padding-inline-start: 24px;
   border-inline-start: 1px solid var(--color-border);
 }
 
@@ -453,7 +527,7 @@
   border-radius: 0;
   border-block-start: 1px solid var(--color-border);
   background: transparent;
-  padding-block: 24px;
+  padding-block: 14px;
   margin: 0;
 }
 
@@ -465,16 +539,18 @@
 /* 설정, 인물 이미지, 사건 */
 .settings-panel,
 .timeline-panel {
-  display: grid;
-  gap: 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .settings-panel .settings-layout {
-  grid-template-columns: minmax(290px, 0.9fr) minmax(0, 1.35fr);
+  grid-template-columns: minmax(260px, 350px) minmax(0, 1fr);
 }
 
 .settings-panel .settings-layout:has(> .character-images) {
-  grid-template-columns: minmax(270px, 0.95fr) minmax(0, 1.5fr) minmax(260px, 0.82fr);
+  grid-template-columns: minmax(250px, 350px) minmax(0, 1fr) minmax(260px, 370px);
 }
 
 .settings-layout .setting-detail {
@@ -490,7 +566,7 @@
 
 .connection-cards .notice,
 .character-image-gallery .character-image-card {
-  padding: 20px 0;
+  padding: 14px 0;
   border: 0;
   border-block-start: 1px solid var(--color-border);
   border-radius: 0;
@@ -499,8 +575,8 @@
 
 .settings-layout > .character-images {
   align-content: start;
-  gap: 24px;
-  padding: var(--editorial-inset) 24px;
+  gap: 16px;
+  padding: 20px 22px;
   border: 0;
   border-inline-start: 1px solid var(--color-border);
   margin: 0;
@@ -512,7 +588,7 @@
 }
 
 .timeline-workbench {
-  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 500px);
 }
 
 .timeline-list {
@@ -522,7 +598,7 @@
 .timeline-list button.workspace-list-row {
   width: 100%;
   border-radius: 8px;
-  min-height: 80px;
+  min-height: 60px;
 }
 
 .timeline-list .workspace-list-row > :not(:first-child)::before {
@@ -532,7 +608,7 @@
 .timeline-detail .event-body,
 .timeline-source {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .timeline-detail .event-body {
@@ -545,15 +621,15 @@
 }
 
 .timeline-source {
-  padding-block: 24px;
+  padding-block: 16px;
   border-block: 1px solid var(--color-border);
 }
 
 .timeline-source blockquote {
   padding-inline-start: 16px;
   border-inline-start: 3px solid var(--color-border);
-  font-size: 18px;
-  line-height: 1.8;
+  font-size: 16px;
+  line-height: 1.75;
 }
 
 /* 인증, 계정 및 공통 대화상자 */
@@ -569,31 +645,36 @@
 
 .auth-form-wrap {
   display: block;
-  padding: var(--editorial-inset) var(--page-inset) 64px;
+  padding: 20px var(--page-inset) 36px;
   background: transparent;
 }
 
 .auth-page-title {
-  margin-block-end: var(--editorial-gap);
+  margin: 0;
 }
 
 .auth-form {
-  max-width: 680px;
-  padding: var(--editorial-inset);
+  max-width: 740px;
+  padding: 22px 28px;
   margin-inline: auto;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  gap: 28px;
+  gap: 20px;
+}
+
+.auth-form h2 {
+  font-size: 16px;
+  line-height: 24px;
 }
 
 .auth-form .auth-switch {
-  padding-block-start: 24px;
+  padding-block-start: 18px;
   border-block-start: 1px solid var(--color-border);
 }
 
 .mypage-stack {
-  padding: var(--editorial-inset);
+  padding: 8px 4px;
   gap: 0;
 }
 
@@ -603,7 +684,7 @@
 
 .mypage-container .mypage-card,
 .mypage-container .mypage-danger-card {
-  padding: 28px 0;
+  padding: 20px 0;
   border: 0;
   border-block-end: 1px solid var(--color-border);
   border-radius: 0;
@@ -611,7 +692,7 @@
 }
 
 .mypage-grid .mypage-card + .mypage-card {
-  padding-inline-start: 28px;
+  padding-inline-start: 24px;
 }
 
 .mypage-tabs,
@@ -627,16 +708,16 @@
 
 .dialog {
   background: var(--color-surface);
-  padding: var(--editorial-inset);
+  padding: 22px 28px;
 }
 
 .dialog .stack,
 .dialog .form-fields {
-  gap: 28px;
+  gap: 20px;
 }
 
 .dialog .dialog-actions {
-  padding-block-start: 24px;
+  padding-block-start: 18px;
   border-block-start: 1px solid var(--color-border);
 }
 
@@ -655,16 +736,17 @@
 
 .manuscript-file-menu > summary {
   cursor: pointer;
-  min-height: 44px;
-  padding: 9px 14px;
+  min-height: 36px;
+  padding: 6px 14px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
+  font-size: 13px;
 }
 
 .character-image-empty {
   display: grid;
-  min-height: 176px;
+  min-height: 240px;
   align-content: center;
   justify-items: center;
   text-align: center;
