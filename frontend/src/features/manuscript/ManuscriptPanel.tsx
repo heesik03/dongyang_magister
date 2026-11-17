@@ -43,6 +43,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const savedAnalysis = work.analyses.find((item) => item.chapterId === chapter?.id)
   const analysis = jobs.job?.result ?? savedAnalysis
   const [creating, setCreating] = useState(!!params.get('newChapter'))
+  const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [settingIds, setSettingIds] = useState(
     work.settings.filter((setting) => setting.status === '확정').map((setting) => setting.id),
@@ -343,6 +344,15 @@ export function ManuscriptPanel({ work }: { work: Work }) {
             >
               <Icon name="plus" />
             </button>
+            <button
+              type="button"
+              className="mobile-notes-trigger"
+              aria-expanded={notesModalOpen}
+              onClick={() => setNotesModalOpen((open) => !open)}
+            >
+              <Icon name="book" />
+              <span>작품 노트</span>
+            </button>
           </div>
         </div>
         <div className="toolbar-actions">
@@ -620,8 +630,13 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           )}
         </section>
         {view === '원고' && (
-          <aside className="manuscript-notes" aria-label="작품 노트">
-            <section>
+          <aside
+            className={
+              'manuscript-notes' + (notesModalOpen ? ' manuscript-notes--mobile-open' : '')
+            }
+            aria-label="작품 노트"
+          >
+            <section className="manuscript-notes__review">
               <h2>
                 <Icon name="book" />
                 작품 노트
@@ -640,7 +655,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                 <p className="small muted">이 회차의 검토 결과가 여기에 표시됩니다.</p>
               )}
             </section>
-            <section>
+            <section className="manuscript-notes__settings">
               <h3>
                 <Icon name="grid" />
                 작품의 확정 설정

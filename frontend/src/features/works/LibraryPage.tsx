@@ -182,6 +182,15 @@ export function LibraryPage() {
               작품 더 불러오기
             </button>
           )}
+          {ordered.length > 0 && (
+            <button
+              type="button"
+              className="primary mobile-create-work-button"
+              onClick={() => setCreating(true)}
+            >
+              <Icon name="plus" />새 작품
+            </button>
+          )}
         </section>
         {selected && (
           <article className="library-detail-pane" aria-label="선택한 작품">

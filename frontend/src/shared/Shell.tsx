@@ -1,5 +1,5 @@
-import { Link, NavLink, Outlet, useMatch, useSearchParams } from 'react-router-dom'
-import { useState } from 'react'
+import { Link, NavLink, Outlet, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
+import { useState, type FocusEvent } from 'react'
 import { useAuthStore } from '../features/auth/useAuthStore'
 import { WorksProvider } from '../features/works/WorksProvider'
 import { useWorksStore } from '../features/works/useWorksStore'
@@ -22,14 +22,41 @@ function ShellContent() {
   const shortcutError = useWorksStore((state) => state.shortcutError)
   const storageError = useWorksStore((state) => state.storageError)
   const retrySave = useWorksStore((state) => state.retrySave)
+  const navigate = useNavigate()
   const match = useMatch('/works/:workId/:tab')
   const isMyPage = Boolean(useMatch('/mypage'))
   const [params] = useSearchParams()
+  const isReviewView = match?.params.tab === 'manuscript' && params.get('view') === 'review'
   const current = cachedWorks.find((work) => work.id === match?.params.workId)
   const works = cachedWorks.filter(
     (work) => work.source !== 'server' || shortcutIds.includes(work.id),
   )
+  const fallbackWork = current ?? works[0] ?? cachedWorks[0]
   const [logoutError, setLogoutError] = useState('')
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
+  function handleFocusCapture(event: FocusEvent<HTMLDivElement>) {
+    const target = event.target
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement
+    ) {
+      if (target.type !== 'checkbox' && target.type !== 'radio' && target.type !== 'file') {
+        setKeyboardOpen(true)
+      }
+    }
+  }
+  function handleBlurCapture(event: FocusEvent<HTMLDivElement>) {
+    const next = event.relatedTarget
+    if (
+      next instanceof HTMLInputElement ||
+      next instanceof HTMLTextAreaElement ||
+      next instanceof HTMLSelectElement
+    ) {
+      return
+    }
+    setKeyboardOpen(false)
+  }
   async function leave() {
     const state = useWorksStore.getState()
     await Promise.all(state.dirtyIds.map((id) => state.flushWorkspace(id)))
@@ -42,15 +69,24 @@ function ShellContent() {
     await logout()
   }
   function workTab(tab: 'manuscript' | 'settings' | 'timeline', review = false) {
+    const targetId = current?.id ?? fallbackWork?.id
+    if (!targetId) return '/'
     const query =
-      tab === 'manuscript' && match?.params.tab === 'manuscript'
+      current && tab === 'manuscript' && match?.params.tab === 'manuscript'
         ? new URLSearchParams(params)
         : new URLSearchParams()
     query.delete('manage')
     if (review) query.set('view', 'review')
     else query.delete('view')
     const search = query.toString()
-    return '/works/' + current?.id + '/' + tab + (search ? '?' + search : '')
+    return '/works/' + targetId + '/' + tab + (search ? '?' + search : '')
+  }
+  function handleMobileBack() {
+    if (isReviewView && current) {
+      navigate(workTab('manuscript', false))
+      return
+    }
+    navigate('/')
   }
   function navigation() {
     return (
@@ -126,8 +162,27 @@ function ShellContent() {
     )
   }
   return (
-    <div className="app-layout">
-      <header className="editorial-header">
+    <div
+      className={'app-layout' + (keyboardOpen ? ' app-layout--keyboard-open' : '')}
+      onFocusCapture={handleFocusCapture}
+      onBlurCapture={handleBlurCapture}
+    >
+      <header
+        className={
+          'editorial-header' + (isMyPage || isReviewView ? ' editorial-header--subview' : '')
+        }
+      >
+        {(isMyPage || isReviewView) && (
+          <button
+            type="button"
+            className="mobile-back-button"
+            onClick={handleMobileBack}
+            aria-label="뒤로"
+          >
+            <span aria-hidden="true">‹</span>
+            <span>뒤로</span>
+          </button>
+        )}
         <NavLink to="/" className="brand" aria-label="Magister 작품 보관함">
           Magister
         </NavLink>
@@ -164,6 +219,44 @@ function ShellContent() {
         <Outlet />
         <SiteFooter />
       </div>
+      {!isMyPage && (
+        <nav className="mobile-bottom-nav" aria-label="모바일 주요 탐색">
+          <NavLink to="/" end className="mobile-bottom-nav__item">
+            <Icon name="book" />
+            <span>내 작품</span>
+          </NavLink>
+          <Link
+            to={workTab('manuscript')}
+            className={
+              'mobile-bottom-nav__item' + (match?.params.tab === 'manuscript' ? ' active' : '')
+            }
+            aria-current={match?.params.tab === 'manuscript' ? 'page' : undefined}
+          >
+            <Icon name="edit" />
+            <span>원고 쓰기</span>
+          </Link>
+          <Link
+            to={workTab('settings')}
+            className={
+              'mobile-bottom-nav__item' + (match?.params.tab === 'settings' ? ' active' : '')
+            }
+            aria-current={match?.params.tab === 'settings' ? 'page' : undefined}
+          >
+            <Icon name="grid" />
+            <span>인물·세계관</span>
+          </Link>
+          <Link
+            to={workTab('timeline')}
+            className={
+              'mobile-bottom-nav__item' + (match?.params.tab === 'timeline' ? ' active' : '')
+            }
+            aria-current={match?.params.tab === 'timeline' ? 'page' : undefined}
+          >
+            <Icon name="clock" />
+            <span>사건 순서</span>
+          </Link>
+        </nav>
+      )}
     </div>
   )
 }

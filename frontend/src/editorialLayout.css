@@ -760,7 +760,14 @@
   justify-content: flex-start;
 }
 
-@media (max-width: 1200px) {
+.mobile-back-button,
+.mobile-bottom-nav,
+.mobile-create-work-button,
+.mobile-notes-trigger {
+  display: none;
+}
+
+@media (min-width: 1024px) and (max-width: 1200px) {
   .manuscript-workspace .view-editor {
     grid-template-columns: minmax(160px, 0.75fr) minmax(0, 3fr);
   }
@@ -780,106 +787,1021 @@
   }
 }
 
-@media (max-width: 820px) {
+/* Figma Mobile 화면 (node-id: 371:1919) 반응형 기준: 1023px 이하 */
+@media (max-width: 1023px) {
+  :root {
+    --page-inset: 16px;
+    --editorial-inset: 16px;
+  }
+
+  /* 01 상단 바 (Top Bar · 53px) */
   .editorial-header {
+    min-height: 53px;
+    padding: 4px 16px;
+    column-gap: 12px;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    background: var(--color-surface);
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .editorial-header .brand {
+    font-family: 'Instrument Serif', Georgia, Batang, serif;
+    font-size: 30px;
+    font-weight: 400;
+    line-height: 44px;
+    color: var(--color-primary);
+  }
+
+  .editorial-header--subview .brand {
+    font-size: 24px;
+    line-height: 36px;
+    margin-inline-start: auto;
+  }
+
+  .mobile-back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .app-layout .editorial-navigation {
+    display: none;
+  }
+
+  .editorial-header--subview .editorial-account {
+    margin-inline-start: 8px;
+  }
+
+  .editorial-account {
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .editorial-header .editorial-account .nav-item {
+    min-height: 44px;
+    padding: 6px 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+  }
+
+  .editorial-header .editorial-account .nav-item .design-icon {
+    display: none;
+  }
+
+  .editorial-header .editorial-account .icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 하단 탐색 바를 위한 메인 영역 여백 확보 */
+  .app-layout .main-area {
+    padding-block-end: calc(85px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-layout:has(.work-page .manuscript-workspace .view-editor) .main-area {
+    padding-block-end: calc(175px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-layout--keyboard-open .main-area {
+    padding-block-end: 24px;
+  }
+
+  .app-layout .app-footer {
+    display: none;
+  }
+
+  /* 02 모바일 하단 탐색 (Bottom Navigation · 85px) */
+  .mobile-bottom-nav {
+    position: fixed;
+    z-index: 20;
+    inset-inline: 0;
+    inset-block-end: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 85px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--color-surface);
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .app-layout--keyboard-open .mobile-bottom-nav {
+    display: none;
+  }
+
+  .mobile-bottom-nav__item {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 60px;
+    padding: 6px 4px;
+    border-radius: 8px;
+    color: var(--color-primary);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+
+  .mobile-bottom-nav__item .design-icon {
+    width: 24px;
+    height: 24px;
+    color: var(--color-primary);
+  }
+
+  .mobile-bottom-nav__item.active {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+  }
+
+  /* 03 페이지 컨테이너 및 타이포그래피 */
+  .library-page,
+  .work-page,
+  .mypage-container {
+    width: 100%;
+    margin: 0;
+    padding: 20px 16px 24px;
+    gap: 16px;
+    background: var(--color-canvas);
+    border: 0;
+    border-radius: 0;
+  }
+
+  .page-heading,
+  .work-heading,
+  .mypage-header,
+  .auth-page-header {
+    padding: 0;
+    border-block-end: 0;
+    gap: 8px;
+  }
+
+  :is(.page-heading, .work-heading, .mypage-header) h1,
+  .auth-page-title {
+    font-size: 27px;
+    font-weight: 700;
+    line-height: 39px;
+    letter-spacing: -0.27px;
+    margin: 0 0 4px;
+  }
+
+  :is(.page-heading, .work-heading, .mypage-header, .auth-page-header) p {
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--color-text-muted);
+  }
+
+  /* 04 터치 타깃 및 공통 버튼/입력 */
+  button,
+  .button,
+  select,
+  input:not([type='checkbox']):not([type='radio']) {
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  :is(.page-heading, .work-heading, .mypage-header) button,
+  .work-page
+    .manuscript-toolbar
+    :is(button, select, .manuscript-file-menu > summary, .analysis-history > summary),
+  .settings-panel > .section-line button,
+  .timeline-actions :is(button, select) {
+    min-height: 48px;
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+
+  /* 05 작품 보관함 (LibraryPage · 376:5013) */
+  .library-page > .page-heading > button.primary {
+    display: none;
+  }
+
+  .library-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .library-detail-pane {
+    order: -1;
+    padding: 20px;
     gap: 12px;
-    min-height: 64px;
+    background: var(--color-primary-soft);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+  }
+
+  .library-detail-genre {
+    display: inline-flex;
+    justify-self: start;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-primary);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+  }
+
+  .library-detail-pane h2 {
+    font-family: 'Noto Serif KR', Batang, Georgia, serif;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 41px;
+    letter-spacing: -0.3px;
+  }
+
+  .library-detail-pane > header > p {
+    font-size: 15px;
+    line-height: 22px;
+  }
+
+  .library-last-chapter {
+    padding-block-start: 12px;
+    gap: 6px;
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .library-last-chapter h3 {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+    color: var(--color-primary);
+  }
+
+  .library-last-chapter > p:first-of-type {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 22px;
+  }
+
+  .library-last-chapter .notice {
+    padding: 0;
+    background: transparent;
+    color: var(--color-primary);
+    font-size: 12px;
+    line-height: 18px;
+    gap: 6px;
+  }
+
+  .library-detail-pane .editorial-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .library-detail-pane .editorial-actions .button {
+    width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .library-list-pane {
+    padding: 0;
+    gap: 12px;
+    background: transparent;
+  }
+
+  .library-list-pane .editorial-section-title h2 {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 27px;
+  }
+
+  .library-list-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .library-list-filters .search-field,
+  .library-genre-field {
+    width: 100%;
+    min-height: 48px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+  }
+
+  .editorial-list {
+    gap: 8px;
+  }
+
+  .editorial-list > li,
+  .timeline-list .event-list-item {
+    padding: 0;
+    border: 0;
+  }
+
+  .editorial-list > li:last-child,
+  .timeline-list .event-list-item:last-child {
+    border: 0;
+  }
+
+  .editorial-list-item {
+    min-height: 58px;
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+    align-items: center;
+  }
+
+  .editorial-list-item[aria-pressed='true'] {
+    background: var(--color-primary-soft);
+    border-color: var(--color-border);
+    color: var(--color-text);
+  }
+
+  .mobile-create-work-button {
+    display: inline-flex;
+    width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  /* 06 원고 쓰기 (ManuscriptPanel · 376:5101 & 376:7000) */
+  .work-heading .work-management-trigger {
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 14px;
   }
 
   .app-layout .workspace-mobile-tabs {
     display: flex;
+    gap: 8px;
   }
 
-  .app-layout .editorial-navigation {
-    order: 1;
+  .app-layout .workspace-mobile-tabs button {
+    flex: 1 1 0;
+    min-height: 44px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .app-layout .workspace-mobile-tabs button.selected {
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  .work-page .manuscript-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .manuscript-editor-tools {
     width: 100%;
-    gap: 4px;
   }
 
-  .app-layout .editorial-header .nav-item,
-  .workspace-shortcuts > summary {
+  .chapter-select {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .chapter-select label {
+    flex: 1 1 0;
+  }
+
+  .chapter-select select {
+    width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+  }
+
+  .chapter-select > .icon-button {
+    min-width: 48px;
+    min-height: 48px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+  }
+
+  .mobile-notes-trigger {
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+
+  .mobile-notes-trigger[aria-expanded='true'] {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+  }
+
+  .work-page .toolbar-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .work-page .toolbar-actions > * {
+    flex: 1 1 auto;
+  }
+
+  .work-page .manuscript-action-group {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 8px;
+  }
+
+  .work-page .manuscript-action-group button {
+    flex: 1 1 auto;
+  }
+
+  .editor-chapters:not([hidden]) {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+  }
+
+  .editor-chapters h2 {
+    width: 100%;
     font-size: 14px;
-    padding-inline: 8px;
   }
 
-  .library-workbench,
-  .settings-panel .settings-layout,
-  .settings-panel .settings-layout:has(> .character-images),
-  .timeline-workbench,
-  .review-workbench,
-  .manuscript-workspace .view-editor {
-    grid-template-columns: minmax(0, 1fr);
+  .editor-chapters .nav-item {
+    width: auto;
+    min-height: 44px;
+    margin: 0;
   }
 
-  .library-detail-pane,
-  .settings-layout .setting-detail,
-  .timeline-detail,
-  .settings-layout > .character-images,
-  .review-workbench .review-detail {
-    border-inline-start: 0;
+  .manuscript-workspace .editor-pane {
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+  }
+
+  .editor-pane .markdown-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-block: 0 12px;
+    border-block-start: 0;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .editor-pane .markdown-toolbar button {
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .editor-pane .markdown-document {
+    padding: 16px 0 12px;
+    border: 0;
+  }
+
+  .editor-pane .chapter-title-field input {
+    font-family: 'Noto Serif KR', Batang, Georgia, serif;
+    font-size: 29px;
+    line-height: 44px;
+    letter-spacing: -0.29px;
+    font-weight: 700;
+  }
+
+  .editor-pane .markdown-document :is(textarea, .markdown-preview-scroll) {
+    font-family: 'Noto Serif KR', Batang, Georgia, serif;
+    font-size: 17px !important;
+    line-height: 32px !important;
+    min-height: 320px;
+  }
+
+  /* 모바일 원고 하단 고정 동작 바 (384:5340) */
+  .editor-pane .editor-bottom {
+    position: fixed;
+    z-index: 19;
+    inset-inline: 0;
+    inset-block-end: calc(85px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--color-surface);
     border-block-start: 1px solid var(--color-border);
   }
 
-  .settings-layout > .character-images,
-  .manuscript-notes {
-    grid-column: auto;
+  .app-layout--keyboard-open .editor-pane .editor-bottom {
+    position: static;
+    padding: 12px 0 0;
   }
 
-  .manuscript-notes {
-    padding: 24px;
+  .editor-pane .editor-bottom > span {
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--color-primary);
+  }
+
+  .editor-pane .editor-bottom .editor-bottom-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .editor-pane .editor-bottom .save-status {
+    min-height: 24px;
+    font-size: 12px;
+  }
+
+  .editor-pane .editor-bottom .editor-bottom-actions button {
+    min-height: 48px;
+    flex: 1 1 120px;
+  }
+
+  /* 07 인물·세계관 (SettingsPanel · 376:5181 & 376:5492) */
+  .settings-panel > .section-line {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 0;
+  }
+
+  .settings-panel > .section-line button.primary {
+    width: 100%;
+    min-height: 48px;
+    font-weight: 700;
+  }
+
+  .settings-panel .settings-layout,
+  .settings-panel .settings-layout:has(> .character-images) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    background: transparent;
+    border-radius: 0;
+    min-height: 0;
+  }
+
+  .setting-list-pane {
+    padding: 0;
+    gap: 12px;
+  }
+
+  .setting-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .setting-filters button {
+    min-height: 48px;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .setting-filters button.selected {
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  .settings-layout .setting-detail {
+    padding: 16px;
+    gap: 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+  }
+
+  .settings-layout .setting-detail > .row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .settings-layout .setting-detail > .row .text-button {
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+
+  .setting-connections {
+    padding-block-start: 12px;
+    border-block-start: 1px solid var(--color-border);
+    display: grid;
+    gap: 10px;
+  }
+
+  .setting-detail .connection-cards {
+    gap: 8px;
+  }
+
+  .connection-cards .notice {
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-canvas);
+  }
+
+  .settings-layout > .character-images {
+    grid-column: auto;
+    padding: 16px;
+    gap: 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+  }
+
+  .settings-layout > .character-images .character-image-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .settings-layout > .character-images .character-image-actions button.primary {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  /* 08 사건 순서 (TimelinePanel · 376:5254 & 376:5561) */
+  .timeline-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .timeline-event-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .timeline-event-actions > button,
+  .timeline-event-actions .extraction-flow button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .timeline-filter {
+    width: 100%;
+  }
+
+  .timeline-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .timeline-list-pane {
+    padding: 0;
+    gap: 16px;
+  }
+
+  .timeline-rows .workspace-list-header {
+    display: none;
+  }
+
+  .timeline-list {
+    display: grid;
+    gap: 8px;
+    margin-block: 8px 0;
+  }
+
+  .timeline-list button.workspace-list-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    min-height: 58px;
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+  }
+
+  .timeline-list button.workspace-list-row[aria-pressed='true'] {
+    background: var(--color-primary-soft);
+    color: var(--color-text);
+  }
+
+  .timeline-list button.workspace-list-row > * {
+    padding-inline: 0;
+  }
+
+  .timeline-list button.workspace-list-row > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .timeline-list button.workspace-list-row > strong {
+    flex: 1 1 60%;
+    font-size: 15px;
+    color: var(--color-text);
+  }
+
+  .timeline-detail {
+    padding: 16px;
+    gap: 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+  }
+
+  .timeline-detail .timeline-event-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .timeline-detail .timeline-event-actions > :is(button, a.button) {
+    flex: 1 1 calc(50% - 4px);
+    min-height: 48px;
+  }
+
+  /* 09 AI 검토 결과 (ReviewPanel · 376:5338 & 376:5616) */
+  .manuscript-workspace .review-panel:not([hidden]) {
+    padding: 0;
+    gap: 16px;
+    background: transparent;
+  }
+
+  .review-panel .analysis-scope {
+    padding: 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+  }
+
+  .review-workbench {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
   }
 
   .review-workbench .review-candidates {
     padding-inline-end: 0;
   }
 
+  .review-candidates .review-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .review-candidates .review-filters button {
+    min-height: 48px;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .review-candidates .review-list {
+    gap: 8px;
+  }
+
+  .review-candidates .review-summary {
+    padding: 14px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+  }
+
+  .review-candidates .review-summary.selected {
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary);
+  }
+
   .review-workbench .review-detail {
-    margin-block-start: 24px;
-    padding: 24px 0 0;
-  }
-
-  .editor-chapters:not([hidden]) {
-    flex-direction: row;
+    margin-block-start: 0;
     padding: 16px;
+    gap: 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
   }
 
-  .editor-chapters .nav-item {
-    width: auto;
+  .review-detail .review-evidence {
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-canvas);
+  }
+
+  .review-detail .decision-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .review-detail .decision-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* 10 내 계정 & 인증 & 공통 대화상자 (376:5689, 376:6218, 376:6241) */
+  .mypage-stack {
+    background: transparent;
+    padding: 0;
+    gap: 16px;
   }
 
   .mypage-stack .mypage-grid {
     grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
   }
 
   .mypage-grid .mypage-card + .mypage-card {
     padding-inline-start: 0;
   }
+
+  .mypage-container .mypage-card,
+  .mypage-container .mypage-danger-card {
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+  }
+
+  .mypage-container .mypage-danger-card {
+    background: #f8e5db;
+    border-color: var(--color-border);
+  }
+
+  .mypage-form-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .mypage-form-actions button {
+    flex: 1 1 0;
+    min-height: 48px;
+  }
+
+  .auth-form-wrap {
+    padding: 20px 16px 32px;
+  }
+
+  .auth-form {
+    padding: 16px;
+    border-radius: 12px;
+    gap: 16px;
+  }
+
+  .email-check-field {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .email-check-field button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  dialog,
+  .dialog {
+    width: min(560px, calc(100% - 24px));
+    max-height: calc(100dvh - 32px);
+    padding: 20px 16px;
+    border-radius: 12px;
+  }
+
+  .dialog .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dialog .dialog-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .dialog .dialog-actions button {
+    flex: 1 1 0;
+    min-height: 48px;
+  }
 }
 
-@media (max-width: 480px) {
-  :root {
-    --page-inset: 16px;
-    --editorial-inset: 20px;
+/* 600–1023 CSS px: 태블릿 2열 원고 쓰기 구성 (376:7000 원고 쓰기 · 768 px) */
+@media (min-width: 600px) and (max-width: 1023px) {
+  .editorial-header {
+    padding-inline: 24px;
   }
 
-  .editorial-header .brand {
-    font-size: 24px;
+  .library-page,
+  .work-page,
+  .mypage-container {
+    padding: 20px 24px 28px;
   }
 
-  .editorial-account {
-    gap: 0;
+  .mobile-notes-trigger {
+    display: none;
   }
 
-  .library-list-pane,
-  .library-detail-pane,
-  .setting-list-pane,
-  .settings-layout .setting-detail,
-  .timeline-list-pane,
-  .timeline-detail {
-    gap: 24px;
+  .manuscript-workspace .view-editor {
+    grid-template-columns: minmax(0, 1fr) 232px;
+    align-items: start;
+    gap: 16px;
+    background: transparent;
   }
 
-  .timeline-rows {
-    --list-columns: minmax(0, 0.7fr) minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+  .manuscript-workspace .view-editor > .editor-chapters {
+    grid-column: 1 / -1;
+  }
+
+  .manuscript-workspace .view-editor > .editor-pane {
+    grid-column: 1;
+  }
+
+  .manuscript-workspace .view-editor > .manuscript-notes {
+    grid-column: 2;
+    padding: 0;
+    gap: 12px;
+  }
+
+  .manuscript-notes > section {
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+  }
+
+  .manuscript-notes > section.manuscript-notes__settings {
+    background: var(--color-sidebar);
+  }
+
+  .manuscript-notes section + section {
+    padding-block-start: 16px;
+  }
+}
+
+/* 320–599 CSS px: 모바일 단일 열 구성 (376:5101 & 376:6920) */
+@media (max-width: 599px) {
+  .manuscript-workspace .view-editor {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    background: transparent;
+  }
+
+  .manuscript-notes {
+    display: none;
+    padding: 16px;
+    gap: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+  }
+
+  .manuscript-notes.manuscript-notes--mobile-open {
+    display: grid;
   }
 }

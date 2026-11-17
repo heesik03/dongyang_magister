@@ -672,7 +672,7 @@
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1023px) {
   .manuscript-workspace .editor-review-grid,
   .review-workbench {
     grid-template-columns: minmax(0, 1fr);
@@ -690,48 +690,56 @@
     width: auto;
     margin: 0;
   }
-}
 
-@media (max-width: 767px) {
   .work-page .toolbar-actions,
   .work-page .manuscript-action-group {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
   }
+
   .work-page .analysis-history-content {
     position: static;
     max-width: 100%;
     min-width: 0;
   }
+
   .workspace-list-row > * {
     padding-inline: 8px;
   }
+
   .workspace-list-row > strong,
   .setting-item strong {
     font-size: 16px;
   }
+
   .workspace-list-row > .badge {
     margin-inline: 8px;
   }
+
   .workspace-list-row > .badge::before {
     inset-inline-start: -8px;
   }
+
   .workspace-list-row {
     font-size: 14px;
   }
+
   .timeline-rows {
     --list-columns: minmax(40px, 0.5fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
   }
+
   .setting-rows {
     --list-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(75px, 0.7fr);
   }
+
   .markdown-toolbar .editor-heading {
     margin-inline-start: 0;
     padding-inline-start: 0;
     border: 0;
   }
+
   .editor-pane .chapter-title-field input {
-    font-size: 26px;
+    font-size: 29px;
   }
 }
