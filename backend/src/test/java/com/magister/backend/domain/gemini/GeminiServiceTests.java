@@ -2,12 +2,15 @@ package com.magister.backend.domain.gemini;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.magister.backend.domain.aiquota.AiQuotaExceededException;
+import com.magister.backend.domain.aiquota.AiQuotaService;
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.domain.gemini.service.GeminiService;
 import com.magister.backend.domain.gemini.service.limit.GeminiRateLimiter;
@@ -18,6 +21,7 @@ import com.magister.backend.global.gemini.GeminiClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -96,5 +100,21 @@ class GeminiServiceTests {
                 .thenReturn("차가운 달빛이 검신 위로 흘러내렸다.");
         assertThat(service.generate(1L, new GeminiRequest("린은 검을 뽑았다.", "CONTINUE")).text())
                 .isEqualTo("차가운 달빛이 검신 위로 흘러내렸다.");
+    }
+
+    @Test
+    void enforcesUserAndGlobalDailyAiQuotaBeforeCallingProvider() {
+        GeminiClient client = mock(GeminiClient.class);
+        AiQuotaService quotaService = mock(AiQuotaService.class);
+        GeminiService service =
+                new GeminiService(client, new GeminiRateLimiter(), quotaService);
+
+        doThrow(new AiQuotaExceededException(Instant.now().plusSeconds(3600)))
+                .when(quotaService)
+                .chargeGeminiText(1L);
+
+        assertThatThrownBy(() -> service.generate(1L, new GeminiRequest("hello")))
+                .isInstanceOf(AiQuotaExceededException.class);
+        verify(client, never()).generateText("hello", 1024);
     }
 }

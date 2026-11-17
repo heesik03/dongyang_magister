@@ -28,6 +28,8 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URI;
+
 @ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -80,6 +82,7 @@ class UserAuthenticationTests {
         MvcResult csrfResult =
                 mvc.perform(get("/api/user/csrf")).andExpect(status().isOk()).andReturn();
         MockHttpSession session = (MockHttpSession) csrfResult.getRequest().getSession(false);
+        assertThat(session.getMaxInactiveInterval()).isEqualTo(300);
         String oldId = session.getId();
         String token =
                 json.readTree(csrfResult.getResponse().getContentAsString())
@@ -95,6 +98,7 @@ class UserAuthenticationTests {
                                         "{\"email\":\"WRITER@example.com\",\"password\":\"Password1!\"}"))
                 .andExpect(status().isOk());
         assertThat(session.getId()).isNotEqualTo(oldId);
+        assertThat(session.getMaxInactiveInterval()).isEqualTo(3600);
         mvc.perform(get("/api/user/me").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.email").value("writer@example.com"));
@@ -152,12 +156,26 @@ class UserAuthenticationTests {
                                 .content(
                                         "{\"email\":\"writer@example.com\",\"password\":\"Wrong1!xx\"}"))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(
+                        post(URI.create("/api/user/%6cogin"))
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content(
+                                        "{\"email\":\"writer@example.com\",\"password\":\"Wrong1!xx\"}"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     void documentsSessionEndpoints() throws Exception {
         mvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
+                .andExpect(
+                        header().string(
+                                        "Referrer-Policy",
+                                        "strict-origin-when-cross-origin"))
+                .andExpect(header().exists("Content-Security-Policy"))
                 .andExpect(jsonPath("$.paths['/api/user/logout'].post.summary").value("로그아웃"))
                 .andExpect(
                         jsonPath("$.components.securitySchemes.session.name").value("JSESSIONID"));

@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { Dialog } from '../src/shared/Dialog'
+import { Shell } from '../src/shared/Shell'
 import { WorkPage } from '../src/features/works/WorkPage'
 import { SettingsPanel } from '../src/features/settings/SettingsPanel'
+import { useAuthStore } from '../src/features/auth/useAuthStore'
 import { useWorksStore } from '../src/features/works/useWorksStore'
 import { settingsChanged } from '../src/features/analysis/analysisState'
 import type { Work, Analysis } from '../src/features/works/workTypes'
@@ -176,4 +178,47 @@ test('근거 비교는 설정 정렬·JSON 속성 순서에 영향을 받지 않
   }
   expect(settingsChanged(analysis, [setting])).toBe(false)
   expect(settingsChanged(analysis, [{ ...setting, content: '마법 가능' }])).toBe(true)
+})
+test('모바일 하단 탐색과 입력 포커스 시 키보드 열림 상태 전환 및 작품 노트 열기 동작을 지원한다', () => {
+  useAuthStore.setState({
+    user: { id: 1, name: '작가', email: 'qa@example.com' },
+    loading: false,
+    error: '',
+  })
+  useWorksStore.setState({
+    initialize: vi.fn(),
+    loadShortcuts: vi.fn().mockResolvedValue(undefined),
+    works: [{ ...work, chapters: [{ id: 'c1', title: '1화', content: '본문', revision: 1 }] }],
+    loadedIds: ['1'],
+  })
+  render(
+    <MemoryRouter initialEntries={['/works/1/manuscript']}>
+      <Routes>
+        <Route element={<Shell />}>
+          <Route path="/works/:workId/:tab" element={<WorkPage />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  )
+  const bottomNav = screen.getByRole('navigation', { name: '모바일 주요 탐색' })
+  expect(within(bottomNav).getByRole('link', { name: '내 작품' })).toBeTruthy()
+  expect(within(bottomNav).getByRole('link', { name: '원고 쓰기' })).toBeTruthy()
+  expect(within(bottomNav).getByRole('link', { name: '인물·세계관' })).toBeTruthy()
+  expect(within(bottomNav).getByRole('link', { name: '사건 순서' })).toBeTruthy()
+
+  const notesTrigger = screen.getByRole('button', { name: '작품 노트' })
+  expect(notesTrigger.getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(notesTrigger)
+  expect(notesTrigger.getAttribute('aria-expanded')).toBe('true')
+  expect(
+    screen
+      .getByRole('complementary', { name: '작품 노트' })
+      .classList.contains('manuscript-notes--mobile-open'),
+  ).toBe(true)
+
+  const editor = screen.getByRole('textbox', { name: '회차 원고' })
+  fireEvent.focus(editor)
+  expect(document.querySelector('.app-layout--keyboard-open')).not.toBeNull()
+  fireEvent.blur(editor)
+  expect(document.querySelector('.app-layout--keyboard-open')).toBeNull()
 })

@@ -3,6 +3,7 @@ package com.magister.backend.domain.aiquota;
 import com.magister.backend.domain.aiquota.AiQuotaPolicy.Feature;
 import com.magister.backend.domain.aiquota.AiQuotaPolicy.Period;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -13,17 +14,32 @@ import java.time.Instant;
 
 @Service
 public class AiQuotaService {
+    private static final long GLOBAL_QUOTA_USER_ID = 0L;
+
     private final JdbcTemplate jdbcTemplate;
     private final int characterImageLimit;
+    private final int geminiTextDailyLimit;
+    private final int geminiTextGlobalDailyLimit;
 
+    @Autowired
     public AiQuotaService(
             JdbcTemplate jdbcTemplate,
-            @Value("${character-image.daily-limit:3}") int characterImageLimit) {
-        if (characterImageLimit < 1) {
+            @Value("${character-image.daily-limit:3}") int characterImageLimit,
+            @Value("${gemini.text-daily-limit:50}") int geminiTextDailyLimit,
+            @Value("${gemini.text-global-daily-limit:500}") int geminiTextGlobalDailyLimit) {
+        if (characterImageLimit < 1
+                || geminiTextDailyLimit < 1
+                || geminiTextGlobalDailyLimit < 1) {
             throw new IllegalArgumentException("AI daily limits must be positive");
         }
         this.jdbcTemplate = jdbcTemplate;
         this.characterImageLimit = characterImageLimit;
+        this.geminiTextDailyLimit = geminiTextDailyLimit;
+        this.geminiTextGlobalDailyLimit = geminiTextGlobalDailyLimit;
+    }
+
+    public AiQuotaService(JdbcTemplate jdbcTemplate, int characterImageLimit) {
+        this(jdbcTemplate, characterImageLimit, 50, 500);
     }
 
     /** 새 작업을 저장하는 트랜잭션에서만 호출한다. 재전송 판정은 호출자가 먼저 수행한다. */
@@ -55,6 +71,13 @@ public class AiQuotaService {
         }
     }
 
+    /** 일반 동기 Gemini 텍스트 생성 시 사용자별 일일 한도와 서비스 전체 일일 한도를 함께 차감한다. */
+    @Transactional
+    public void chargeGeminiText(long userId) {
+        charge(userId, Feature.GEMINI_TEXT);
+        charge(GLOBAL_QUOTA_USER_ID, Feature.GEMINI_TEXT_GLOBAL);
+    }
+
     /** 현재 사용량 조회는 집계 행을 생성하거나 잠그지 않는다. */
     @Transactional(readOnly = true)
     public Usage usage(long userId, Feature feature, Instant now) {
@@ -76,6 +99,8 @@ public class AiQuotaService {
     private int limit(Feature feature) {
         return switch (feature) {
             case CHARACTER_IMAGE -> characterImageLimit;
+            case GEMINI_TEXT -> geminiTextDailyLimit;
+            case GEMINI_TEXT_GLOBAL -> geminiTextGlobalDailyLimit;
         };
     }
 

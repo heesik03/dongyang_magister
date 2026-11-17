@@ -8,6 +8,8 @@ group = 'com.magister'
 version = '0.0.1-SNAPSHOT'
 description = 'backend'
 
+ext['tomcat.version'] = '11.0.27'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)

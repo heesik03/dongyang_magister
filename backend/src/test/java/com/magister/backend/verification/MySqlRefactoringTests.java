@@ -25,6 +25,9 @@ import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
+import com.magister.backend.domain.timeline.dto.TimelineData.SaveEventRequest;
+import com.magister.backend.domain.timeline.service.LegacyTimelineEventMigrator;
+import com.magister.backend.domain.timeline.service.TimelineService;
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.error.UserErrorCode;
@@ -62,6 +65,8 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -74,6 +79,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
+import org.junit.jupiter.api.AfterAll;
 
 /** 기존 DB를 대상으로 실행하지 않는다. mysqlTest 태스크와 임시 스키마 이름이 모두 필요하다. */
 @SpringBootTest
@@ -94,6 +101,8 @@ class MySqlRefactoringTests {
     @Autowired WorkRepository works;
     @Autowired WorkSettingRepository settings;
     @Autowired WorkspaceRepository workspaces;
+    @Autowired LegacyTimelineEventMigrator legacyTimelineEventMigrator;
+    @Autowired TimelineService timelineService;
     @Autowired AnalysisJobService jobs;
     @Autowired UserService userService;
     @Autowired TransactionTemplate transaction;
@@ -336,7 +345,7 @@ class MySqlRefactoringTests {
     }
 
     @DynamicPropertySource
-    static void mysqlProperties(DynamicPropertyRegistry registry) throws IOException {
+    static void mysqlProperties(DynamicPropertyRegistry registry) throws Exception {
         String schema = System.getenv("MAGISTER_MYSQL_TEST_SCHEMA");
         if (schema == null || !schema.matches("magister_refactor_[a-f0-9]{12}")) {
             throw new IllegalStateException("An isolated MySQL verification schema is required");
@@ -349,11 +358,50 @@ class MySqlRefactoringTests {
         if (password == null) {
             throw new IllegalStateException("DB_PASSWORD is missing");
         }
+        try (Connection conn =
+                        DriverManager.getConnection("jdbc:mysql://localhost:3306/", "root", password);
+                Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DROP DATABASE IF EXISTS " + schema);
+            stmt.executeUpdate(
+                    "CREATE DATABASE "
+                            + schema
+                            + " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        }
 
         registry.add("spring.datasource.url", () -> "jdbc:mysql://localhost:3306/" + schema);
         registry.add("spring.datasource.driver-class-name", () -> "com.mysql.cj.jdbc.Driver");
         registry.add("spring.datasource.username", () -> "root");
         registry.add("spring.datasource.password", () -> password);
+    }
+
+    @AfterAll
+    static void dropIsolatedSchema() throws Exception {
+        String schema = System.getenv("MAGISTER_MYSQL_TEST_SCHEMA");
+        if (schema == null || !schema.matches("magister_refactor_[a-f0-9]{12}")) {
+            return;
+        }
+        Properties configuration = new Properties();
+        try (Reader reader = Files.newBufferedReader(Path.of(".env"))) {
+            configuration.load(reader);
+        }
+        String password = configuration.getProperty("DB_PASSWORD", System.getenv("DB_PASSWORD"));
+        if (password == null) {
+            return;
+        }
+        Runtime.getRuntime()
+                .addShutdownHook(
+                        new Thread(
+                                () -> {
+                                    try (Connection conn =
+                                                    DriverManager.getConnection(
+                                                            "jdbc:mysql://localhost:3306/",
+                                                            "root",
+                                                            password);
+                                            Statement stmt = conn.createStatement()) {
+                                        stmt.executeUpdate("DROP DATABASE IF EXISTS " + schema);
+                                    } catch (Exception ignored) {
+                                    }
+                                }));
     }
 
     private record Fixture(Long ownerId, Long workId, Long settingId) {
@@ -536,5 +584,102 @@ class MySqlRefactoringTests {
         assertThat(plan).contains("ix_settings_work_kind_id");
         assertThat(plan).contains("rows=21");
         System.out.println("SETTING_CURSOR_EXPLAIN\n" + plan);
+    }
+
+    @Test
+    void legacyWorkspaceJsonEventsMigrateIdempotentlyAndIsolateOtherAccountsOnMySql() {
+        Fixture fixture = fixture(null);
+        User otherUser =
+                users.saveAndFlush(
+                        new User(UUID.randomUUID() + "@example.com", "otherAuthor", "hash"));
+        transaction.executeWithoutResult(
+                status -> {
+                    Workspace workspace = workspaces.findById(fixture.workId()).orElseThrow();
+                    List<WorkspaceData.EventData> legacyEvents =
+                            List.of(
+                                    new WorkspaceData.EventData(
+                                            "ev-2",
+                                            "두 번째 사건",
+                                            "둘째 날",
+                                            "주인공",
+                                            "c1",
+                                            "text",
+                                            "설명 2",
+                                            1,
+                                            "CONFIRMED",
+                                            1L,
+                                            0,
+                                            4,
+                                            null),
+                                    new WorkspaceData.EventData(
+                                            "ev-1",
+                                            "첫 번째 사건",
+                                            "첫날",
+                                            "주인공",
+                                            "c1",
+                                            "text",
+                                            "설명 1",
+                                            0,
+                                            "CONFIRMED",
+                                            1L,
+                                            0,
+                                            4,
+                                            null),
+                                    new WorkspaceData.EventData(
+                                            "ev-pending",
+                                            "미확정 사건",
+                                            "",
+                                            "주인공",
+                                            "c1",
+                                            "",
+                                            "시점 미확정",
+                                            2,
+                                            "UNRESOLVED",
+                                            null,
+                                            null,
+                                            null,
+                                            null));
+                    workspace.clearLegacyEvents(
+                            json.writeValueAsString(
+                                    new WorkspaceData(List.of(), List.of(), legacyEvents)));
+                    workspaces.saveAndFlush(workspace);
+                });
+
+        assertThat(legacyTimelineEventMigrator.migrateWorkEvents(fixture.workId())).isTrue();
+        List<WorkspaceData.EventData> events =
+                timelineService.list(fixture.ownerId(), fixture.workId());
+        assertThat(events)
+                .extracting(WorkspaceData.EventData::id)
+                .containsExactly("ev-1", "ev-2", "ev-pending");
+        assertThat(events.get(2).timeStatus()).isEqualTo("UNRESOLVED");
+
+        // 타 계정에서는 해당 작품의 타임라인 조회·수정이 차단된다.
+        assertThatThrownBy(() -> timelineService.list(otherUser.getId(), fixture.workId()))
+                .isInstanceOf(CustomException.class);
+
+        // 사건 수정 후 재실행해도 중복 생성이나 수정 내용 덮어쓰기가 발생하지 않는다.
+        timelineService.update(
+                fixture.ownerId(),
+                fixture.workId(),
+                "ev-1",
+                new SaveEventRequest(
+                        "ev-1",
+                        "수정된 첫 사건",
+                        "설명 1",
+                        "첫날 아침",
+                        "주인공",
+                        "c1",
+                        "text",
+                        0,
+                        "CONFIRMED",
+                        1L,
+                        0,
+                        4,
+                        null));
+        assertThat(legacyTimelineEventMigrator.migrateWorkEvents(fixture.workId())).isFalse();
+        List<WorkspaceData.EventData> afterRemigrate =
+                timelineService.list(fixture.ownerId(), fixture.workId());
+        assertThat(afterRemigrate).hasSize(3);
+        assertThat(afterRemigrate.get(0).title()).isEqualTo("수정된 첫 사건");
     }
 }

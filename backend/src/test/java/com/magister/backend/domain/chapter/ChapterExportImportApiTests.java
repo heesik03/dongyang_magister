@@ -1,6 +1,10 @@
 package com.magister.backend.domain.chapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -10,11 +14,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.magister.backend.domain.analysis.service.AnalysisDispatcher;
+import com.magister.backend.domain.chapter.converter.ChapterConverter;
+import com.magister.backend.domain.chapter.dto.ExportFormat;
+import com.magister.backend.domain.chapter.dto.ParsedManuscript;
+import com.magister.backend.domain.chapter.repository.ChapterRepository;
+import com.magister.backend.domain.chapter.service.ChapterService;
+import com.magister.backend.domain.chapter.service.ManuscriptImportService;
+import com.magister.backend.domain.chapter.service.support.ManuscriptDocxSupport;
+import com.magister.backend.domain.chapter.service.support.ManuscriptPdfSupport;
+import com.magister.backend.domain.chapter.service.support.ManuscriptTextFormatter;
 import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.repository.WorkRepository;
+import com.magister.backend.domain.work.service.WorkAccessService;
+import com.magister.backend.global.error.exception.CustomException;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -42,6 +57,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -465,5 +481,36 @@ class ChapterExportImportApiTests {
                                 .with(csrf()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MANUSCRIPT_TOO_LONG"));
+    }
+
+    @Test
+    void enforcesConcurrentParseLimitAndTimeoutOnManuscriptImport() {
+        ManuscriptTextFormatter formatter = mock(ManuscriptTextFormatter.class);
+        when(formatter.deriveChapterTitleFromFilename(any())).thenReturn("1화");
+        when(formatter.parseTextBytes(any(), any(), any()))
+                .thenAnswer(
+                        invocation -> {
+                            Thread.sleep(300);
+                            return new ParsedManuscript("", "", "1화", "내용", ExportFormat.TXT);
+                        });
+
+        ManuscriptImportService slowService =
+                new ManuscriptImportService(
+                        mock(WorkAccessService.class),
+                        mock(ChapterRepository.class),
+                        mock(ChapterService.class),
+                        new ChapterConverter(),
+                        formatter,
+                        mock(ManuscriptPdfSupport.class),
+                        mock(ManuscriptDocxSupport.class),
+                        1,
+                        Duration.ofMillis(50));
+
+        MockMultipartFile validTxt =
+                new MockMultipartFile(
+                        "file", "draft.txt", "text/plain", "내용".getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> slowService.parse(1L, 1L, validTxt))
+                .isInstanceOf(CustomException.class);
     }
 }

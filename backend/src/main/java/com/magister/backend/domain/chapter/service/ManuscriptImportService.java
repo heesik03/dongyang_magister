@@ -18,23 +18,34 @@ import com.magister.backend.domain.work.service.WorkAccessService;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 
-import lombok.RequiredArgsConstructor;
-
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
 @Service
-@RequiredArgsConstructor
 public class ManuscriptImportService {
     private static final int MAX_CONTENT_LENGTH = 200_000;
     private static final int MAX_TITLE_LENGTH = 100;
     private static final int MAX_KEY_LENGTH = 64;
+    private static final long MAX_IMPORT_BYTES = 8L * 1024L * 1024L;
     private static final Pattern CHAPTER_KEY_PATTERN = Pattern.compile("[A-Za-z0-9_-]+");
+    private static final ExecutorService PARSE_EXECUTOR =
+            Executors.newThreadPerTaskExecutor(
+                    Thread.ofVirtual().name("manuscript-parse-", 0).factory());
 
     private final WorkAccessService workAccessService;
     private final ChapterRepository chapterRepository;
@@ -43,6 +54,53 @@ public class ManuscriptImportService {
     private final ManuscriptTextFormatter textFormatter;
     private final ManuscriptPdfSupport pdfSupport;
     private final ManuscriptDocxSupport docxSupport;
+    private final Semaphore parseSlots;
+    private final Duration parseTimeout;
+
+    @Autowired
+    public ManuscriptImportService(
+            WorkAccessService workAccessService,
+            ChapterRepository chapterRepository,
+            ChapterService chapterService,
+            ChapterConverter chapterConverter,
+            ManuscriptTextFormatter textFormatter,
+            ManuscriptPdfSupport pdfSupport,
+            ManuscriptDocxSupport docxSupport,
+            @Value("${manuscript.import.max-concurrent-parses:2}") int maxConcurrentParses,
+            @Value("${manuscript.import.parse-timeout:10s}") Duration parseTimeout) {
+        this.workAccessService = workAccessService;
+        this.chapterRepository = chapterRepository;
+        this.chapterService = chapterService;
+        this.chapterConverter = chapterConverter;
+        this.textFormatter = textFormatter;
+        this.pdfSupport = pdfSupport;
+        this.docxSupport = docxSupport;
+        this.parseSlots = new Semaphore(Math.max(1, maxConcurrentParses));
+        this.parseTimeout =
+                (parseTimeout == null || parseTimeout.isNegative() || parseTimeout.isZero())
+                        ? Duration.ofSeconds(10)
+                        : parseTimeout;
+    }
+
+    public ManuscriptImportService(
+            WorkAccessService workAccessService,
+            ChapterRepository chapterRepository,
+            ChapterService chapterService,
+            ChapterConverter chapterConverter,
+            ManuscriptTextFormatter textFormatter,
+            ManuscriptPdfSupport pdfSupport,
+            ManuscriptDocxSupport docxSupport) {
+        this(
+                workAccessService,
+                chapterRepository,
+                chapterService,
+                chapterConverter,
+                textFormatter,
+                pdfSupport,
+                docxSupport,
+                2,
+                Duration.ofSeconds(10));
+    }
 
     /**
      * 업로드된 파일(txt, md, pdf, docx)에서 원고 본문과 메타데이터를 추출하여 반환한다.
@@ -116,6 +174,9 @@ public class ManuscriptImportService {
         if (file == null || file.isEmpty()) {
             throw new CustomException(ChapterErrorCode.EMPTY_IMPORT_FILE);
         }
+        if (file.getSize() > MAX_IMPORT_BYTES) {
+            throw new CustomException(ChapterErrorCode.INVALID_MANUSCRIPT_FILE);
+        }
         ExportFormat format =
                 ExportFormat.fromUpload(file.getOriginalFilename(), file.getContentType());
         String fallbackTitle =
@@ -130,19 +191,56 @@ public class ManuscriptImportService {
         if (rawBytes.length == 0) {
             throw new CustomException(ChapterErrorCode.EMPTY_IMPORT_FILE);
         }
+        if (rawBytes.length > MAX_IMPORT_BYTES) {
+            throw new CustomException(ChapterErrorCode.INVALID_MANUSCRIPT_FILE);
+        }
 
-        ParsedManuscript parsed =
-                switch (format) {
-                    case TXT, MD ->
-                            textFormatter.parseTextBytes(rawBytes, format, fallbackTitle);
-                    case PDF -> pdfSupport.parsePdfBytes(rawBytes, fallbackTitle);
-                    case DOCX -> docxSupport.parseDocxBytes(rawBytes, fallbackTitle);
-                };
+        ParsedManuscript parsed = parseWithLimits(format, rawBytes, fallbackTitle);
 
         if (parsed.content().length() > MAX_CONTENT_LENGTH) {
             throw new CustomException(ChapterErrorCode.MANUSCRIPT_TOO_LONG);
         }
         return parsed;
+    }
+
+    private ParsedManuscript parseWithLimits(
+            ExportFormat format, byte[] rawBytes, String fallbackTitle) {
+        if (!parseSlots.tryAcquire()) {
+            throw new CustomException(CommonErrorCode.TOO_MANY_REQUESTS);
+        }
+        try {
+            CompletableFuture<ParsedManuscript> task =
+                    CompletableFuture.supplyAsync(
+                            () ->
+                                    switch (format) {
+                                        case TXT, MD ->
+                                                textFormatter.parseTextBytes(
+                                                        rawBytes, format, fallbackTitle);
+                                        case PDF ->
+                                                pdfSupport.parsePdfBytes(rawBytes, fallbackTitle);
+                                        case DOCX ->
+                                                docxSupport.parseDocxBytes(rawBytes, fallbackTitle);
+                                    },
+                            PARSE_EXECUTOR);
+            try {
+                return task.get(parseTimeout.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (TimeoutException timeoutException) {
+                task.cancel(true);
+                throw new CustomException(ChapterErrorCode.INVALID_MANUSCRIPT_FILE);
+            } catch (InterruptedException interruptedException) {
+                task.cancel(true);
+                Thread.currentThread().interrupt();
+                throw new CustomException(ChapterErrorCode.INVALID_MANUSCRIPT_FILE);
+            } catch (ExecutionException executionException) {
+                Throwable cause = executionException.getCause();
+                if (cause instanceof CustomException customException) {
+                    throw customException;
+                }
+                throw new CustomException(ChapterErrorCode.INVALID_MANUSCRIPT_FILE);
+            }
+        } finally {
+            parseSlots.release();
+        }
     }
 
     private String resolveChapterKey(String requestedId) {

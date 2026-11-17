@@ -57,4 +57,9 @@ public class Workspace {
         revision++;
         updatedAt = Instant.now();
     }
+
+    /** 작업공간 revision과 mutationId를 유지한 채 구형 JSON의 사건 배열만 정리한다. */
+    public void clearLegacyEvents(String content) {
+        this.content = content;
+    }
 }

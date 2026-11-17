@@ -101,11 +101,17 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
         </nav>
       </header>
       <section className="auth-form-wrap">
-        <h1 className="auth-page-title">{signup ? '회원가입' : '로그인'}</h1>
         <form className="auth-form" onSubmit={submit} key={signup ? 'signup' : 'login'}>
+          <div className="auth-page-header">
+            <h1 className="auth-page-title">{signup ? '회원가입' : '로그인'}</h1>
+            <p className="small muted">
+              {signup
+                ? '이메일과 필명을 입력해 새 작가 계정을 만듭니다.'
+                : '가입한 이메일과 비밀번호로 편집실에 로그인합니다.'}
+            </p>
+          </div>
           <div className="auth-form-heading">
             <h2>{signup ? '계정 정보' : '이메일로 로그인'}</h2>
-            {signup && <p className="muted">이메일과 필명을 입력해 계정을 만듭니다.</p>}
           </div>
           {!signup && location.state?.registered && (
             <div role="status" className="signup-success">

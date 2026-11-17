@@ -4,16 +4,17 @@ import com.magister.backend.domain.user.converter.UserConverter;
 import com.magister.backend.domain.user.dto.LoginRequest;
 import com.magister.backend.domain.user.dto.UserResponse;
 import com.magister.backend.domain.user.error.UserErrorCode;
+import com.magister.backend.domain.user.security.AuthRequestLimiter.Permit;
 import com.magister.backend.domain.user.service.support.EmailNormalizer;
 import com.magister.backend.global.error.exception.CustomException;
+import com.magister.backend.global.security.AuthRateLimitFilter;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
-import lombok.RequiredArgsConstructor;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -27,16 +28,37 @@ import org.springframework.stereotype.Service;
 import java.io.Serializable;
 
 @Service
-@RequiredArgsConstructor
 public class SessionAuthenticationService {
+    private static final int AUTHENTICATED_SESSION_TIMEOUT_SECONDS = 3600;
+
     private final AuthenticationManager authenticationManager;
     private final HttpSessionSecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
+    private final AuthRequestLimiter authRequestLimiter;
+
+    @Autowired
+    public SessionAuthenticationService(
+            AuthenticationManager authenticationManager,
+            HttpSessionSecurityContextRepository securityContextRepository,
+            SessionAuthenticationStrategy sessionAuthenticationStrategy,
+            AuthRequestLimiter authRequestLimiter) {
+        this.authenticationManager = authenticationManager;
+        this.securityContextRepository = securityContextRepository;
+        this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
+        this.authRequestLimiter = authRequestLimiter;
+    }
+
+    public SessionAuthenticationService(
+            AuthenticationManager authenticationManager,
+            HttpSessionSecurityContextRepository securityContextRepository,
+            SessionAuthenticationStrategy sessionAuthenticationStrategy) {
+        this(authenticationManager, securityContextRepository, sessionAuthenticationStrategy, null);
+    }
 
     /** 인증 결과의 프로필로 세션을 만들고 세션 ID·CSRF 토큰을 함께 회전한다. */
     public UserResponse login(
             LoginRequest input, HttpServletRequest request, HttpServletResponse response) {
-        Authentication authenticated = authenticate(input);
+        Authentication authenticated = authenticate(input, request);
         if (!(authenticated.getPrincipal() instanceof AccountPrincipal account)) {
             throw new CustomException(UserErrorCode.INVALID_CREDENTIALS);
         }
@@ -56,6 +78,10 @@ public class SessionAuthenticationService {
         SecurityContextHolder.setContext(context);
         // 현재 요청의 ThreadLocal 설정만으로는 다음 요청에 인증이 복원되지 않는다.
         securityContextRepository.saveContext(context, request, response);
+        HttpSession authenticatedSession = request.getSession(false);
+        if (authenticatedSession != null) {
+            authenticatedSession.setMaxInactiveInterval(AUTHENTICATED_SESSION_TIMEOUT_SECONDS);
+        }
         return UserConverter.toResponse(principal);
     }
 
@@ -80,11 +106,19 @@ public class SessionAuthenticationService {
 
     record SessionSecurityVersion(long value) implements Serializable {}
 
-    private Authentication authenticate(LoginRequest input) {
-        try {
+    private Authentication authenticate(LoginRequest input, HttpServletRequest request) {
+        String normalizedEmail = EmailNormalizer.normalize(input.email());
+        if (authRequestLimiter != null) {
+            authRequestLimiter.recordLoginAccountAttempt(normalizedEmail);
+        }
+        Permit directHashingPermit =
+                (authRequestLimiter != null && !AuthRateLimitFilter.hasActivePermit(request))
+                        ? authRequestLimiter.acquireHashingSlot()
+                        : null;
+        try (directHashingPermit) {
             return authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(
-                            EmailNormalizer.normalize(input.email()), input.password()));
+                            normalizedEmail, input.password()));
         } catch (AuthenticationException exception) {
             // 계정 존재 여부가 로그인 실패 메시지로 드러나지 않게 통일한다.
             throw new CustomException(UserErrorCode.INVALID_CREDENTIALS);

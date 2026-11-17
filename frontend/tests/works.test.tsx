@@ -504,3 +504,43 @@ test('삭제 충돌은 초안을 보존하고 성공 뒤 지연 목록이 작품
   expect(sessionStorage.getItem('magister.recovery:writer@example.com:1')).toBeNull()
   expect(useWorksStore.getState().listedIds).toEqual([])
 })
+
+test('복구본은 미저장 변경분만 저장하고 로그아웃 시 정리된다', async () => {
+  savedChapters = [
+    {
+      id: 'c1',
+      title: '1화',
+      content: '저장된 1화 원고',
+      revision: 1,
+      version: 0,
+      chapterNo: 1,
+      updatedAt: remote.updatedAt,
+      workVersion: 1,
+    },
+    {
+      id: 'c2',
+      title: '2화',
+      content: '저장된 2화 원고',
+      revision: 1,
+      version: 0,
+      chapterNo: 2,
+      updatedAt: remote.updatedAt,
+      workVersion: 1,
+    },
+  ]
+  await useWorksStore.getState().loadWork('1')
+  const current = useWorksStore.getState().works[0]
+  useWorksStore.getState().updateWork({
+    ...current,
+    chapters: current.chapters.map((chapter) =>
+      chapter.id === 'c2' ? { ...chapter, content: '미저장 2화 초안' } : chapter,
+    ),
+  })
+  const rawRecovery = sessionStorage.getItem('magister.recovery:writer@example.com:1')
+  expect(rawRecovery).not.toBeNull()
+  expect(rawRecovery).toContain('미저장 2화 초안')
+  expect(rawRecovery).not.toContain('저장된 1화 원고')
+
+  useWorksStore.getState().clearAccountRecovery('writer@example.com')
+  expect(sessionStorage.getItem('magister.recovery:writer@example.com:1')).toBeNull()
+})

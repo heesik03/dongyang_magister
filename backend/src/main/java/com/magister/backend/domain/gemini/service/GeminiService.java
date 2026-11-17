@@ -1,5 +1,6 @@
 package com.magister.backend.domain.gemini.service;
 
+import com.magister.backend.domain.aiquota.AiQuotaService;
 import com.magister.backend.domain.gemini.converter.GeminiConverter;
 import com.magister.backend.domain.gemini.dto.GeminiRequest;
 import com.magister.backend.domain.gemini.dto.GeminiResponse;
@@ -7,20 +8,36 @@ import com.magister.backend.domain.gemini.service.limit.GeminiRateLimiter;
 import com.magister.backend.domain.gemini.service.limit.GeminiRateLimiter.Reservation;
 import com.magister.backend.global.gemini.GeminiClient;
 
-import lombok.RequiredArgsConstructor;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 public class GeminiService {
     private final GeminiClient geminiClient;
     private final GeminiRateLimiter rateLimiter;
+    private final AiQuotaService aiQuotaService;
+
+    @Autowired
+    public GeminiService(
+            GeminiClient geminiClient,
+            GeminiRateLimiter rateLimiter,
+            AiQuotaService aiQuotaService) {
+        this.geminiClient = geminiClient;
+        this.rateLimiter = rateLimiter;
+        this.aiQuotaService = aiQuotaService;
+    }
+
+    public GeminiService(GeminiClient geminiClient, GeminiRateLimiter rateLimiter) {
+        this(geminiClient, rateLimiter, null);
+    }
 
     /** 인증된 ID를 명시적으로 받아 SecurityContext와 비동기 스레드의 결합을 제거한다. */
     public GeminiResponse generate(Long ownerId, GeminiRequest request) {
         String effectivePrompt = formatWritingPrompt(request);
         try (Reservation reservation = rateLimiter.reserve(ownerId)) {
+            if (aiQuotaService != null) {
+                aiQuotaService.chargeGeminiText(ownerId);
+            }
             return GeminiConverter.toResponse(geminiClient.generateText(effectivePrompt, 1024));
         }
     }

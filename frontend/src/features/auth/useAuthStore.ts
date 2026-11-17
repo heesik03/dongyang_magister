@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { authClient } from './authClient'
 import { ApiError } from '../../shared/httpClient'
+import { useWorksStore } from '../works/useWorksStore'
 import type { User } from './authTypes'
 
 interface AuthState {
@@ -42,8 +43,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user, loading: false, error: '' })
   },
   async logout() {
+    const email = get().user?.email
     try {
       await authClient.logout()
+      useWorksStore.getState().clearAccountRecovery(email)
+      useWorksStore.getState().reset()
       get().expire()
     } catch {
       set({ error: '로그아웃하지 못했습니다. 다시 시도해 주세요.' })

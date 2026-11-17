@@ -11,7 +11,9 @@ public final class AiQuotaPolicy {
     private AiQuotaPolicy() {}
 
     public enum Feature {
-        CHARACTER_IMAGE
+        CHARACTER_IMAGE,
+        GEMINI_TEXT,
+        GEMINI_TEXT_GLOBAL
     }
 
     public record Period(LocalDate start, Instant resetAt) {}
