@@ -142,6 +142,7 @@ export function MyPage() {
         newPassword,
         confirmPassword,
       })
+      useWorksStore.getState().clearAccountRecovery(user.email)
       useWorksStore.getState().reset()
       useAuthStore.getState().expire()
       navigate('/login', { replace: true })

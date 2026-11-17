@@ -3,6 +3,7 @@ import { isRecord } from '../../shared/responseReader'
 import { workClient } from './workClient'
 import { ApiError } from '../../shared/httpClient'
 import { useWorksStore } from './useWorksStore'
+import { useAuthStore } from '../auth/useAuthStore'
 let providerGeneration = 0
 export function WorksProvider({ email, children }: { email: string; children: ReactNode }) {
   const account = useWorksStore((state) => state.account)
@@ -14,14 +15,7 @@ export function WorksProvider({ email, children }: { email: string; children: Re
       const state = useWorksStore.getState()
       const tasks: Promise<void>[] = []
       for (const id of state.dirtyIds) {
-        const work = state.works.find((item) => item.id === id)
-        try {
-          sessionStorage.setItem('magister.recovery:' + email + ':' + id, JSON.stringify(work))
-        } catch {
-          useWorksStore.setState({
-            storageError: '복구 정보 저장에 실패했습니다. 입력을 파일로 보관해 주세요.',
-          })
-        }
+        state.persistRecovery(id)
         tasks.push(state.flushWorkspace(id))
       }
       state.retrySave()
@@ -88,6 +82,14 @@ export function WorksProvider({ email, children }: { email: string; children: Re
       window.removeEventListener('pagehide', preserve)
       window.removeEventListener('beforeunload', leave)
       window.removeEventListener('storage', remote)
+      if (useAuthStore.getState().user?.email !== email) {
+        // 로그아웃·계정 전환으로 언마운트될 때는 공유 브라우저에 미저장 복구본을 새로 남기지 않는다.
+        useWorksStore.getState().clearAccountRecovery(email)
+        if (generation === providerGeneration && useWorksStore.getState().account === email) {
+          useWorksStore.getState().reset()
+        }
+        return
+      }
       void preserve().finally(() => {
         if (generation === providerGeneration && useWorksStore.getState().account === email) {
           useWorksStore.getState().reset()

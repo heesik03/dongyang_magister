@@ -64,6 +64,8 @@ interface WorksState {
   resolveChapterConflict: (id: string, server: SavedChapter) => void
   acceptImportedChapter: (id: string, server: SavedChapter) => void
   recoverDraft: (id: string) => void
+  persistRecovery: (id: string) => boolean
+  clearAccountRecovery: (email?: string | null) => void
 }
 const emptyView: SettingView = {
   workId: '',
@@ -122,6 +124,28 @@ function pendingChapters(work: Work) {
   return work.chapters.filter(
     (chapter) => chapterSnapshots.get(work.id)?.get(chapter.id) !== chapterSignature(chapter),
   )
+}
+function serializeRecovery(work: Work) {
+  return JSON.stringify({
+    ...work,
+    settings: [],
+    chapters: pendingChapters(work),
+    analyses: workspaceDirty.has(work.id) ? work.analyses : [],
+    events: [],
+  })
+}
+function removeAccountSessionRecovery(email: string | null | undefined) {
+  if (!email) return
+  const recoveryPrefix = 'magister.recovery:' + email + ':'
+  const decisionPrefix = 'magister.decision-draft.v1:' + encodeURIComponent(email) + ':'
+  const keys = Array.from({ length: sessionStorage.length }, (_, index) =>
+    sessionStorage.key(index),
+  )
+  for (const key of keys) {
+    if (key && (key.startsWith(recoveryPrefix) || key.startsWith(decisionPrefix))) {
+      sessionStorage.removeItem(key)
+    }
+  }
 }
 const message = (error: unknown) =>
   error instanceof Error ? error.message : '요청에 실패했습니다. 다시 시도해 주세요.'
@@ -541,7 +565,7 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       try {
         sessionStorage.setItem(
           'magister.recovery:' + get().account + ':' + next.id,
-          JSON.stringify(next),
+          serializeRecovery(next),
         )
       } catch {
         set({ storageError: '복구 정보 저장에 실패했습니다. 입력을 파일로 보관해 주세요.' })
@@ -675,11 +699,12 @@ export const useWorksStore = create<WorksState>((set, get) => ({
         const unchanged = current && !pendingChapters(current).length && !workspaceDirty.has(id)
         if (unchanged) set({ dirtyIds: get().dirtyIds.filter((key) => key !== id) })
         try {
-          if (unchanged) sessionStorage.removeItem('magister.recovery:' + account + ':' + id)
+          if (unchanged || !current)
+            sessionStorage.removeItem('magister.recovery:' + account + ':' + id)
           else
             sessionStorage.setItem(
               'magister.recovery:' + account + ':' + id,
-              JSON.stringify(current),
+              serializeRecovery(current),
             )
         } catch {
           set({
@@ -689,10 +714,13 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       } catch (error) {
         if (revision !== accountRevision || deletedWorkIds.has(id)) return
         try {
-          sessionStorage.setItem(
-            'magister.recovery:' + account + ':' + id,
-            JSON.stringify(get().works.find((item) => item.id === id)),
-          )
+          const failedWork = get().works.find((item) => item.id === id)
+          if (failedWork) {
+            sessionStorage.setItem(
+              'magister.recovery:' + account + ':' + id,
+              serializeRecovery(failedWork),
+            )
+          }
         } catch {
           set({ storageError: '복구 파일을 내려받아 입력을 보존해 주세요.' })
         }
@@ -940,7 +968,19 @@ export const useWorksStore = create<WorksState>((set, get) => ({
             item.id === id ? { ...item, workspaceVersion: base } : item,
           ),
         })
-        get().updateWork({ ...work, ...contentOf(draft) })
+        const draftChapterMap = new Map(draft.chapters.map((chapter) => [chapter.id, chapter]))
+        const mergedChapters = [
+          ...work.chapters.map((chapter) => draftChapterMap.get(chapter.id) ?? chapter),
+          ...draft.chapters.filter(
+            (chapter) => !work.chapters.some((existing) => existing.id === chapter.id),
+          ),
+        ]
+        get().updateWork({
+          ...work,
+          chapters: mergedChapters,
+          analyses: draft.analyses.length > 0 ? draft.analyses : work.analyses,
+          events: draft.events.length > 0 ? draft.events : work.events,
+        })
         if (base !== (work.workspaceVersion ?? 0))
           get().handleRemoteSave(id, work.workspaceVersion ?? 0)
         return
@@ -994,6 +1034,37 @@ export const useWorksStore = create<WorksState>((set, get) => ({
       })
     } catch {
       set({ storageError: '브라우저 저장에 실패했습니다. 입력은 화면에 유지됩니다.' })
+    }
+  },
+  persistRecovery(id) {
+    const state = get()
+    const work = state.works.find((item) => item.id === id)
+    if (!work || !state.account) return false
+    const pending = pendingChapters(work)
+    if (!pending.length && !workspaceDirty.has(id)) {
+      try {
+        sessionStorage.removeItem('magister.recovery:' + state.account + ':' + id)
+      } catch {
+        /* ignore */
+      }
+      return false
+    }
+    try {
+      sessionStorage.setItem(
+        'magister.recovery:' + state.account + ':' + id,
+        serializeRecovery(work),
+      )
+      return true
+    } catch {
+      set({ storageError: '복구 정보 저장에 실패했습니다. 입력을 파일로 보관해 주세요.' })
+      return false
+    }
+  },
+  clearAccountRecovery(email = get().account) {
+    try {
+      removeAccountSessionRecovery(email)
+    } catch {
+      /* 브라우저 저장소가 비활성화된 환경에서도 세션 종료는 계속 진행한다. */
     }
   },
 }))
