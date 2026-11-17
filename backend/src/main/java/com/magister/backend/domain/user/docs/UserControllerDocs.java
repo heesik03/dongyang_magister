@@ -179,12 +179,13 @@ public interface UserControllerDocs {
                     로그인과 CSRF 헤더 없이 조회할 수 있습니다.
                     """)
     @ApiResponses({
+        @ApiResponse(responseCode = "429", description = "CSRF 조회 빈도 한도 초과"),
         @ApiResponse(
                 responseCode = "200",
                 description = "현재 세션에서 사용할 CSRF 토큰 조회 성공",
                 useReturnTypeSchema = true)
     })
-    ApiResult<CsrfResponse> csrf(CsrfToken token);
+    ApiResult<CsrfResponse> csrf(CsrfToken token, HttpServletRequest request);
 
     @Operation(
             summary = "이메일 로그인",

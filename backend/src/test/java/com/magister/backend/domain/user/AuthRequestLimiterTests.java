@@ -8,6 +8,7 @@ import com.magister.backend.domain.user.security.AuthRequestLimiter.Permit;
 import com.magister.backend.global.config.AuthRateLimitProperties;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.security.AuthRateLimitFilter;
+import com.magister.backend.global.security.RequestSizeFilter;
 
 import jakarta.servlet.ServletException;
 
@@ -129,6 +130,38 @@ class AuthRequestLimiterTests {
         limiter.recordLoginAccountAttempt("writer@example.com");
         assertThatThrownBy(() -> limiter.recordLoginAccountAttempt("WRITER@EXAMPLE.COM"))
                 .isInstanceOf(CustomException.class);
+    }
+
+    @Test
+    void enforcesRequestSizeAndCsrfRateLimitsRegardlessOfPathEncoding() throws Exception {
+        RequestSizeFilter sizeFilter = new RequestSizeFilter(JsonMapper.builder().build());
+        MockHttpServletRequest encodedOversized =
+                new MockHttpServletRequest("POST", "/%61pi/work");
+        encodedOversized.setContentType("application/json");
+        encodedOversized.setContent(new byte[8 * 1024 * 1024 + 1]);
+        MockHttpServletResponse sizeResponse = new MockHttpServletResponse();
+
+        sizeFilter.doFilter(encodedOversized, sizeResponse, (req, res) -> {});
+        assertThat(sizeResponse.getStatus()).isEqualTo(413);
+
+        AuthRateLimitProperties properties = new AuthRateLimitProperties();
+        properties.setCsrfRequests(1);
+        AuthRateLimitFilter rateFilter =
+                new AuthRateLimitFilter(
+                        new AuthRequestLimiter(properties), JsonMapper.builder().build());
+
+        MockHttpServletRequest csrfFirst = new MockHttpServletRequest("GET", "/api/user/csrf");
+        csrfFirst.setRemoteAddr("10.0.0.2");
+        MockHttpServletResponse firstRes = new MockHttpServletResponse();
+        rateFilter.doFilter(csrfFirst, firstRes, (req, res) -> {});
+        assertThat(firstRes.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest csrfEncodedSecond =
+                new MockHttpServletRequest("GET", "/%61pi/user/%63srf");
+        csrfEncodedSecond.setRemoteAddr("10.0.0.2");
+        MockHttpServletResponse secondRes = new MockHttpServletResponse();
+        rateFilter.doFilter(csrfEncodedSecond, secondRes, (req, res) -> {});
+        assertThat(secondRes.getStatus()).isEqualTo(429);
     }
 
     @Test

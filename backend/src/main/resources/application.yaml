@@ -49,8 +49,10 @@ auth:
   rate-limit:
     window: 1m
     login-attempts: 20
+    login-account-attempts: 20
     signup-attempts: 20
     email-checks: 60
+    csrf-requests: 60
     concurrent-hashes: 4
     max-tracked-clients: 10000
 
@@ -68,6 +70,11 @@ springdoc:
 
 server:
   address: 127.0.0.1
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
+  tomcat:
+    max-http-form-post-size: 8MB
+    max-swallow-size: 8MB
+    connection-timeout: 15s
 
   servlet:
     session:

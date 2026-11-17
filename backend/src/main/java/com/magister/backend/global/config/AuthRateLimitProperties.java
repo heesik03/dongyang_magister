@@ -31,6 +31,9 @@ public class AuthRateLimitProperties {
     private int emailChecks = 60;
 
     @Min(1)
+    private int csrfRequests = 60;
+
+    @Min(1)
     private int maxTrackedClients = 10_000;
 
     @Min(1)

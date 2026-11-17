@@ -29,6 +29,8 @@ import java.io.Serializable;
 
 @Service
 public class SessionAuthenticationService {
+    private static final int AUTHENTICATED_SESSION_TIMEOUT_SECONDS = 3600;
+
     private final AuthenticationManager authenticationManager;
     private final HttpSessionSecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
@@ -76,6 +78,10 @@ public class SessionAuthenticationService {
         SecurityContextHolder.setContext(context);
         // 현재 요청의 ThreadLocal 설정만으로는 다음 요청에 인증이 복원되지 않는다.
         securityContextRepository.saveContext(context, request, response);
+        HttpSession authenticatedSession = request.getSession(false);
+        if (authenticatedSession != null) {
+            authenticatedSession.setMaxInactiveInterval(AUTHENTICATED_SESSION_TIMEOUT_SECONDS);
+        }
         return UserConverter.toResponse(principal);
     }
 

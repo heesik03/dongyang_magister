@@ -73,7 +73,11 @@ public class AuthRequestLimiter {
     }
 
     public boolean appliesTo(String method, String path) {
-        return "POST".equalsIgnoreCase(method) && limit(normalizePath(path)) > 0;
+        String normalizedPath = normalizePath(path);
+        if ("GET".equalsIgnoreCase(method) && normalizedPath.equals("/api/user/csrf")) {
+            return properties.getCsrfRequests() > 0;
+        }
+        return "POST".equalsIgnoreCase(method) && limit(normalizedPath) > 0;
     }
 
     /** 신뢰되지 않은 X-Forwarded-For 대신 서버가 확인한 remoteAddr를 사용한다. */
@@ -83,7 +87,8 @@ public class AuthRequestLimiter {
 
     public Permit reserve(String path, String remoteAddress) {
         String normalizedPath = normalizePath(path);
-        boolean hashing = !normalizedPath.equals("/api/user/email/check");
+        boolean hashing =
+                normalizedPath.equals("/api/user/login") || normalizedPath.equals("/api/user");
         if (hashing) {
             Permit hashingPermit = acquireHashingSlot();
             boolean recorded = false;
@@ -166,6 +171,7 @@ public class AuthRequestLimiter {
             case "/api/user/login" -> properties.getLoginAttempts();
             case "/api/user" -> properties.getSignupAttempts();
             case "/api/user/email/check" -> properties.getEmailChecks();
+            case "/api/user/csrf" -> properties.getCsrfRequests();
             default -> 0;
         };
     }

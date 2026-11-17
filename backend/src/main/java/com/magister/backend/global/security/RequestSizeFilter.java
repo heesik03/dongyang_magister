@@ -1,5 +1,6 @@
 package com.magister.backend.global.security;
 
+import com.magister.backend.domain.user.security.AuthRequestLimiter;
 import com.magister.backend.global.error.code.FrameworkErrorCode;
 import com.magister.backend.global.response.HttpResponseWriter;
 
@@ -24,6 +25,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
@@ -39,8 +41,13 @@ public class RequestSizeFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        if (!request.getRequestURI().startsWith("/api/")
-                || (!request.getMethod().equals("POST") && !request.getMethod().equals("PUT"))) {
+        String normalizedPath = AuthRequestLimiter.normalizePath(request);
+        String method =
+                request.getMethod() == null ? "" : request.getMethod().toUpperCase(Locale.ROOT);
+        boolean isApiPath = normalizedPath.equals("/api") || normalizedPath.startsWith("/api/");
+        boolean isWriteMethod =
+                method.equals("POST") || method.equals("PUT") || method.equals("PATCH");
+        if (!isApiPath || !isWriteMethod) {
             chain.doFilter(request, response);
             return;
         }

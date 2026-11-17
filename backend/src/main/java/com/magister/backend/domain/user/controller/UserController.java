@@ -20,6 +20,7 @@ import com.magister.backend.global.response.ApiResult;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 import lombok.RequiredArgsConstructor;
 
@@ -59,8 +60,16 @@ public class UserController implements UserControllerDocs {
 
     @Override
     @GetMapping("/csrf")
-    public ApiResult<CsrfResponse> csrf(CsrfToken token) {
-        return ApiResult.success(UserConverter.toCsrfResponse(token));
+    public ApiResult<CsrfResponse> csrf(CsrfToken token, HttpServletRequest request) {
+        CsrfResponse response = UserConverter.toCsrfResponse(token);
+        if (request.getUserPrincipal() == null) {
+            HttpSession session = request.getSession(false);
+            if (session != null && session.isNew()) {
+                // 익명 CSRF 발급 시점에는 짧은 세션 수명(5분)을 부여해 미인증 세션 누적 자원 소모를 줄인다.
+                session.setMaxInactiveInterval(300);
+            }
+        }
+        return ApiResult.success(response);
     }
 
     @Override

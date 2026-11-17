@@ -82,6 +82,7 @@ class UserAuthenticationTests {
         MvcResult csrfResult =
                 mvc.perform(get("/api/user/csrf")).andExpect(status().isOk()).andReturn();
         MockHttpSession session = (MockHttpSession) csrfResult.getRequest().getSession(false);
+        assertThat(session.getMaxInactiveInterval()).isEqualTo(300);
         String oldId = session.getId();
         String token =
                 json.readTree(csrfResult.getResponse().getContentAsString())
@@ -97,6 +98,7 @@ class UserAuthenticationTests {
                                         "{\"email\":\"WRITER@example.com\",\"password\":\"Password1!\"}"))
                 .andExpect(status().isOk());
         assertThat(session.getId()).isNotEqualTo(oldId);
+        assertThat(session.getMaxInactiveInterval()).isEqualTo(3600);
         mvc.perform(get("/api/user/me").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.email").value("writer@example.com"));
