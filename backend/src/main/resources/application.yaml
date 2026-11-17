@@ -28,6 +28,14 @@ gemini:
   api-key: ${GEMINI_API_KEY:}
   model: ${GEMINI_MODEL:}
   timeout: ${GEMINI_TIMEOUT:30s}
+  direct-endpoint-enabled: ${GEMINI_DIRECT_ENDPOINT_ENABLED:true}
+  text-daily-limit: ${GEMINI_TEXT_DAILY_LIMIT:50}
+  text-global-daily-limit: ${GEMINI_TEXT_GLOBAL_DAILY_LIMIT:500}
+
+manuscript:
+  import:
+    max-concurrent-parses: ${MANUSCRIPT_MAX_CONCURRENT_PARSES:2}
+    parse-timeout: ${MANUSCRIPT_PARSE_TIMEOUT:10s}
 
 character-image:
   model: ${GEMINI_CHARACTER_IMAGE_MODEL:gemini-3.1-flash-image}
@@ -102,6 +110,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO:validate}
+
+gemini:
+  direct-endpoint-enabled: ${GEMINI_DIRECT_ENDPOINT_ENABLED:false}
 
 springdoc:
   api-docs:

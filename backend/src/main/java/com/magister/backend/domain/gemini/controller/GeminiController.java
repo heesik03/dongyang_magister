@@ -9,6 +9,7 @@ import com.magister.backend.global.response.ApiResult;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,6 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/gemini")
+@ConditionalOnProperty(
+        name = "gemini.direct-endpoint-enabled",
+        havingValue = "true",
+        matchIfMissing = true)
 public class GeminiController implements GeminiControllerDocs {
 
     private final GeminiService geminiService;
