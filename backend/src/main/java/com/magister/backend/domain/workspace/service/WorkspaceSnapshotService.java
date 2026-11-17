@@ -29,9 +29,13 @@ public class WorkspaceSnapshotService {
                         .findById(work.getId())
                         .map(converter::toResponse)
                         .orElseGet(() -> converter.empty(work));
+        var events = timelineService.readForOwnedWork(work.getId());
+        if (events.isEmpty() && !stored.content().events().isEmpty()) {
+            events = stored.content().events();
+        }
         return converter.withChaptersAndEvents(
                 stored,
                 chapterWorkspaceService.read(work.getId()),
-                timelineService.readForOwnedWork(work.getId()));
+                events);
     }
 }

@@ -35,6 +35,10 @@ import com.magister.backend.domain.setting.entity.SettingKind;
 import com.magister.backend.domain.setting.entity.SettingStatus;
 import com.magister.backend.domain.setting.entity.WorkSetting;
 import com.magister.backend.domain.setting.repository.WorkSettingRepository;
+import com.magister.backend.domain.timeline.repository.TimelineEventRepository;
+import com.magister.backend.domain.timeline.service.LegacyTimelineEventMigrator;
+import com.magister.backend.domain.timeline.service.TimelineService;
+import com.magister.backend.domain.timeline.dto.TimelineData.SaveEventRequest;
 import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.security.LoginUser;
@@ -44,7 +48,9 @@ import com.magister.backend.domain.workspace.dto.SaveWorkspaceRequest;
 import com.magister.backend.domain.workspace.dto.WorkspaceData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.AnalysisData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
+import com.magister.backend.domain.workspace.dto.WorkspaceData.EventData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ReviewData;
+import com.magister.backend.domain.workspace.entity.Workspace;
 import com.magister.backend.domain.workspace.repository.WorkspaceRepository;
 import com.magister.backend.domain.workspace.service.WorkspaceService;
 import com.magister.backend.global.error.exception.CustomException;
@@ -85,6 +91,9 @@ class WorkspaceApiTests {
     @Autowired UserRepository users;
     @Autowired WorkRepository works;
     @Autowired WorkspaceRepository workspaces;
+    @Autowired TimelineEventRepository timelineEvents;
+    @Autowired LegacyTimelineEventMigrator legacyTimelineEventMigrator;
+    @Autowired TimelineService timelineService;
     @Autowired WorkSettingRepository settings;
     @Autowired AnalysisJobRepository jobs;
     @Autowired AnalysisJobService jobService;
@@ -117,6 +126,9 @@ class WorkspaceApiTests {
                             jobs.findAll().stream()
                                     .filter(job -> job.getWork().getId().equals(workId))
                                     .toList());
+                    timelineEvents.deleteAll(
+                            timelineEvents.findByWork_IdOrderBySequenceAscIdAsc(workId));
+                    timelineEvents.flush();
                     workspaces.deleteById(workId);
                     settings.deleteAll(
                             settings.findAll().stream()
@@ -452,4 +464,98 @@ class WorkspaceApiTests {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void migratesLegacyWorkspaceJsonEventsIdempotentlyWithoutOverwritingEdits() {
+        transaction.executeWithoutResult(
+                status -> {
+                    Work work = works.findById(workId).orElseThrow();
+                    chapterRepository.saveAndFlush(
+                            new com.magister.backend.domain.chapter.entity.Chapter(
+                                    work, "chapter-1", 1, "1화", "왕도를 떠나 항구에 도착했다.", 1, "init"));
+                    Workspace workspace = new Workspace(work);
+                    List<EventData> legacyEvents =
+                            List.of(
+                                    new EventData(
+                                            "ev-2",
+                                            "항구 도착",
+                                            "둘째 날 밤",
+                                            "린",
+                                            "chapter-1",
+                                            "항구에 도착했다.",
+                                            "항구 진입",
+                                            1,
+                                            "CONFIRMED",
+                                            1L,
+                                            7,
+                                            16,
+                                            null),
+                                    new EventData(
+                                            "ev-1",
+                                            "왕도 출발",
+                                            "첫날 아침",
+                                            "린",
+                                            "chapter-1",
+                                            "왕도를 떠나",
+                                            "여정 시작",
+                                            0,
+                                            "CONFIRMED",
+                                            1L,
+                                            0,
+                                            6,
+                                            null),
+                                    new EventData(
+                                            "ev-unresolved",
+                                            "수수께끼 편지",
+                                            "",
+                                            "린",
+                                            "chapter-1",
+                                            "",
+                                            "시점 미정 편지",
+                                            2,
+                                            "UNRESOLVED",
+                                            null,
+                                            null,
+                                            null,
+                                            null));
+                    workspace.replace(
+                            json.writeValueAsString(
+                                    new WorkspaceData(List.of(), List.of(), legacyEvents)),
+                            "legacy-json-only");
+                    workspaces.saveAndFlush(workspace);
+                });
+
+        assertThat(timelineEvents.findByWork_IdOrderBySequenceAscIdAsc(workId)).isEmpty();
+        assertThat(legacyTimelineEventMigrator.migrateWorkEvents(workId)).isTrue();
+
+        List<EventData> migrated = workspaceService.get(ownerId, workId).content().events();
+        assertThat(migrated)
+                .extracting(EventData::id)
+                .containsExactly("ev-1", "ev-2", "ev-unresolved");
+        assertThat(migrated.get(0).quote()).isEqualTo("왕도를 떠나");
+        assertThat(migrated.get(2).timeStatus()).isEqualTo("UNRESOLVED");
+
+        // 이관 후 사건 제목을 수정하고 다시 이관을 실행해도 중복되거나 수정 내용이 덮어써지지 않는다.
+        timelineService.update(
+                ownerId,
+                workId,
+                "ev-1",
+                new SaveEventRequest(
+                        "ev-1",
+                        "왕도 새벽 출발(수정)",
+                        "여정 시작",
+                        "첫날 새벽",
+                        "린",
+                        "chapter-1",
+                        "왕도를 떠나",
+                        0,
+                        "CONFIRMED",
+                        1L,
+                        0,
+                        6,
+                        null));
+        assertThat(legacyTimelineEventMigrator.migrateWorkEvents(workId)).isFalse();
+        List<EventData> afterRemigrate = workspaceService.get(ownerId, workId).content().events();
+        assertThat(afterRemigrate).hasSize(3);
+        assertThat(afterRemigrate.get(0).title()).isEqualTo("왕도 새벽 출발(수정)");
+    }
 }
