@@ -169,6 +169,13 @@ class UserAuthenticationTests {
     void documentsSessionEndpoints() throws Exception {
         mvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate"))
+                .andExpect(
+                        header().string(
+                                        "Referrer-Policy",
+                                        "strict-origin-when-cross-origin"))
+                .andExpect(header().exists("Content-Security-Policy"))
                 .andExpect(jsonPath("$.paths['/api/user/logout'].post.summary").value("로그아웃"))
                 .andExpect(
                         jsonPath("$.components.securitySchemes.session.name").value("JSESSIONID"));

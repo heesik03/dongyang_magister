@@ -9,15 +9,15 @@ spring:
     import: "optional:file:./.env[.properties]"
 
   datasource:
-    url: jdbc:mysql://localhost:3306/magister
-    username: root
+    url: ${DB_URL:jdbc:mysql://localhost:3306/magister}
+    username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${JPA_DDL_AUTO:update}
     show-sql: false
     properties:
       hibernate:
@@ -58,10 +58,10 @@ auth:
 
 springdoc:
   api-docs:
-    enabled: true
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
     path: /v3/api-docs
   swagger-ui:
-    enabled: true
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:true}
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
@@ -89,3 +89,29 @@ logging:
     # JDBC 오류 전문에는 중복 이메일 등 입력값이 포함될 수 있다. 애플리케이션은 코드·SQLState만 기록한다.
     org.hibernate.orm.jdbc.error: OFF
     org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
+

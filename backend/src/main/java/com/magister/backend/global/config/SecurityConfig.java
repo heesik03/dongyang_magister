@@ -28,6 +28,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -95,12 +96,30 @@ public class SecurityConfig {
             UserRepository userRepository,
             SessionAuthenticationService sessionAuthenticationService,
             AuthRequestLimiter authRequestLimiter,
-            ObjectMapper objectMapper)
+            ObjectMapper objectMapper,
+            @Value("${springdoc.api-docs.enabled:true}") boolean apiDocsEnabled,
+            @Value("${springdoc.swagger-ui.enabled:true}") boolean swaggerUiEnabled)
             throws Exception {
         // CSRF 기본값 유지: /api/user/csrf에서 마스킹된 토큰을 받아 헤더로 전달한다.
         // 저장소를 로그인 처리와 공유해 요청 사이에서 동일한 세션 인증을 복원한다.
         http.cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository))
+                .headers(
+                        headers ->
+                                headers.contentSecurityPolicy(
+                                                csp ->
+                                                        csp.policyDirectives(
+                                                                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"))
+                                        .referrerPolicy(
+                                                referrer ->
+                                                        referrer.policy(
+                                                                ReferrerPolicyHeaderWriter
+                                                                        .ReferrerPolicy
+                                                                        .STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                                        .httpStrictTransportSecurity(
+                                                hsts ->
+                                                        hsts.includeSubDomains(true)
+                                                                .maxAgeInSeconds(31536000)))
                 .securityContext(
                         context -> context.securityContextRepository(securityContextRepository))
                 .addFilterAfter(
@@ -111,22 +130,24 @@ public class SecurityConfig {
                         AuthorizationFilter.class)
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(
-                        auth ->
+                        auth -> {
+                            auth.requestMatchers(
+                                            HttpMethod.POST,
+                                            "/api/user",
+                                            "/api/user/login",
+                                            "/api/user/email/check")
+                                    .permitAll()
+                                    .requestMatchers(HttpMethod.GET, "/api/user/csrf")
+                                    .permitAll();
+                            if (apiDocsEnabled || swaggerUiEnabled) {
                                 auth.requestMatchers(
-                                                HttpMethod.POST,
-                                                "/api/user",
-                                                "/api/user/login",
-                                                "/api/user/email/check")
-                                        .permitAll()
-                                        .requestMatchers(HttpMethod.GET, "/api/user/csrf")
-                                        .permitAll()
-                                        .requestMatchers(
                                                 "/v3/api-docs/**",
                                                 "/swagger-ui/**",
                                                 "/swagger-ui.html")
-                                        .permitAll()
-                                        .anyRequest()
-                                        .authenticated())
+                                        .permitAll();
+                            }
+                            auth.anyRequest().authenticated();
+                        })
                 .exceptionHandling(
                         errors ->
                                 errors.authenticationEntryPoint(securityResponseHandler)

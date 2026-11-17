@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:8080 http://127.0.0.1:8080; base-uri 'self'; form-action 'self'; object-src 'none'"
+    />
     <meta name="theme-color" content="#365C4A" />
     <meta name="description" content="설정과 원고를 연결하는 작가의 창작 검토 공간, Magister" />
     <title>Magister · 당신의 이야기를 위한 작업 공간</title>
