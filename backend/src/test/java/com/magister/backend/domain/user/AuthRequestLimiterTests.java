@@ -97,6 +97,41 @@ class AuthRequestLimiterTests {
     }
 
     @Test
+    void normalizesEncodedPathsAndAppliesAccountRateLimits() throws Exception {
+        AuthRateLimitProperties properties = new AuthRateLimitProperties();
+        properties.setLoginAttempts(2);
+        properties.setLoginAccountAttempts(2);
+        AuthRequestLimiter limiter = new AuthRequestLimiter(properties);
+        AuthRateLimitFilter filter = new AuthRateLimitFilter(limiter, JsonMapper.builder().build());
+
+        MockHttpServletRequest normalRequest = new MockHttpServletRequest("POST", "/api/user/login");
+        normalRequest.setRemoteAddr("10.0.0.1");
+        MockHttpServletRequest encodedRequest =
+                new MockHttpServletRequest("POST", "/api/user/%6cogin");
+        encodedRequest.setRemoteAddr("10.0.0.1");
+        MockHttpServletRequest doubleSlashEncoded =
+                new MockHttpServletRequest("POST", "/%61pi//user/%6cogin/");
+        doubleSlashEncoded.setRemoteAddr("10.0.0.1");
+
+        MockHttpServletResponse first = new MockHttpServletResponse();
+        filter.doFilter(normalRequest, first, (req, res) -> {});
+        assertThat(first.getStatus()).isEqualTo(200);
+
+        MockHttpServletResponse second = new MockHttpServletResponse();
+        filter.doFilter(encodedRequest, second, (req, res) -> {});
+        assertThat(second.getStatus()).isEqualTo(200);
+
+        MockHttpServletResponse third = new MockHttpServletResponse();
+        filter.doFilter(doubleSlashEncoded, third, (req, res) -> {});
+        assertThat(third.getStatus()).isEqualTo(429);
+
+        limiter.recordLoginAccountAttempt("Writer@Example.com");
+        limiter.recordLoginAccountAttempt("writer@example.com");
+        assertThatThrownBy(() -> limiter.recordLoginAccountAttempt("WRITER@EXAMPLE.COM"))
+                .isInstanceOf(CustomException.class);
+    }
+
+    @Test
     void trackedClientCountIsBoundedAndExpiredEntriesCanBeReused() {
         AuthRateLimitProperties properties = new AuthRateLimitProperties();
         properties.setMaxTrackedClients(1);

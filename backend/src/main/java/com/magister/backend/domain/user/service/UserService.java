@@ -12,22 +12,45 @@ import com.magister.backend.domain.user.repository.UserActivityRepository;
 import com.magister.backend.domain.user.repository.UserActivityRepository.RecentManuscriptRow;
 import com.magister.backend.domain.user.repository.UserConstraintTranslator;
 import com.magister.backend.domain.user.repository.UserRepository;
+import com.magister.backend.domain.user.security.AuthRequestLimiter;
+import com.magister.backend.domain.user.security.AuthRequestLimiter.Permit;
 import com.magister.backend.domain.user.service.support.EmailNormalizer;
 import com.magister.backend.global.error.exception.CustomException;
+import com.magister.backend.global.security.AuthRateLimitFilter;
 
-import lombok.RequiredArgsConstructor;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Service
-@RequiredArgsConstructor
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserActivityRepository userActivityRepository;
+    private final AuthRequestLimiter authRequestLimiter;
+
+    @Autowired
+    public UserService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            UserActivityRepository userActivityRepository,
+            AuthRequestLimiter authRequestLimiter) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.userActivityRepository = userActivityRepository;
+        this.authRequestLimiter = authRequestLimiter;
+    }
+
+    public UserService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            UserActivityRepository userActivityRepository) {
+        this(userRepository, passwordEncoder, userActivityRepository, null);
+    }
 
     /** 가입 가능 여부 안내다. 실제 중복 방지는 가입 저장 시 DB 유일 제약으로 보장한다. */
     @Transactional(readOnly = true)
@@ -45,7 +68,7 @@ public class UserService {
         }
         // 고비용 해시 연산 동안 DB 트랜잭션과 커넥션을 점유하지 않도록 저장 시점에만 트랜잭션을 사용한다.
         // 평문 비밀번호는 저장하지 않으며 응답 DTO에도 포함하지 않는다.
-        String passwordHash = passwordEncoder.encode(request.password());
+        String passwordHash = encodePasswordWithPermit(request.password());
         try {
             User user = new User(email, request.name().strip(), passwordHash);
             User saved = userRepository.saveAndFlush(user);
@@ -74,12 +97,15 @@ public class UserService {
             throw new CustomException(UserErrorCode.PASSWORD_CONFIRMATION_MISMATCH);
         }
         User user = requireUser(userId);
-        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
-            throw new CustomException(UserErrorCode.CURRENT_PASSWORD_MISMATCH);
-        }
-        String newPasswordHash = passwordEncoder.encode(request.newPassword());
-        if (userRepository.updatePassword(userId, user.getSecurityVersion(), newPasswordHash) != 1) {
-            throw new CustomException(UserErrorCode.PASSWORD_CHANGE_CONFLICT);
+        try (Permit ignored = acquireDirectHashingPermitIfNeeded()) {
+            if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+                throw new CustomException(UserErrorCode.CURRENT_PASSWORD_MISMATCH);
+            }
+            String newPasswordHash = passwordEncoder.encode(request.newPassword());
+            if (userRepository.updatePassword(userId, user.getSecurityVersion(), newPasswordHash)
+                    != 1) {
+                throw new CustomException(UserErrorCode.PASSWORD_CHANGE_CONFLICT);
+            }
         }
     }
 
@@ -97,6 +123,24 @@ public class UserService {
         return UserConverter.toActivityResponse(
                 workCount, chapterCount, unreviewedCount, recent);
     }
+    private String encodePasswordWithPermit(String rawPassword) {
+        try (Permit ignored = acquireDirectHashingPermitIfNeeded()) {
+            return passwordEncoder.encode(rawPassword);
+        }
+    }
+
+    private Permit acquireDirectHashingPermitIfNeeded() {
+        if (authRequestLimiter == null) {
+            return null;
+        }
+        if (RequestContextHolder.getRequestAttributes()
+                instanceof ServletRequestAttributes servletAttributes
+                && AuthRateLimitFilter.hasActivePermit(servletAttributes.getRequest())) {
+            return null;
+        }
+        return authRequestLimiter.acquireHashingSlot();
+    }
+
     private User requireUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));

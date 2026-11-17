@@ -28,6 +28,8 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URI;
+
 @ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -147,6 +149,13 @@ class UserAuthenticationTests {
         signup();
         mvc.perform(
                         post("/api/user/login")
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content(
+                                        "{\"email\":\"writer@example.com\",\"password\":\"Wrong1!xx\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(
+                        post(URI.create("/api/user/%6cogin"))
                                 .with(csrf())
                                 .contentType("application/json")
                                 .content(

@@ -22,6 +22,9 @@ public class AuthRateLimitProperties {
     private int loginAttempts = 20;
 
     @Min(1)
+    private int loginAccountAttempts = 20;
+
+    @Min(1)
     private int signupAttempts = 20;
 
     @Min(1)

@@ -9,10 +9,8 @@ import com.magister.backend.global.security.SecurityResponseHandler;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
@@ -28,6 +26,7 @@ import org.springframework.security.web.authentication.session.CompositeSessionA
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -40,16 +39,6 @@ import java.util.List;
 @Configuration
 @EnableConfigurationProperties(AuthRateLimitProperties.class)
 public class SecurityConfig {
-    @Bean
-    FilterRegistrationBean<AuthRateLimitFilter> authRateLimitFilter(
-            AuthRequestLimiter limiter, ObjectMapper objectMapper) {
-        FilterRegistrationBean<AuthRateLimitFilter> registration =
-                new FilterRegistrationBean<>(new AuthRateLimitFilter(limiter, objectMapper));
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
-        registration.addUrlPatterns("/api/user", "/api/user/login", "/api/user/email/check");
-        return registration;
-    }
-
     @Bean
     AuthenticationManager authenticationManager(
             UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
@@ -104,7 +93,9 @@ public class SecurityConfig {
             HttpSessionSecurityContextRepository securityContextRepository,
             HttpSessionCsrfTokenRepository csrfTokenRepository,
             UserRepository userRepository,
-            SessionAuthenticationService sessionAuthenticationService)
+            SessionAuthenticationService sessionAuthenticationService,
+            AuthRequestLimiter authRequestLimiter,
+            ObjectMapper objectMapper)
             throws Exception {
         // CSRF 기본값 유지: /api/user/csrf에서 마스킹된 토큰을 받아 헤더로 전달한다.
         // 저장소를 로그인 처리와 공유해 요청 사이에서 동일한 세션 인증을 복원한다.
@@ -112,6 +103,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository))
                 .securityContext(
                         context -> context.securityContextRepository(securityContextRepository))
+                .addFilterAfter(
+                        new AuthRateLimitFilter(authRequestLimiter, objectMapper),
+                        CsrfFilter.class)
                 .addFilterBefore(
                         new SessionAccountFilter(userRepository, sessionAuthenticationService),
                         AuthorizationFilter.class)
