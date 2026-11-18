@@ -244,6 +244,10 @@ class AnalysisFlowTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.material.settings.length()").value(1))
                 .andExpect(jsonPath("$.data.material.settings[0].quote").value("마법 불가"))
+                .andExpect(jsonPath("$.data.material.previous.length()").value(1))
+                .andExpect(jsonPath("$.data.material.previous[0].title").value("1화"))
+                .andExpect(jsonPath("$.data.material.previous[0].quote").value("근거 원고"))
+                .andExpect(jsonPath("$.data.material.previous[0].explanation").value("이전 행동"))
                 .andExpect(jsonPath("$.data.target.chapterId").value("target"))
                 .andReturn().getResponse().getContentAsString();
         String hash = objectMapper.readTree(preview).at("/data/contextHash").asString();
