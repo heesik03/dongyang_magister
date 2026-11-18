@@ -6,6 +6,7 @@ import { ManuscriptPanel } from '../src/features/manuscript/ManuscriptPanel'
 import { useWorksStore } from '../src/features/works/useWorksStore'
 import type { Analysis, Work } from '../src/features/works/workTypes'
 import type { ReviewReport } from '../src/features/review/reviewClient'
+import { revisionSuggestionClient } from '../src/features/review/revisionSuggestionClient'
 
 const fixture = vi.hoisted(() => ({ report: undefined as ReviewReport | undefined }))
 vi.mock('../src/features/analysis/useAnalysisJobs', () => ({
@@ -125,6 +126,67 @@ function show(current = work) {
     </MemoryRouter>,
   )
 }
+
+async function requestRevision() {
+  const preview = vi.spyOn(revisionSuggestionClient, 'preview').mockResolvedValue({
+    target: {
+      chapterId: 'target',
+      revision: 1,
+      quote: '마법 사용',
+      startOffset: 11,
+      endOffset: 16,
+    },
+    contextHash: 'a'.repeat(64),
+    before: '앞 문맥',
+    after: '',
+    reason: '능력 확인',
+    direction: '단서 보완',
+    settings: [],
+  })
+  const generate = vi.spyOn(revisionSuggestionClient, 'generate').mockResolvedValue('걸음을 멈췄다')
+  show()
+  fireEvent.click(screen.getByRole('button', { name: '보완 문장 제안받기' }))
+  await screen.findByText('앞 문맥')
+  expect(preview).toHaveBeenCalledOnce()
+  expect(generate).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Gemini에 제안 요청' }))
+  return screen.findByRole('button', { name: '원고에 적용' })
+}
+
+test('확인한 제안만 두 번째 인용 위치에 적용해 일반 저장 대상으로 만든다', async () => {
+  const apply = await requestRevision()
+  expect(useWorksStore.getState().works[0].chapters[1].content).toBe(content)
+  fireEvent.click(apply)
+  const state = useWorksStore.getState()
+  expect(state.works[0].chapters[1]).toMatchObject({
+    content: '😀장면\n마법 사용\n걸음을 멈췄다',
+    revision: 2,
+  })
+  expect(state.dirtyIds).toContain(work.id)
+})
+
+test('제안 비교 중 편집 내용이 바뀌면 최신 원고를 보존한다', async () => {
+  const apply = await requestRevision()
+  const edited = { ...work.chapters[1], revision: 2, content: '새 원고' }
+  useWorksStore.setState({ works: [{ ...work, chapters: [work.chapters[0], edited] }] })
+  fireEvent.click(apply)
+  await screen.findByText(/원고가 변경되어 적용할 수 없습니다/)
+  expect(useWorksStore.getState().works[0].chapters[1]).toEqual(edited)
+})
+
+test.each(['호출 한도를 초과했습니다.', '서버에 연결하지 못했습니다.'])(
+  '다시 제안이 실패해도 기존 제안과 원고를 보존한다 · %s',
+  async (message) => {
+    await requestRevision()
+    vi.mocked(revisionSuggestionClient.generate).mockRejectedValueOnce(new Error(message))
+    fireEvent.click(screen.getByRole('button', { name: '다시 제안' }))
+    expect(await screen.findByText(message)).toBeTruthy()
+    expect(screen.getByText('걸음을 멈췄다')).toBeTruthy()
+    expect(useWorksStore.getState().works[0].chapters[1].content).toBe(content)
+    fireEvent.click(screen.getByRole('button', { name: '닫기' }))
+    expect(screen.queryByRole('button', { name: '원고에 적용' })).toBeNull()
+  },
+)
 
 test('반복 인용문의 두 번째 UTF-16 위치를 선택하고 다중 근거를 표시한다', async () => {
   show()

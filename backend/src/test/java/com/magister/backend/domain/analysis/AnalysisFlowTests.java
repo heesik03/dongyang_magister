@@ -2,13 +2,16 @@ package com.magister.backend.domain.analysis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -38,11 +41,14 @@ import com.magister.backend.global.gemini.GeminiClient;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -52,6 +58,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 
 @SpringBootTest(
@@ -218,6 +226,53 @@ class AnalysisFlowTests {
                         new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
         mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(other)))
                 .andExpect(status().isNotFound());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"설정 충돌 후보", "설명 보완"})
+    void suggestionUsesOnlyConfirmedContextAndRejectsStaleOrForeignRequests(String candidateType) throws Exception {
+        String jobId = jobService.create(ownerId, workId, confirmed()).id();
+        when(geminiClient.generateAnalysis(anyString())).thenReturn(linkedProviderResult().replace("설정 충돌 후보", candidateType));
+        worker.execute(jobId);
+        String id = jdbcTemplate.queryForObject(
+                "select id from review_candidates where job_id = ?", String.class, jobId);
+        String url = "/api/work/" + workId + "/review/" + id + "/revision-suggestion";
+        String preview = mockMvc.perform(get(url + "/context").with(authentication(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.material.settings.length()").value(1))
+                .andExpect(jsonPath("$.data.material.settings[0].quote").value("마법 불가"))
+                .andExpect(jsonPath("$.data.target.chapterId").value("target"))
+                .andReturn().getResponse().getContentAsString();
+        String hash = objectMapper.readTree(preview).at("/data/contextHash").asString();
+        String body = objectMapper.writeValueAsString(Map.of("contextHash", hash));
+        UsernamePasswordAuthenticationToken other = UsernamePasswordAuthenticationToken.authenticated(
+                new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
+        mockMvc.perform(get(url + "/context").with(authentication(other))).andExpect(status().isNotFound());
+        mockMvc.perform(post(url).with(authentication(owner)).contentType("application/json").content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post(url).with(authentication(owner)).with(csrf()).contentType("application/json")
+                .content(body.replace(hash, "0".repeat(64)))).andExpect(status().isConflict());
+        when(geminiClient.generateText(anyString(), eq(1024))).thenReturn("보완 원고");
+        // 방금 실행한 분석과 같은 사용자 슬롯을 사용하므로 429가 해제된 첫 응답을 검증한다.
+        MockHttpServletResponse generated = await().atMost(Duration.ofSeconds(12))
+                .pollInterval(Duration.ofMillis(250))
+                .until(() -> mockMvc.perform(post(url).with(authentication(owner)).with(csrf())
+                                .contentType("application/json").content(body)).andReturn().getResponse(),
+                        response -> response.getStatus() != 429);
+        assertThat(generated.getStatus()).isEqualTo(200);
+        assertThat(objectMapper.readTree(generated.getContentAsByteArray()).at("/data/replacement").asString())
+                .isEqualTo("보완 원고");
+        String chapterUrl = "/api/work/" + workId + "/chapter/target";
+        mockMvc.perform(get(chapterUrl).with(authentication(owner)))
+                .andExpect(jsonPath("$.data.content").value("검토 원고"));
+        String edit = objectMapper.writeValueAsString(new UpdateChapterRequest("2화", "보완 원고", 0, "apply-target"));
+        mockMvc.perform(put(chapterUrl).with(authentication(owner)).with(csrf())
+                        .contentType("application/json").content(edit))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.revision").value(2));
+        mockMvc.perform(get(chapterUrl).with(authentication(owner)))
+                .andExpect(jsonPath("$.data.content").value("보완 원고"));
+        mockMvc.perform(post(url).with(authentication(owner)).with(csrf()).contentType("application/json").content(body))
+                .andExpect(status().isConflict());
     }
 
     @Test

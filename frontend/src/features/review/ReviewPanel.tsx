@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { Analysis, Decision, Work } from '../works/workTypes'
 import { DecisionEditor } from './DecisionEditor'
+import { RevisionSuggestionPanel } from './RevisionSuggestionPanel'
+import type { RevisionTarget } from './revisionSuggestionClient'
 import { Icon } from '../../shared/Icon'
 import {
   REVIEW_FILTERS,
@@ -24,6 +26,9 @@ export function ReviewPanel({
   reportError,
   retryReport,
   onDecisionSaved,
+  onApplySuggestion,
+  saveStatus,
+  onViewManuscript,
 }: {
   work: Work
   hidden?: boolean
@@ -39,6 +44,9 @@ export function ReviewPanel({
   reportError?: string
   retryReport?: () => void
   onDecisionSaved?: () => void
+  onApplySuggestion?: (target: RevisionTarget, replacement: string) => void
+  saveStatus?: string
+  onViewManuscript?: () => void
 }) {
   const [selectedId, setSelectedId] = useState('')
   const [chosenFilter, setFilter] = useState<ReviewFilter | null>(null)
@@ -282,6 +290,18 @@ export function ReviewPanel({
                   <p>{selected.suggestion}</p>
                 </details>
 
+                {linked && !report?.legacy && !hidden && onApplySuggestion && onViewManuscript && (
+                  <RevisionSuggestionPanel
+                    key={linked.id}
+                    workId={work.id}
+                    reviewId={linked.id}
+                    stale={stale}
+                    onApply={onApplySuggestion}
+                    retry={retry}
+                    saveStatus={saveStatus ?? ''}
+                    onViewManuscript={onViewManuscript}
+                  />
+                )}
                 {selected.note && (
                   <div className="notice small">
                     <strong>작가 판단 · 지정한 범위와 조건에서 참고</strong>

@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { Chapter, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
 import { ReviewPanel } from '../review/ReviewPanel'
+import type { RevisionTarget } from '../review/revisionSuggestionClient'
 import { useReviewReport } from '../review/useReviewReport'
 import { REVIEW_FILTERS, type ReviewFilter, type SourceLocation } from '../review/reviewClient'
 import { analysisClient } from '../analysis/analysisClient'
@@ -119,7 +120,8 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const noteSettings = work.settings.filter((setting) => setting.status === '확정').slice(0, 3)
   const stale =
     !!analysis &&
-    (analysis.source !== chapter?.content ||
+    (analysis.revision !== chapter?.revision ||
+      analysis.source !== chapter?.content ||
       settingsChanged(analysis, work.settings) ||
       !!reportState.report?.stale)
   async function saveManuscript() {
@@ -168,6 +170,29 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       ),
     })
     setHighlight('')
+  }
+  function applySuggestion(target: RevisionTarget, replacement: string) {
+    const state = useWorksStore.getState()
+    const current = state.works
+      .find((item) => item.id === work.id)
+      ?.chapters.find((item) => item.id === target.chapterId)
+    if (
+      stale ||
+      state.conflicts.includes(work.id) ||
+      !current ||
+      chapter?.id !== current.id ||
+      current.revision !== target.revision ||
+      current.content !== analysis?.source ||
+      current.content.slice(target.startOffset, target.endOffset) !== target.quote
+    ) {
+      throw new Error('원고가 변경되어 적용할 수 없습니다. 현재 원고로 다시 검토해 주세요.')
+    }
+    const content =
+      current.content.slice(0, target.startOffset) +
+      replacement +
+      current.content.slice(target.endOffset)
+    if (content.length > 200000) throw new Error('적용 후 원고가 20만 자를 초과합니다.')
+    write(content)
   }
   // 서버에 저장된 원고를 기준으로 작업을 접수한다. 외부 전송은 명시적으로 동의한 범위만 사용한다.
   async function analyze() {
@@ -722,6 +747,15 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           retry={retryAnalysis}
           onJump={jump}
           onDecisionSaved={reportState.retry}
+          onApplySuggestion={applySuggestion}
+          onViewManuscript={() => setView('원고')}
+          saveStatus={
+            conflict || saveError || storageError
+              ? '저장 상태를 확인해 주세요'
+              : dirty || saving
+                ? '저장 중'
+                : '서버 저장 완료'
+          }
         />
       </div>
       {savedToast && (
