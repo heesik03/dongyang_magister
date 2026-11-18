@@ -15,7 +15,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.magister.backend.domain.analysis.converter.RevisionSuggestionConverter;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
+import com.magister.backend.domain.analysis.dto.RevisionSuggestion;
 import com.magister.backend.domain.analysis.entity.AnalysisJob;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.entity.AnalysisSource;
@@ -37,6 +39,7 @@ import com.magister.backend.domain.user.repository.UserRepository;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.repository.WorkRepository;
+import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.gemini.GeminiClient;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -273,6 +276,22 @@ class AnalysisFlowTests {
                 .andExpect(jsonPath("$.data.content").value("보완 원고"));
         mockMvc.perform(post(url).with(authentication(owner)).with(csrf()).contentType("application/json").content(body))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void suggestionPreservesQuoteBoundaryWhitespaceAndStripsCodeFence() {
+        RevisionSuggestionConverter converter = new RevisionSuggestionConverter(objectMapper);
+        RevisionSuggestion.Target target =
+                new RevisionSuggestion.Target("target", 1L, 0, 10, "  고개를 들었다.\n");
+
+        RevisionSuggestion.Result result =
+                converter.toResult(target, "```text\n\"천천히 고개를 들었다.\"\n```");
+        assertThat(result.replacement()).isEqualTo("  \"천천히 고개를 들었다.\"\n");
+
+        assertThatThrownBy(() -> converter.toResult(target, "  고개를 들었다.  "))
+                .isInstanceOf(CustomException.class);
+        assertThatThrownBy(() -> converter.toResult(target, "설명\n```\n코드\n```"))
+                .isInstanceOf(CustomException.class);
     }
 
     @Test

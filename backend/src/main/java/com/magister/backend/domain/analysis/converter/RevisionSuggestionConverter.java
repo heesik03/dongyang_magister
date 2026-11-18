@@ -50,10 +50,39 @@ public class RevisionSuggestionConverter {
     }
 
     public RevisionSuggestion.Result toResult(RevisionSuggestion.Target target, String replacement) {
-        if (replacement == null || replacement.isBlank() || replacement.length() > 10000
-                || replacement.strip().equals(target.quote())) {
+        if (replacement == null) {
             throw new CustomException(GeminiErrorCode.INVALID_RESPONSE);
         }
-        return new RevisionSuggestion.Result(target, replacement.strip());
+
+        String quote = target.quote();
+        String strippedQuote = quote.strip();
+        String cleaned = stripCodeFence(replacement.strip());
+        if (strippedQuote.isEmpty()
+                || cleaned.isEmpty()
+                || cleaned.contains("```")
+                || cleaned.equals(strippedQuote)) {
+            throw new CustomException(GeminiErrorCode.INVALID_RESPONSE);
+        }
+
+        int leadingEnd = quote.length() - quote.stripLeading().length();
+        int trailingStart = quote.stripTrailing().length();
+        String preserved =
+                quote.substring(0, leadingEnd) + cleaned + quote.substring(trailingStart);
+        if (preserved.length() > 10000 || preserved.equals(quote)) {
+            throw new CustomException(GeminiErrorCode.INVALID_RESPONSE);
+        }
+
+        return new RevisionSuggestion.Result(target, preserved);
+    }
+
+    private String stripCodeFence(String text) {
+        if (!text.startsWith("```") || !text.endsWith("```")) {
+            return text;
+        }
+        int firstNewline = text.indexOf('\n');
+        if (firstNewline < 0 || firstNewline >= text.length() - 3) {
+            return "";
+        }
+        return text.substring(firstNewline + 1, text.length() - 3).strip();
     }
 }

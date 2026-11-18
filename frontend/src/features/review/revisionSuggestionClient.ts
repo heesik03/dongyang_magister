@@ -59,17 +59,19 @@ export const revisionSuggestionClient = {
     )
     const target = readTarget(data.target)
     const confirmed = preview.target
-    const replacement = readString(data, 'replacement').trim()
+    const replacement = readString(data, 'replacement')
     if (
-      !replacement ||
+      !replacement.trim() ||
       replacement.length > 10000 ||
+      replacement === confirmed.quote ||
       target.chapterId !== confirmed.chapterId ||
       target.revision !== confirmed.revision ||
       target.startOffset !== confirmed.startOffset ||
       target.endOffset !== confirmed.endOffset ||
       target.quote !== confirmed.quote
-    )
+    ) {
       throw new Error('제안과 확인한 원문이 일치하지 않습니다.')
+    }
     return replacement
   },
 }
