@@ -40,6 +40,7 @@ export function parseErrorMessage(body: unknown): string {
     : '요청을 처리하지 못했습니다.'
 }
 interface RequestOptions {
+  timeout?: number
   signal?: AbortSignal
   params?: Record<string, string | number | undefined>
   // 로그인 거절의 401은 기존 세션 만료와 구분한다.

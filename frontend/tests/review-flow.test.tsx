@@ -6,11 +6,15 @@ import { ManuscriptPanel } from '../src/features/manuscript/ManuscriptPanel'
 import { useWorksStore } from '../src/features/works/useWorksStore'
 import type { Analysis, Work } from '../src/features/works/workTypes'
 import type { ReviewReport } from '../src/features/review/reviewClient'
+import { revisionSuggestionClient } from '../src/features/review/revisionSuggestionClient'
 
-const fixture = vi.hoisted(() => ({ report: undefined as ReviewReport | undefined }))
+const fixture = vi.hoisted(() => ({
+  report: undefined as ReviewReport | undefined,
+  analysis: undefined as Analysis | undefined,
+}))
 vi.mock('../src/features/analysis/useAnalysisJobs', () => ({
   useAnalysisJobs: () => ({
-    job: { id: 'job-1', status: 'SUCCEEDED', result: analysis },
+    job: { id: 'job-1', status: 'SUCCEEDED', result: fixture.analysis ?? analysis },
     history: [],
     active: false,
     page: 0,
@@ -108,6 +112,7 @@ const base = useWorksStore.getState()
 beforeEach(() => {
   vi.clearAllMocks()
   fixture.report = report
+  fixture.analysis = analysis
   useWorksStore.setState({ ...base, works: [work] })
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '')
@@ -125,6 +130,170 @@ function show(current = work) {
     </MemoryRouter>,
   )
 }
+
+async function requestRevision() {
+  const preview = vi.spyOn(revisionSuggestionClient, 'preview').mockResolvedValue({
+    target: {
+      chapterId: 'target',
+      revision: 1,
+      quote: '마법 사용',
+      startOffset: 11,
+      endOffset: 16,
+    },
+    contextHash: 'a'.repeat(64),
+    before: '앞 문맥',
+    after: '',
+    reason: '능력 확인',
+    direction: '단서 보완',
+    settings: [],
+    previous: [{ title: '1화', quote: '마법 불가', explanation: '이전 행동과 비교' }],
+  })
+  const generate = vi.spyOn(revisionSuggestionClient, 'generate').mockResolvedValue('걸음을 멈췄다')
+  show()
+  fireEvent.click(screen.getByRole('button', { name: '전송 범위 확인' }))
+  await screen.findByText('앞 문맥')
+  expect(screen.getByText('1화 · 마법 불가 (이전 행동과 비교)')).toBeTruthy()
+  expect(preview).toHaveBeenCalledOnce()
+  expect(generate).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '보완 문장 생성' }))
+  const apply = await screen.findByRole('button', { name: '원고에 적용' })
+  expect(
+    screen.getByText(
+      /이 문장을 적용하면 원고 버전이 바뀝니다\. 다른 후보의 보완 문장은 재검토 후 받을 수 있습니다\./,
+    ),
+  ).toBeTruthy()
+  return apply
+}
+
+test('확인한 제안만 두 번째 인용 위치에 적용해 일반 저장 대상으로 만든다', async () => {
+  const apply = await requestRevision()
+  expect(useWorksStore.getState().works[0].chapters[1].content).toBe(content)
+  fireEvent.click(apply)
+  expect(screen.getByText('보완 문장을 원고에 반영했습니다')).toBeTruthy()
+  expect(screen.getByText(/작가 판단은 ‘미검토’로 유지됩니다 · 저장 대기 · 입력 유지/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: '수용' })).toHaveProperty('disabled', true)
+  expect(screen.getByRole('button', { name: '판단 철회' })).toHaveProperty('disabled', false)
+  const state = useWorksStore.getState()
+  expect(state.works[0].chapters[1]).toMatchObject({
+    content: '😀장면\n마법 사용\n걸음을 멈췄다',
+    revision: 2,
+  })
+  expect(state.dirtyIds).toContain(work.id)
+})
+
+test('작가 판단 상태에 따라 제안 버튼을 구분하고 의도된 설정은 기본 제안을 숨긴다', () => {
+  fixture.report = {
+    ...report,
+    decisions: {
+      candidate: {
+        id: 1,
+        reviewId: 'candidate',
+        version: 1,
+        status: '수용',
+        reason: '',
+        basisHash: 'b'.repeat(64),
+        stale: false,
+        canReconfirm: true,
+        scopes: [],
+      },
+    },
+  }
+  const view = show()
+  expect(screen.getByRole('button', { name: '보완 문장 제안받기' })).toBeTruthy()
+  view.unmount()
+
+  fixture.report = {
+    ...report,
+    decisions: {
+      candidate: {
+        id: 2,
+        reviewId: 'candidate',
+        version: 2,
+        status: '의도된 설정',
+        reason: '복선',
+        basisHash: 'b'.repeat(64),
+        stale: false,
+        canReconfirm: true,
+        scopes: [],
+      },
+    },
+  }
+  show()
+  expect(screen.queryByRole('button', { name: '전송 범위 확인' })).toBeNull()
+  expect(screen.queryByRole('button', { name: '보완 문장 제안받기' })).toBeNull()
+  expect(screen.getByRole('button', { name: '판단 변경' })).toBeTruthy()
+})
+
+test('첫 후보의 보완 문장을 적용하면 두 번째 후보의 제안 생성은 막히고 근거 열람과 재검토는 유지된다', async () => {
+  const twoCandidatesAnalysis: Analysis = {
+    ...analysis,
+    reviews: [
+      analysis.reviews[0],
+      {
+        id: 'candidate-2',
+        type: '설명 보완',
+        quote: '마법 사용',
+        settingId: '1',
+        evidence: '마법 불가',
+        reason: '두 번째 이유',
+        suggestion: '두 번째 보완 방향',
+        decision: '미검토',
+        note: '',
+      },
+    ],
+  }
+  fixture.analysis = twoCandidatesAnalysis
+  fixture.report = {
+    ...report,
+    reviews: [
+      report.reviews[0],
+      {
+        ...report.reviews[0],
+        id: 'candidate-2',
+        type: '설명 보완',
+        startOffset: 4,
+        endOffset: 9,
+        reason: '두 번째 이유',
+        suggestion: '두 번째 보완 방향',
+      },
+    ],
+  }
+  const workWithTwo = { ...work, analyses: [twoCandidatesAnalysis] }
+  useWorksStore.setState({ ...base, works: [workWithTwo] })
+
+  const apply = await requestRevision()
+  fireEvent.click(apply)
+  expect(screen.getByText('보완 문장을 원고에 반영했습니다')).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: /설명 보완.*마법 사용/ }))
+  expect(screen.getByText('두 번째 이유')).toBeTruthy()
+  expect(screen.getByText('원고 또는 근거가 변경되어 이전 제안을 적용할 수 없습니다.')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '전송 범위 확인' })).toBeNull()
+  expect(screen.getByRole('button', { name: '현재 원고로 다시 검토' })).toBeTruthy()
+})
+
+test('제안 비교 중 편집 내용이 바뀌면 최신 원고를 보존한다', async () => {
+  const apply = await requestRevision()
+  const edited = { ...work.chapters[1], revision: 2, content: '새 원고' }
+  useWorksStore.setState({ works: [{ ...work, chapters: [work.chapters[0], edited] }] })
+  fireEvent.click(apply)
+  await screen.findByText(/원고가 변경되어 적용할 수 없습니다/)
+  expect(useWorksStore.getState().works[0].chapters[1]).toEqual(edited)
+})
+
+test.each(['호출 한도를 초과했습니다.', '서버에 연결하지 못했습니다.'])(
+  '다시 제안이 실패해도 기존 제안과 원고를 보존한다 · %s',
+  async (message) => {
+    await requestRevision()
+    vi.mocked(revisionSuggestionClient.generate).mockRejectedValueOnce(new Error(message))
+    fireEvent.click(screen.getByRole('button', { name: '다시 제안' }))
+    expect(await screen.findByText(message)).toBeTruthy()
+    expect(screen.getByText('걸음을 멈췄다')).toBeTruthy()
+    expect(useWorksStore.getState().works[0].chapters[1].content).toBe(content)
+    fireEvent.click(screen.getByRole('button', { name: '닫기' }))
+    expect(screen.queryByRole('button', { name: '원고에 적용' })).toBeNull()
+  },
+)
 
 test('반복 인용문의 두 번째 UTF-16 위치를 선택하고 다중 근거를 표시한다', async () => {
   show()

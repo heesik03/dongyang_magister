@@ -13,7 +13,7 @@ import java.util.Optional;
 public interface ReviewCandidateRepository extends JpaRepository<ReviewCandidate, String> {
     /** 후보·작품·소유자를 함께 검사하고 불변 원문을 트랜잭션 안에서 읽는다. */
     @Query(
-            "select r from ReviewCandidate r join fetch r.targetSource join fetch r.job j where"
+            "select r from ReviewCandidate r join fetch r.targetSource join r.job j where"
                     + " r.id=:reviewId and j.work.id=:workId and j.work.owner.id=:ownerId")
     Optional<ReviewCandidate> findOwned(String reviewId, Long workId, Long ownerId);
 

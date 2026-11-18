@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { Analysis, Decision, Work } from '../works/workTypes'
 import { DecisionEditor } from './DecisionEditor'
+import { RevisionSuggestionPanel } from './RevisionSuggestionPanel'
+import type { RevisionTarget } from './revisionSuggestionClient'
 import { Icon } from '../../shared/Icon'
 import {
   REVIEW_FILTERS,
@@ -24,6 +26,9 @@ export function ReviewPanel({
   reportError,
   retryReport,
   onDecisionSaved,
+  onApplySuggestion,
+  saveStatus,
+  onViewManuscript,
 }: {
   work: Work
   hidden?: boolean
@@ -39,6 +44,9 @@ export function ReviewPanel({
   reportError?: string
   retryReport?: () => void
   onDecisionSaved?: () => void
+  onApplySuggestion?: (target: RevisionTarget, replacement: string) => void
+  saveStatus?: string
+  onViewManuscript?: () => void
 }) {
   const [selectedId, setSelectedId] = useState('')
   const [chosenFilter, setFilter] = useState<ReviewFilter | null>(null)
@@ -60,6 +68,13 @@ export function ReviewPanel({
   const selected = filtered.find((review) => review.id === selectedId) || filtered[0]
   const linked = report?.reviews.find((review) => review.id === selected?.id)
   const editingReview = report?.reviews.find((review) => review.id === editing?.id)
+  const targetChapter = work.chapters.find((chapter) => chapter.id === analysis?.chapterId)
+  const quoteMatches =
+    !!linked &&
+    !!targetChapter &&
+    targetChapter.content.slice(linked.startOffset, linked.endOffset) === linked.quote
+  const selectedDecision = selected ? report?.decisions?.[selected.id] : undefined
+  const canRecordDecision = !!linked && quoteMatches && (selectedDecision?.canReconfirm ?? true)
 
   return (
     <aside className="review-panel" aria-label="검토 결과" hidden={hidden}>
@@ -282,6 +297,21 @@ export function ReviewPanel({
                   <p>{selected.suggestion}</p>
                 </details>
 
+                {linked && !report?.legacy && !hidden && onApplySuggestion && onViewManuscript && (
+                  <RevisionSuggestionPanel
+                    key={linked.id}
+                    workId={work.id}
+                    reviewId={linked.id}
+                    stale={stale}
+                    decisionStatus={selected.decision}
+                    decisionStale={!!selectedDecision?.stale}
+                    onChangeDecision={() => setEditing({ id: selected.id, status: '보류' })}
+                    onApply={onApplySuggestion}
+                    retry={retry}
+                    saveStatus={saveStatus ?? ''}
+                    onViewManuscript={onViewManuscript}
+                  />
+                )}
                 {selected.note && (
                   <div className="notice small">
                     <strong>작가 판단 · 지정한 범위와 조건에서 참고</strong>
@@ -304,19 +334,19 @@ export function ReviewPanel({
                 )}
                 <div className="decision-actions">
                   <button
-                    disabled={!linked}
+                    disabled={!canRecordDecision}
                     onClick={() => setEditing({ id: selected.id, status: '수용' })}
                   >
                     수용
                   </button>
                   <button
-                    disabled={!linked}
+                    disabled={!canRecordDecision}
                     onClick={() => setEditing({ id: selected.id, status: '보류' })}
                   >
                     보류
                   </button>
                   <button
-                    disabled={!linked}
+                    disabled={!canRecordDecision}
                     onClick={() => setEditing({ id: selected.id, status: '의도된 설정' })}
                   >
                     의도된 설정
@@ -328,6 +358,12 @@ export function ReviewPanel({
                     판단 철회
                   </button>
                 </div>
+                {linked && !canRecordDecision && (
+                  <p className="small muted" role="status">
+                    원문 인용 위치나 근거가 바뀌어 새 판단은 현재 원고로 다시 검토한 뒤 기록할 수
+                    있습니다. 기존 판단 철회는 가능합니다.
+                  </p>
+                )}
                 <p className="small muted">
                   수용은 처리 상태만 바꿉니다. 원고는 자동으로 수정되지 않습니다.
                 </p>

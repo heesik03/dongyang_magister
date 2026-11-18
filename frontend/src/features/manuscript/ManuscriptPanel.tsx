@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { Chapter, Work } from '../works/workTypes'
 import { useWorksStore } from '../works/useWorksStore'
 import { ReviewPanel } from '../review/ReviewPanel'
+import type { RevisionTarget } from '../review/revisionSuggestionClient'
 import { useReviewReport } from '../review/useReviewReport'
 import { REVIEW_FILTERS, type ReviewFilter, type SourceLocation } from '../review/reviewClient'
 import { analysisClient } from '../analysis/analysisClient'
@@ -22,7 +23,15 @@ const reviewStatusLabels: Readonly<Record<string, string>> = {
   CANCELLED: '취소',
 }
 
-export function ManuscriptPanel({ work }: { work: Work }) {
+export function ManuscriptPanel({ work: propWork }: { work: Work }) {
+  const storedWork = useWorksStore((state) => state.works.find((item) => item.id === propWork.id))
+  const work =
+    storedWork &&
+    storedWork.chapters.some(
+      (item, index) => item.revision > (propWork.chapters[index]?.revision ?? 0),
+    )
+      ? storedWork
+      : propWork
   const updateWork = useWorksStore((state) => state.updateWork)
   const flushWorkspace = useWorksStore((state) => state.flushWorkspace)
   const retrySave = useWorksStore((state) => state.retrySave)
@@ -119,9 +128,20 @@ export function ManuscriptPanel({ work }: { work: Work }) {
   const noteSettings = work.settings.filter((setting) => setting.status === '확정').slice(0, 3)
   const stale =
     !!analysis &&
-    (analysis.source !== chapter?.content ||
+    (analysis.revision !== chapter?.revision ||
+      analysis.source !== chapter?.content ||
       settingsChanged(analysis, work.settings) ||
       !!reportState.report?.stale)
+  const saveStatusText =
+    conflict || storageError || saveError
+      ? '저장 실패 · 입력 유지'
+      : saving
+        ? '서버 저장 중…'
+        : dirty
+          ? '저장 대기 · 입력 유지'
+          : work.source === 'server'
+            ? '서버에 자동 저장'
+            : '브라우저에 자동 저장'
   async function saveManuscript() {
     if (work.source !== 'server') {
       retrySave()
@@ -168,6 +188,29 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       ),
     })
     setHighlight('')
+  }
+  function applySuggestion(target: RevisionTarget, replacement: string) {
+    const state = useWorksStore.getState()
+    const current = state.works
+      .find((item) => item.id === work.id)
+      ?.chapters.find((item) => item.id === target.chapterId)
+    if (
+      stale ||
+      state.conflicts.includes(work.id) ||
+      !current ||
+      chapter?.id !== current.id ||
+      current.revision !== target.revision ||
+      current.content !== analysis?.source ||
+      current.content.slice(target.startOffset, target.endOffset) !== target.quote
+    ) {
+      throw new Error('원고가 변경되어 적용할 수 없습니다. 현재 원고로 다시 검토해 주세요.')
+    }
+    const content =
+      current.content.slice(0, target.startOffset) +
+      replacement +
+      current.content.slice(target.endOffset)
+    if (content.length > 200000) throw new Error('적용 후 원고가 20만 자를 초과합니다.')
+    write(content)
   }
   // 서버에 저장된 원고를 기준으로 작업을 접수한다. 외부 전송은 명시적으로 동의한 범위만 사용한다.
   async function analyze() {
@@ -590,15 +633,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                             : 'cloud-check'
                       }
                     />
-                    {storageError || saveError
-                      ? '저장 실패 · 입력 유지'
-                      : saving
-                        ? '서버 저장 중…'
-                        : dirty
-                          ? '저장 대기 · 입력 유지'
-                          : work.source === 'server'
-                            ? '서버에 자동 저장'
-                            : '브라우저에 자동 저장'}
+                    {saveStatusText}
                   </span>
                   <Link to={`/works/${work.id}/settings`}>인물·세계관 참고하기</Link>
                   <button
@@ -722,6 +757,9 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           retry={retryAnalysis}
           onJump={jump}
           onDecisionSaved={reportState.retry}
+          onApplySuggestion={applySuggestion}
+          onViewManuscript={() => setView('원고')}
+          saveStatus={saveStatusText}
         />
       </div>
       {savedToast && (
