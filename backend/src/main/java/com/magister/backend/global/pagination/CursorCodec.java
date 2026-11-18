@@ -49,7 +49,9 @@ public class CursorCodec {
         }
 
         try {
-            if (cursor.isBlank() || cursor.length() > 2048) {
+            // encode()는 패딩 없는 Base64URL 토큰만 생성한다.
+            // 패딩('=')이나 짧은 꼬리 입력을 디코더 진입 전에 차단해 CVE-2026-114938(Base64 AVX-512 디코더 경계 오류) 노출도 방어한다.
+            if (!isUnpaddedBase64UrlToken(cursor)) {
                 throw new IllegalArgumentException();
             }
             Token token =
@@ -68,5 +70,25 @@ public class CursorCodec {
         } catch (RuntimeException error) {
             throw new CustomException(CommonErrorCode.INVALID_REQUEST);
         }
+    }
+
+    private boolean isUnpaddedBase64UrlToken(String cursor) {
+        int length = cursor.length();
+        if (length < 16 || length > 2048 || length % 4 == 1) {
+            return false;
+        }
+        for (int index = 0; index < length; index++) {
+            char character = cursor.charAt(index);
+            boolean valid =
+                    (character >= 'A' && character <= 'Z')
+                            || (character >= 'a' && character <= 'z')
+                            || (character >= '0' && character <= '9')
+                            || character == '-'
+                            || character == '_';
+            if (!valid) {
+                return false;
+            }
+        }
+        return true;
     }
 }

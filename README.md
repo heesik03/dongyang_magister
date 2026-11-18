@@ -50,7 +50,7 @@
 | 영역 | 기술 구성 |
 | --- | --- |
 | **Frontend** | React 19, TypeScript 6, Vite 8, React Router 7, Zustand, Axios, Vitest, pnpm |
-| **Backend** | Java 21, Spring Boot 4.1.1, Spring Security (세션 + CSRF), Spring Data JPA, Bean Validation, Gradle Wrapper |
+| **Backend** | Java 21 (21.0.13.1+), Spring Boot 4.1.1, Spring Security (세션 + CSRF), Spring Data JPA, Bean Validation, Gradle Wrapper |
 | **Database** | MySQL |
 | **AI** | Google Gemini API |
 

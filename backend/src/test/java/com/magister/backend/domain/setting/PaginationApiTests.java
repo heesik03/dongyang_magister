@@ -147,6 +147,10 @@ public class PaginationApiTests {
                 .andExpect(status().isBadRequest());
         mvc.perform(get(path(workId)).with(authentication(owner)).param("cursor", "invalid"))
                 .andExpect(status().isBadRequest());
+        mvc.perform(get(path(workId)).with(authentication(owner)).param("cursor", "AAAA=="))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get(path(workId)).with(authentication(owner)).param("cursor", cursor + "="))
+                .andExpect(status().isBadRequest());
         mvc.perform(get(path(workId)).with(authentication(owner)).param("size", "101"))
                 .andExpect(status().isBadRequest());
         mvc.perform(
