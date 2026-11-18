@@ -68,6 +68,13 @@ export function ReviewPanel({
   const selected = filtered.find((review) => review.id === selectedId) || filtered[0]
   const linked = report?.reviews.find((review) => review.id === selected?.id)
   const editingReview = report?.reviews.find((review) => review.id === editing?.id)
+  const targetChapter = work.chapters.find((chapter) => chapter.id === analysis?.chapterId)
+  const quoteMatches =
+    !!linked &&
+    !!targetChapter &&
+    targetChapter.content.slice(linked.startOffset, linked.endOffset) === linked.quote
+  const selectedDecision = selected ? report?.decisions?.[selected.id] : undefined
+  const canRecordDecision = !!linked && quoteMatches && (selectedDecision?.canReconfirm ?? true)
 
   return (
     <aside className="review-panel" aria-label="검토 결과" hidden={hidden}>
@@ -296,6 +303,9 @@ export function ReviewPanel({
                     workId={work.id}
                     reviewId={linked.id}
                     stale={stale}
+                    decisionStatus={selected.decision}
+                    decisionStale={!!selectedDecision?.stale}
+                    onChangeDecision={() => setEditing({ id: selected.id, status: '보류' })}
                     onApply={onApplySuggestion}
                     retry={retry}
                     saveStatus={saveStatus ?? ''}
@@ -324,19 +334,19 @@ export function ReviewPanel({
                 )}
                 <div className="decision-actions">
                   <button
-                    disabled={!linked}
+                    disabled={!canRecordDecision}
                     onClick={() => setEditing({ id: selected.id, status: '수용' })}
                   >
                     수용
                   </button>
                   <button
-                    disabled={!linked}
+                    disabled={!canRecordDecision}
                     onClick={() => setEditing({ id: selected.id, status: '보류' })}
                   >
                     보류
                   </button>
                   <button
-                    disabled={!linked}
+                    disabled={!canRecordDecision}
                     onClick={() => setEditing({ id: selected.id, status: '의도된 설정' })}
                   >
                     의도된 설정
@@ -348,6 +358,12 @@ export function ReviewPanel({
                     판단 철회
                   </button>
                 </div>
+                {linked && !canRecordDecision && (
+                  <p className="small muted" role="status">
+                    원문 인용 위치나 근거가 바뀌어 새 판단은 현재 원고로 다시 검토한 뒤 기록할 수
+                    있습니다. 기존 판단 철회는 가능합니다.
+                  </p>
+                )}
                 <p className="small muted">
                   수용은 처리 상태만 바꿉니다. 원고는 자동으로 수정되지 않습니다.
                 </p>

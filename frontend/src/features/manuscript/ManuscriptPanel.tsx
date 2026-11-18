@@ -23,7 +23,15 @@ const reviewStatusLabels: Readonly<Record<string, string>> = {
   CANCELLED: '취소',
 }
 
-export function ManuscriptPanel({ work }: { work: Work }) {
+export function ManuscriptPanel({ work: propWork }: { work: Work }) {
+  const storedWork = useWorksStore((state) => state.works.find((item) => item.id === propWork.id))
+  const work =
+    storedWork &&
+    storedWork.chapters.some(
+      (item, index) => item.revision > (propWork.chapters[index]?.revision ?? 0),
+    )
+      ? storedWork
+      : propWork
   const updateWork = useWorksStore((state) => state.updateWork)
   const flushWorkspace = useWorksStore((state) => state.flushWorkspace)
   const retrySave = useWorksStore((state) => state.retrySave)
@@ -124,6 +132,16 @@ export function ManuscriptPanel({ work }: { work: Work }) {
       analysis.source !== chapter?.content ||
       settingsChanged(analysis, work.settings) ||
       !!reportState.report?.stale)
+  const saveStatusText =
+    conflict || storageError || saveError
+      ? '저장 실패 · 입력 유지'
+      : saving
+        ? '서버 저장 중…'
+        : dirty
+          ? '저장 대기 · 입력 유지'
+          : work.source === 'server'
+            ? '서버에 자동 저장'
+            : '브라우저에 자동 저장'
   async function saveManuscript() {
     if (work.source !== 'server') {
       retrySave()
@@ -615,15 +633,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
                             : 'cloud-check'
                       }
                     />
-                    {storageError || saveError
-                      ? '저장 실패 · 입력 유지'
-                      : saving
-                        ? '서버 저장 중…'
-                        : dirty
-                          ? '저장 대기 · 입력 유지'
-                          : work.source === 'server'
-                            ? '서버에 자동 저장'
-                            : '브라우저에 자동 저장'}
+                    {saveStatusText}
                   </span>
                   <Link to={`/works/${work.id}/settings`}>인물·세계관 참고하기</Link>
                   <button
@@ -749,13 +759,7 @@ export function ManuscriptPanel({ work }: { work: Work }) {
           onDecisionSaved={reportState.retry}
           onApplySuggestion={applySuggestion}
           onViewManuscript={() => setView('원고')}
-          saveStatus={
-            conflict || saveError || storageError
-              ? '저장 상태를 확인해 주세요'
-              : dirty || saving
-                ? '저장 중'
-                : '서버 저장 완료'
-          }
+          saveStatus={saveStatusText}
         />
       </div>
       {savedToast && (

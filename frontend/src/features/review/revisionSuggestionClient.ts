@@ -6,8 +6,9 @@ function readTarget(raw: unknown) {
   const quote = readString(data, 'quote')
   const startOffset = readInteger(data, 'startOffset')
   const endOffset = readInteger(data, 'endOffset', 1)
-  if (!quote.trim() || endOffset - startOffset !== quote.length)
+  if (!quote.trim() || endOffset - startOffset !== quote.length) {
     throw new Error('원문 위치를 확인할 수 없습니다.')
+  }
   return {
     chapterId: readString(data, 'chapterId'),
     revision: readInteger(data, 'revision'),
@@ -30,12 +31,15 @@ export const revisionSuggestionClient = {
     const material = readRecord(data.material)
     const target = readTarget(data.target)
     const contextHash = readString(data, 'contextHash')
+    const previousRaw = material.previous ?? []
     if (
       !/^[0-9a-f]{64}$/.test(contextHash) ||
       readString(material, 'quote') !== target.quote ||
-      !Array.isArray(material.settings)
-    )
+      !Array.isArray(material.settings) ||
+      !Array.isArray(previousRaw)
+    ) {
       throw new Error('전송 범위를 확인할 수 없습니다.')
+    }
     return {
       target,
       contextHash,
@@ -46,6 +50,14 @@ export const revisionSuggestionClient = {
       settings: material.settings.map((raw) => {
         const setting = readRecord(raw)
         return { title: readString(setting, 'title'), quote: readString(setting, 'quote') }
+      }),
+      previous: previousRaw.map((raw) => {
+        const item = readRecord(raw)
+        return {
+          title: readString(item, 'title'),
+          quote: readString(item, 'quote'),
+          explanation: readString(item, 'explanation'),
+        }
       }),
     }
   },
@@ -83,4 +95,5 @@ export interface RevisionPreview {
   reason: string
   direction: string
   settings: { title: string; quote: string }[]
+  previous?: { title: string; quote: string; explanation: string }[]
 }

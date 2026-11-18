@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../shared/httpClient'
+import type { Decision } from '../works/workTypes'
 import {
   revisionSuggestionClient,
   type RevisionPreview,
@@ -10,6 +11,9 @@ export function RevisionSuggestionPanel({
   workId,
   reviewId,
   stale,
+  decisionStatus = '미검토',
+  decisionStale = false,
+  onChangeDecision,
   onApply,
   retry,
   saveStatus,
@@ -18,6 +22,9 @@ export function RevisionSuggestionPanel({
   workId: string
   reviewId: string
   stale: boolean
+  decisionStatus?: Decision
+  decisionStale?: boolean
+  onChangeDecision?: () => void
   onApply: (target: RevisionTarget, replacement: string) => void
   retry: () => void
   saveStatus: string
@@ -30,7 +37,10 @@ export function RevisionSuggestionPanel({
   const [applied, setApplied] = useState(false)
   const [basisChanged, setBasisChanged] = useState(false)
   const request = useRef<AbortController | null>(null)
+  const isStale = stale || basisChanged || decisionStale
+
   useEffect(() => () => request.current?.abort(), [])
+
   function close() {
     request.current?.abort()
     request.current = null
@@ -40,8 +50,11 @@ export function RevisionSuggestionPanel({
     setReplacement('')
     setApplied(false)
   }
+
   async function load() {
-    if (request.current || stale) return
+    if (request.current || isStale) {
+      return
+    }
     const controller = new AbortController()
     request.current = controller
     setBusy(true)
@@ -54,14 +67,20 @@ export function RevisionSuggestionPanel({
           preview,
           controller.signal,
         )
-        if (!controller.signal.aborted) setReplacement(result)
+        if (!controller.signal.aborted) {
+          setReplacement(result)
+        }
       } else {
         const result = await revisionSuggestionClient.preview(workId, reviewId, controller.signal)
-        if (!controller.signal.aborted) setPreview(result)
+        if (!controller.signal.aborted) {
+          setPreview(result)
+        }
       }
     } catch (failure) {
       if (!controller.signal.aborted) {
-        if (failure instanceof ApiError && failure.status === 409) setBasisChanged(true)
+        if (failure instanceof ApiError && failure.status === 409) {
+          setBasisChanged(true)
+        }
         setError(failure instanceof Error ? failure.message : '보완 문장을 요청하지 못했습니다.')
       }
     } finally {
@@ -71,8 +90,11 @@ export function RevisionSuggestionPanel({
       }
     }
   }
+
   function apply() {
-    if (!preview || !replacement || busy) return
+    if (!preview || !replacement || busy) {
+      return
+    }
     try {
       onApply(preview.target, replacement)
       setApplied(true)
@@ -81,23 +103,50 @@ export function RevisionSuggestionPanel({
       setError(failure instanceof Error ? failure.message : '원고에 적용하지 못했습니다.')
     }
   }
+
   return (
     <section className="revision-suggestion" aria-label="검토 후보 보완 문장">
       {applied ? (
         <>
-          <h4>원고에 반영했어요</h4>
+          <h4>보완 문장을 원고에 반영했습니다</h4>
           <blockquote>{replacement}</blockquote>
           <p role="status">
-            {saveStatus} · 기존 검토와 판단 근거는 원고 버전 {preview?.target.revision} 기준입니다.
+            작가 판단은 ‘{decisionStatus}’로 유지됩니다 · {saveStatus} · 기존 검토와 판단 근거는
+            원고 버전 {preview?.target.revision} 기준입니다.
           </p>
-          <button onClick={retry}>다시 검토</button>
-          <button onClick={onViewManuscript}>원고 보기</button>
+          <div className="decision-actions">
+            <button type="button" onClick={retry}>
+              다시 검토
+            </button>
+            <button type="button" onClick={onViewManuscript}>
+              원고 보기
+            </button>
+          </div>
         </>
-      ) : stale || basisChanged ? (
+      ) : isStale ? (
         <>
           <p role="status">원고 또는 근거가 변경되어 이전 제안을 적용할 수 없습니다.</p>
-          <button onClick={retry}>현재 원고로 다시 검토</button>
-          <button onClick={onViewManuscript}>원고로 돌아가기</button>
+          <div className="decision-actions">
+            <button type="button" onClick={retry}>
+              현재 원고로 다시 검토
+            </button>
+            <button type="button" onClick={onViewManuscript}>
+              원고로 돌아가기
+            </button>
+          </div>
+        </>
+      ) : decisionStatus === '의도된 설정' ? (
+        <>
+          <p role="status">
+            의도된 설정으로 기록한 후보입니다. 보완 문장을 제안받으려면 판단 상태를 변경해 주세요.
+          </p>
+          {onChangeDecision && (
+            <div className="decision-actions">
+              <button type="button" className="ghost small" onClick={onChangeDecision}>
+                판단 변경
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -105,16 +154,22 @@ export function RevisionSuggestionPanel({
             <>
               <h4>{replacement ? '보완 문장 비교' : 'Gemini에 보낼 자료'}</h4>
               {replacement ? (
-                <div className="revision-comparison">
-                  <div>
-                    <strong>원래 문장</strong>
-                    <blockquote>{preview.target.quote}</blockquote>
+                <>
+                  <div className="revision-comparison">
+                    <div>
+                      <strong>원래 문장</strong>
+                      <blockquote>{preview.target.quote}</blockquote>
+                    </div>
+                    <div>
+                      <strong>AI 보완 문장</strong>
+                      <blockquote>{replacement}</blockquote>
+                    </div>
                   </div>
-                  <div>
-                    <strong>AI 보완 문장</strong>
-                    <blockquote>{replacement}</blockquote>
-                  </div>
-                </div>
+                  <p className="small muted">
+                    이 문장을 적용하면 원고 버전이 바뀝니다. 다른 후보의 보완 문장은 재검토 후 받을
+                    수 있습니다.
+                  </p>
+                </>
               ) : (
                 <>
                   <strong>원고 구간</strong>
@@ -129,26 +184,51 @@ export function RevisionSuggestionPanel({
               )}
               <strong>참고할 확정 설정</strong>
               {preview.settings.length ? (
-                preview.settings.map((s, i) => (
-                  <p key={i}>
-                    {s.title} · {s.quote}
+                preview.settings.map((setting) => (
+                  <p key={`${setting.title}:${setting.quote}`}>
+                    {setting.title} · {setting.quote}
                   </p>
                 ))
               ) : (
                 <p>이 후보에 연결된 확정 설정 인용이 없습니다.</p>
               )}
+              <strong>참고할 이전 회차 근거</strong>
+              {preview.previous?.length ? (
+                preview.previous.map((item) => (
+                  <p key={`${item.title}:${item.quote}:${item.explanation}`}>
+                    {item.title} · {item.quote} ({item.explanation})
+                  </p>
+                ))
+              ) : (
+                <p>이 후보에 연결된 이전 회차 인용이 없습니다.</p>
+              )}
             </>
           )}
           <div className="decision-actions">
             {replacement && (
-              <button onClick={apply} disabled={busy}>
+              <button type="button" onClick={apply} disabled={busy}>
                 원고에 적용
               </button>
             )}
-            <button onClick={load} disabled={busy}>
-              {preview ? (replacement ? '다시 제안' : 'Gemini에 제안 요청') : '보완 문장 제안받기'}
+            <button
+              type="button"
+              className={!preview && decisionStatus === '수용' ? 'ghost small' : undefined}
+              onClick={() => void load()}
+              disabled={busy}
+            >
+              {preview
+                ? replacement
+                  ? '다시 제안'
+                  : '보완 문장 생성'
+                : decisionStatus === '수용'
+                  ? '보완 문장 제안받기'
+                  : '전송 범위 확인'}
             </button>
-            {(preview || busy || error) && <button onClick={close}>닫기</button>}
+            {(preview || busy || error) && (
+              <button type="button" onClick={close}>
+                닫기
+              </button>
+            )}
           </div>
         </>
       )}
