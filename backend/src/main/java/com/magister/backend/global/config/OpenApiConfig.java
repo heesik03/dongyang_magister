@@ -4,6 +4,8 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.parameters.HeaderParameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
@@ -12,6 +14,8 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.Set;
 
 @Configuration(proxyBeanMethods = false)
 public class OpenApiConfig {
@@ -40,6 +44,20 @@ public class OpenApiConfig {
             logout.setDescription("CSRF 헤더가 필요합니다. 세션을 무효화하고 세션 쿠키를 삭제합니다.");
             api.path("/api/user/logout", new PathItem().post(logout));
             logout.addSecurityItem(new SecurityRequirement().addList("session"));
+
+            Set<PathItem.HttpMethod> csrfMethods = Set.of(PathItem.HttpMethod.POST,
+                    PathItem.HttpMethod.PUT, PathItem.HttpMethod.PATCH, PathItem.HttpMethod.DELETE);
+            for (PathItem path : api.getPaths().values()) {
+                path.readOperationsMap().forEach((method, operation) -> {
+                    if (csrfMethods.contains(method)) {
+                        operation.addParametersItem(new HeaderParameter()
+                                .name("X-CSRF-TOKEN")
+                                .required(true)
+                                .schema(new StringSchema())
+                                .description("같은 세션에서 GET /api/user/csrf 응답의 data.token 값을 입력하세요. 로그인 성공 후에는 다시 조회하세요."));
+                    }
+                });
+            }
         };
     }
 }

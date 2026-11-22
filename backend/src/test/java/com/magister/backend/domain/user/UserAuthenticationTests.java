@@ -176,6 +176,7 @@ class UserAuthenticationTests {
                                         "Referrer-Policy",
                                         "strict-origin-when-cross-origin"))
                 .andExpect(header().exists("Content-Security-Policy"))
+                .andExpect(jsonPath("$.paths['/api/user/login'].post.parameters[?(@.name == 'X-CSRF-TOKEN' && @.in == 'header' && @.required == true)]").isNotEmpty())
                 .andExpect(jsonPath("$.paths['/api/user/logout'].post.summary").value("로그아웃"))
                 .andExpect(
                         jsonPath("$.components.securitySchemes.session.name").value("JSESSIONID"));
