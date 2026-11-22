@@ -38,6 +38,12 @@ public class GeminiClient {
         return generateText(prompt, GeminiAnalysisConfig.create(properties.model()));
     }
 
+    /** 역사 주장 추출·대조 응답은 JSON으로 받고 호출부에서 단계별 계약을 검증한다. */
+    public String generateHistoryJson(String prompt) {
+        return generateText(prompt, GenerateContentConfig.builder()
+                .responseMimeType("application/json").maxOutputTokens(4096).build());
+    }
+
     /** 사건 추출 전용 JSON 계약을 사용하며 기존 설정 검토의 응답 스키마는 유지한다. */
     public String generateEvents(String prompt) {
         return generateText(prompt, GeminiEventConfig.create());

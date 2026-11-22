@@ -55,7 +55,7 @@ public class HeritageClient implements HistorySource {
     }
 
     @Override
-    public HistoryEvidence evidence(String sourceId, String keyword) {
+    public HistoryEvidence evidence(String sourceId, List<String> keywords) {
         if (!sourceId.matches(SOURCE_ID)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
         }
@@ -76,7 +76,7 @@ public class HeritageClient implements HistorySource {
         }
         URI url = URI.create("https://www.heritage.go.kr/heri/cul/culSelectDetail.do?ccbaAsno="
                 + codes[1] + "&ccbaCpno=" + portalId);
-        return HistorySource.excerpt("국가유산청", sourceId, title, url, keyword, field(item, "content"));
+        return HistorySource.excerpt("국가유산청", sourceId, title, url, keywords, field(item, "content"));
     }
 
     private static String sourceId(Element item) {

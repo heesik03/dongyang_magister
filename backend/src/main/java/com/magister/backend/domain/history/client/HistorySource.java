@@ -13,7 +13,11 @@ import java.util.Locale;
 public interface HistorySource {
     List<HistoryCandidate> candidates(String query);
 
-    HistoryEvidence evidence(String sourceId, String keyword);
+    default HistoryEvidence evidence(String sourceId, String keyword) {
+        return evidence(sourceId, List.of(keyword));
+    }
+
+    HistoryEvidence evidence(String sourceId, List<String> keywords);
 
     static List<HistoryCandidate> ranked(List<HistoryCandidate> candidates, String query) {
         return candidates.stream()
@@ -23,7 +27,7 @@ public interface HistorySource {
     }
 
     static HistoryEvidence excerpt(String institution, String id, String title, URI url,
-            String keyword, String... sections) {
+            List<String> keywords, String... sections) {
         for (String line : Arrays.stream(sections).flatMap(String::lines).toList()) {
             if (line.isBlank() || line.stripLeading().startsWith("#")) {
                 continue;
@@ -33,7 +37,8 @@ public interface HistorySource {
             int start = sentences.first();
             for (int end = sentences.next(); end != BreakIterator.DONE; end = sentences.next()) {
                 String sentence = line.substring(start, end).strip();
-                int match = sentence.indexOf(keyword);
+                int match = keywords.stream().mapToInt(sentence::indexOf)
+                        .filter(position -> position >= 0).min().orElse(-1);
                 if (match >= 0 && !sentence.isEmpty()) {
                     int from = Math.max(0, match - 160);
                     String passage = sentence.substring(from, Math.min(sentence.length(), from + 500));

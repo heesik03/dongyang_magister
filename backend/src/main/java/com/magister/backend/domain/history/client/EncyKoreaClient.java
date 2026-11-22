@@ -60,7 +60,7 @@ public class EncyKoreaClient implements HistorySource {
     }
 
     @Override
-    public HistoryEvidence evidence(String sourceId, String keyword) {
+    public HistoryEvidence evidence(String sourceId, List<String> keywords) {
         if (!sourceId.matches("E[0-9]{7}")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
         }
@@ -69,7 +69,7 @@ public class EncyKoreaClient implements HistorySource {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY);
         }
         return HistorySource.excerpt("한국학중앙연구원", sourceId, required(article, "headword"),
-                URI.create("https://encykorea.aks.ac.kr/Article/" + sourceId), keyword,
+                URI.create("https://encykorea.aks.ac.kr/Article/" + sourceId), keywords,
                 field(article, "body"), field(article, "summary"), field(article, "definition"));
     }
 

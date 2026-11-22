@@ -23,7 +23,11 @@ class HistoryApiTests {
         mvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/history/{provider}/candidates'].get").exists())
-                .andExpect(jsonPath("$.paths['/api/history/{provider}/evidence/{sourceId}'].get").exists());
+                .andExpect(jsonPath("$.paths['/api/history/{provider}/evidence/{sourceId}'].get.summary")
+                        .value("선택한 자료의 근거 대목 조회"))
+                .andExpect(jsonPath("$.paths['/api/history/check'].post.summary").value("원고의 역사 주장 대조"))
+                .andExpect(jsonPath("$.paths['/api/history/check'].post.responses['403']").exists())
+                .andExpect(jsonPath("$.paths['/api/history/check'].post.responses['502']").exists());
     }
 
     @Test
