@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon, type IconName } from '../../shared/Icon'
 import './historyReview.css'
 import type { Chapter } from '../works/workTypes'
@@ -128,7 +128,7 @@ export function HistoryReviewPanel({
           <div className="history-candidates">
             {visible.map(({ item, index }) => (
               <button
-                key={index}
+                key={`${item.startOffset}:${item.endOffset}:${item.target}:${item.assertion}`}
                 type="button"
                 aria-pressed={active?.index === index}
                 onClick={() => {
@@ -212,8 +212,8 @@ export function HistoryReviewPanel({
                   <Icon name="book" /> 공식 근거
                 </h4>
                 {!finding.evidence.length && <p>연결된 공식 자료가 없습니다.</p>}
-                {finding.evidence.map((source, index) => (
-                  <div className="history-source" key={index}>
+                {finding.evidence.map((source) => (
+                  <div className="history-source" key={`${source.institution}:${source.url}`}>
                     <p>
                       <a href={source.url} target="_blank" rel="noreferrer">
                         {source.institution} · {source.title} ↗
@@ -236,8 +236,14 @@ export function HistoryReviewPanel({
               key={JSON.stringify([active.index, finding.decision])}
               saved={finding.decision}
               disabled={!matching}
-              onSave={async (decision) => {
-                await reviewClient.saveHistoryDecision(workId, jobId, active.index, decision)
+              onSave={async (decision, signal) => {
+                await reviewClient.saveHistoryDecision(
+                  workId,
+                  jobId,
+                  active.index,
+                  decision,
+                  signal,
+                )
                 onSaved?.()
               }}
             />
@@ -270,22 +276,31 @@ function HistoryDecisionForm({
 }: {
   saved?: HistoryDecision
   disabled: boolean
-  onSave: (decision: HistoryDecision | { choice: 'WITHDRAWN'; reason: string }) => Promise<void>
+  onSave: (
+    decision: HistoryDecision | { choice: 'WITHDRAWN'; reason: string },
+    signal: AbortSignal,
+  ) => Promise<void>
 }) {
   const [choice, setChoice] = useState<HistoryDecision['choice']>(saved?.choice ?? 'HOLD')
   const [reason, setReason] = useState(saved?.reason ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const requestRef = useRef<AbortController | null>(null)
+  useEffect(() => () => requestRef.current?.abort(), [])
   async function save(decision: Parameters<typeof onSave>[0]) {
     if (busy || disabled) return
+    const controller = new AbortController()
+    requestRef.current?.abort()
+    requestRef.current = controller
     setBusy(true)
     setError('')
     try {
-      await onSave(decision)
+      await onSave(decision, controller.signal)
     } catch (failure) {
+      if (controller.signal.aborted) return
       setError(failure instanceof Error ? failure.message : '판단을 저장하지 못했습니다.')
     } finally {
-      setBusy(false)
+      if (!controller.signal.aborted) setBusy(false)
     }
   }
   return (

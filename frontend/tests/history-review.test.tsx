@@ -66,7 +66,13 @@ test('공식 근거와 원문 위치를 표시하고 선택한 판단·사유를
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '대체 역사 설정' } })
   fireEvent.click(screen.getByRole('button', { name: '판단 저장' }))
   await waitFor(() => expect(props.onSaved).toHaveBeenCalledOnce())
-  expect(save).toHaveBeenCalledWith('1', 'job', 0, { choice: 'INTENDED', reason: '대체 역사 설정' })
+  expect(save).toHaveBeenCalledWith(
+    '1',
+    'job',
+    0,
+    { choice: 'INTENDED', reason: '대체 역사 설정' },
+    expect.any(AbortSignal),
+  )
   view.rerender(<HistoryReviewPanel {...props} chapter={{ ...chapter, revision: 3 }} />)
   expect(
     (screen.getByRole('button', { name: '원고에서 확인' }) as HTMLButtonElement).disabled,

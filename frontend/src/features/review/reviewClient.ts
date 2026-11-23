@@ -93,8 +93,11 @@ export const reviewClient = {
     jobId: string,
     index: number,
     decision: HistoryDecision | { choice: 'WITHDRAWN'; reason: string },
+    signal?: AbortSignal,
   ) {
-    await httpClient.put(path(workId, jobId) + '/review/history/' + index + '/decision', decision)
+    await httpClient.put(path(workId, jobId) + '/review/history/' + index + '/decision', decision, {
+      signal,
+    })
   },
   async list(workId: string, jobId: string, signal?: AbortSignal): Promise<ReviewReport> {
     const value = readRecord(
