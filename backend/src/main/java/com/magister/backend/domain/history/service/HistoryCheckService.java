@@ -128,8 +128,17 @@ public class HistoryCheckService {
                         break;
                     }
                     if (!exact.isEmpty()) {
-                        HistoryEvidence item =
-                                source.evidence(exact.getFirst().sourceId(), claim.keywords());
+                        String sourceId = exact.getFirst().sourceId();
+                        HistoryEvidence item = source.evidence(sourceId, claim.keywords());
+                        if (item.status() != HistoryEvidence.Status.FOUND) {
+                            List<String> fallbackKeywords = fallbackKeywords(claim);
+                            if (!fallbackKeywords.equals(claim.keywords())) {
+                                HistoryEvidence retry = source.evidence(sourceId, fallbackKeywords);
+                                if (retry != null) {
+                                    item = retry;
+                                }
+                            }
+                        }
                         if (item.status() == HistoryEvidence.Status.FOUND
                                 && item.title().equals(claim.target())) {
                             evidence.add(item);
@@ -150,6 +159,48 @@ public class HistoryCheckService {
             }
         }
         return HistoryConverter.toFinding(claim, start, status, reason, evidence);
+    }
+
+    /** 표제어 자체만 키워드로 추출되거나 1차 키워드 매칭이 실패한 경우 주장(assertion)·장면 시점의 핵심 토큰을 보조 키워드로 결합한다. */
+    private static List<String> fallbackKeywords(Claim claim) {
+        List<String> combined = new ArrayList<>();
+        for (String keyword : claim.keywords()) {
+            String trimmed = keyword.strip();
+            if (!trimmed.isEmpty()
+                    && !trimmed.equals(claim.target())
+                    && !combined.contains(trimmed)) {
+                combined.add(trimmed);
+            }
+        }
+        if (claim.kind() == Kind.EXISTENCE) {
+            for (String token : List.of("창건", "처음으로 세운", "건립", "처음 지", "세운", "지은")) {
+                if (!combined.contains(token)) {
+                    combined.add(token);
+                }
+            }
+        } else {
+            for (String rawToken : (claim.sceneTime() + " " + claim.assertion()).split("[^가-힣0-9A-Za-z一-龥]+")) {
+                String token = stripJosa(rawToken.strip());
+                if (token.length() >= 2
+                        && !token.equals(claim.target())
+                        && !combined.contains(token)) {
+                    combined.add(token);
+                }
+            }
+        }
+        if (combined.isEmpty()) {
+            return claim.keywords();
+        }
+        return List.copyOf(combined);
+    }
+
+    private static String stripJosa(String token) {
+        for (String suffix : List.of("에서", "으로", "에게", "부터", "까지", "이라", "라고", "은", "는", "이", "가", "을", "를", "의", "에", "로", "와", "과")) {
+            if (token.length() > suffix.length() + 1 && token.endsWith(suffix)) {
+                return token.substring(0, token.length() - suffix.length());
+            }
+        }
+        return token;
     }
 
     private static void applyAssessments(

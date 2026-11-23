@@ -18,6 +18,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.net.URI;
+import java.util.List;
+
 import tools.jackson.databind.ObjectMapper;
 
 class HistorySourceTests {
@@ -95,5 +98,44 @@ class HistorySourceTests {
                         exception ->
                                 assertThat(exception.getErrorCode())
                                         .isEqualTo(HistoryErrorCode.PROVIDER_LOOKUP_FAILED));
+    }
+
+    @Test
+    void excerptDeprioritizesTargetTitleAndSeparatesQuotedSentences() {
+        String content =
+                "조선 왕조 제일의 법궁으로 태조 4년(1395) 한양으로 수도를 옮긴 후 처음으로 세운 궁궐이다. "
+                        + "궁궐의 이름은 정도전이 『시경』에 나오는 “이미 술에 취하고 이미 덕에 배부르니 군자만년 그대의 큰 복을 도우리라”에서 "
+                        + "큰 복을 빈다는 뜻의 ‘경복(景福)’이라는 두 글자를 따서 지은 것이다. "
+                        + "1412년 태종은 경복궁의 연못을 크게 넓히고 섬 위에 경회루를 만들었다.";
+        HistoryEvidence evidence =
+                HistorySource.excerpt(
+                        "국가유산청",
+                        "13-0001170000000-11",
+                        "경복궁",
+                        URI.create("https://www.heritage.go.kr/"),
+                        List.of("경복궁", "창건", "처음으로 세운", "건립"),
+                        content);
+        assertThat(evidence.status()).isEqualTo(HistoryEvidence.Status.FOUND);
+        assertThat(evidence.passage())
+                .isEqualTo("조선 왕조 제일의 법궁으로 태조 4년(1395) 한양으로 수도를 옮긴 후 처음으로 세운 궁궐이다.");
+    }
+
+    @Test
+    void excerptSelectsHighestKeywordDensityAndBundlesNeighborContextForGeneralClaims() {
+        String article =
+                "조선 중기의 무신이다. 1591년 전라좌도수군절도사에 임명되었다. "
+                        + "1592년 한산도 앞바다에서 학익진을 펼쳐 왜군을 크게 격파하였다.";
+        HistoryEvidence evidence =
+                HistorySource.excerpt(
+                        "한국학중앙연구원",
+                        "E0044760",
+                        "이순신",
+                        URI.create("https://encykorea.aks.ac.kr/Article/E0044760"),
+                        List.of("이순신", "한산도", "학익진", "전라좌도수군절도사"),
+                        article);
+        assertThat(evidence.status()).isEqualTo(HistoryEvidence.Status.FOUND);
+        assertThat(evidence.passage())
+                .contains("1591년 전라좌도수군절도사에 임명되었다.")
+                .contains("1592년 한산도 앞바다에서 학익진을 펼쳐 왜군을 크게 격파하였다.");
     }
 }
