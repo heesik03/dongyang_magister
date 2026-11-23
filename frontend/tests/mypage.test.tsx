@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { MyPage } from '../src/features/account/MyPage'
 import {
@@ -186,7 +186,7 @@ test('회원 탈퇴 모달에서 비밀번호와 동의 확인 후 브라우저 
   renderMyPage()
   await screen.findByText(/잿빛 항구의 연대기 · 3화 안개 낀 부두/)
 
-  fireEvent.click(screen.getByRole('button', { name: '회원 탈퇴 안내' }))
+  fireEvent.click(screen.getByRole('button', { name: '회원 탈퇴' }))
 
   expect(await screen.findByRole('heading', { name: '정말로 탈퇴하시겠습니까?' })).toBeTruthy()
   expect(screen.getByText(/보유 작품 2편 및 설정집 전체/)).toBeTruthy()
@@ -204,7 +204,7 @@ test('회원 탈퇴 모달에서 비밀번호와 동의 확인 후 브라우저 
     }),
   )
 
-  const enabledBtn = screen.getByRole('button', { name: '회원 탈퇴' })
+  const enabledBtn = within(screen.getByRole('dialog')).getByRole('button', { name: '회원 탈퇴' })
   expect(enabledBtn).toHaveProperty('disabled', false)
 
   fireEvent.click(enabledBtn)
@@ -215,7 +215,7 @@ test('회원 탈퇴 모달에서 비밀번호와 동의 확인 후 브라우저 
   fireEvent.change(screen.getByLabelText('현재 비밀번호 확인', { exact: true }), {
     target: { value: 'CorrectPass1!' },
   })
-  fireEvent.click(screen.getByRole('button', { name: '회원 탈퇴' }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '회원 탈퇴' }))
 
   await waitFor(() =>
     expect(accountClient.withdraw).toHaveBeenLastCalledWith({

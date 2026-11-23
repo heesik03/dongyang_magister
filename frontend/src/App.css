@@ -2616,9 +2616,9 @@ fieldset input {
 .mypage-tabs {
   display: inline-flex;
   background: #edeef0;
-  padding: 4px;
+  padding: 6px;
   border-radius: 10px;
-  gap: 4px;
+  gap: 12px;
 }
 .mypage-tabs button {
   min-height: 36px;

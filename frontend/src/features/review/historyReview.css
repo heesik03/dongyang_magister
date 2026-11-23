@@ -275,15 +275,27 @@
 
 .history-revision-direction {
   grid-column: 1 / -1;
+  padding: 14px 18px;
+  border: 1px solid var(--history-border);
+  border-radius: 10px;
+  background: #f8f6f0;
+}
+
+.history-revision-direction[open] {
+  background: var(--history-selected);
+  border-color: color-mix(in srgb, var(--history-accent) 28%, var(--history-border));
 }
 
 .history-revision-direction summary {
   width: fit-content;
+  font-weight: 700;
+  color: var(--history-accent);
   cursor: pointer;
 }
 
 .history-revision-direction > p {
   margin-block: 10px 0;
+  line-height: 1.65;
 }
 
 .history-decision {

@@ -273,6 +273,18 @@ export function MyPage() {
                   </button>
                 </div>
               </form>
+
+              <div className="mypage-withdraw-footer">
+                <span className="small muted">계정과 모든 창작 자료를 영구 삭제합니다.</span>
+                <button
+                  type="button"
+                  className="danger ghost small"
+                  onClick={() => setShowWithdrawDialog(true)}
+                >
+                  <Icon name="trash" />
+                  회원 탈퇴
+                </button>
+              </div>
             </section>
 
             <section className="mypage-card" aria-labelledby="mypage-activity-heading">
@@ -415,20 +427,6 @@ export function MyPage() {
               </div>
             </section>
           </div>
-
-          <section className="mypage-danger-card" aria-labelledby="mypage-withdraw-heading">
-            <div>
-              <h2 id="mypage-withdraw-heading">회원 탈퇴</h2>
-              <p className="small muted">
-                계정과 보유 작품, 설정집, 원고, AI 검토 이력을 영구 삭제합니다. 삭제된 자료는 복구할
-                수 없습니다.
-              </p>
-            </div>
-            <button type="button" className="danger" onClick={() => setShowWithdrawDialog(true)}>
-              <Icon name="trash" />
-              회원 탈퇴 안내
-            </button>
-          </section>
         </div>
       ) : (
         <div
