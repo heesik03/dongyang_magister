@@ -1,7 +1,7 @@
 import { readInteger, readRecord, readString } from '../../shared/responseReader'
 
 export const historyStatuses = {
-  POSSIBLE_CONFLICT: '충돌 가능성',
+  POSSIBLE_CONFLICT: '시대 충돌 후보',
   NO_CONFLICT_FOUND: '확인한 근거에서 충돌 없음',
   INSUFFICIENT_EVIDENCE: '근거 부족',
   LOOKUP_FAILED: '자료 조회 실패',

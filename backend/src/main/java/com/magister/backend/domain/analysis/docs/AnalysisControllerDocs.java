@@ -31,7 +31,7 @@ import org.springframework.http.ResponseEntity;
 @SecurityRequirement(name = "session")
 public interface AnalysisControllerDocs {
     @Operation(summary = "역사 고증 항목의 작가 판단 저장",
-            description = "본인 작품의 검토 항목에 수용·보류·의도된 설정과 사유를 기록합니다. 같은 작품의 후속 검토에서 대상·시점·주장이 같은 항목에 의도된 설정을 표시합니다. 변경된 원고는 409입니다.")
+            description = "본인 작품의 검토 항목에 수용·보류·의도된 설정과 사유를 기록합니다. WITHDRAWN은 해당 판단을 철회합니다. 같은 작품의 후속 검토에서 대상·시점·주장이 같은 항목에 의도된 설정을 표시합니다. 변경된 원고는 409입니다.")
     ApiResult<HistoryDecision> decideHistory(LoginUser user, @Positive Long workId,
             @NotBlank @Size(max = 36) String id, @Min(0) @Max(2) int index, @Valid HistoryDecision input);
 

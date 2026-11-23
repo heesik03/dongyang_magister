@@ -92,7 +92,7 @@ export const reviewClient = {
     workId: string,
     jobId: string,
     index: number,
-    decision: HistoryDecision,
+    decision: HistoryDecision | { choice: 'WITHDRAWN'; reason: string },
   ) {
     await httpClient.put(path(workId, jobId) + '/review/history/' + index + '/decision', decision)
   },

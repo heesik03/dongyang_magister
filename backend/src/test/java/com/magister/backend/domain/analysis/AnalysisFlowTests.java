@@ -205,6 +205,22 @@ class AnalysisFlowTests {
         mockMvc.perform(get(path() + "/" + next + "/review").with(authentication(owner)))
                 .andExpect(jsonPath("$.data.historyDecisions['0'].reason").value("대체 역사 설정"))
                 .andExpect(jsonPath("$.data.historyDecisions['1']").doesNotExist());
+        mockMvc.perform(put(path() + "/" + next + "/review/history/0/decision")
+                        .with(authentication(owner)).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"choice":"WITHDRAWN","reason":"판단 철회"}
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(path() + "/" + next + "/review").with(authentication(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.historyDecisions['0']").doesNotExist());
+        String later = jobService.create(ownerId, workId, new AnalysisRequest("later", "target", 0,
+                List.of(), List.of(), false, false, 1L, true)).id();
+        worker.execute(later);
+        mockMvc.perform(get(path() + "/" + later + "/review").with(authentication(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.historyDecisions['0']").doesNotExist());
         transactionTemplate.executeWithoutResult(status ->
                 assertThat(jobRepository.deleteExpiredWithoutDecisions(List.of(job))).isZero());
         chapterService.update(ownerId, workId, "target", new UpdateChapterRequest("2화", "바뀐 원고", 0, "changed"));

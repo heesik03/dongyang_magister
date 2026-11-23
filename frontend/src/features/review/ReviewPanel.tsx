@@ -23,6 +23,7 @@ export function ReviewPanel({
   analyzing,
   error,
   retry,
+  onHistory,
   onJump,
   report,
   reportLoading,
@@ -43,6 +44,7 @@ export function ReviewPanel({
   analyzing: boolean
   error: string
   retry: () => void
+  onHistory?: () => void
   onJump: (location: SourceLocation) => void
   report?: ReviewReport
   reportLoading?: boolean
@@ -85,12 +87,14 @@ export function ReviewPanel({
 
   return (
     <aside className="review-panel" aria-label="검토 결과" hidden={hidden}>
-      <div className="section-line">
-        <h2>회차 검토</h2>
-        <span className="badge info">AI 검토</span>
-      </div>
+      {!report?.history && (
+        <div className="section-line">
+          <h2>회차 검토</h2>
+          <span className="badge info">AI 검토</span>
+        </div>
+      )}
 
-      {report && !report.legacy && (
+      {report && !report.legacy && !report.history && (
         <div className="review-utility-bar">
           <button type="button" className="ghost small" onClick={onDecisionSaved}>
             <Icon name="refresh" />
@@ -145,6 +149,10 @@ export function ReviewPanel({
           stale={stale || report.stale}
           onJump={onJump}
           onSaved={onDecisionSaved}
+          workTitle={work.title}
+          onHistory={onHistory}
+          onRetry={retry}
+          onBack={onViewManuscript}
         />
       )}
       {!analysis && !report?.history && !analyzing && !error && (

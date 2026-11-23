@@ -55,6 +55,7 @@ public class HistoryDecisionService {
                                     job.getWork().getId(), claimKey(report.findings().get(index)), job.getCreatedAt())
                             .map(HistoryFindingDecision::decision)
                             .filter(previous -> previous.choice() == HistoryDecision.Choice.INTENDED))
+                    .filter(value -> value.choice() != HistoryDecision.Choice.WITHDRAWN)
                     .ifPresent(value -> result.put(index, value));
         }
         return result;

@@ -62,7 +62,7 @@ test('공식 근거와 원문 위치를 표시하고 선택한 판단·사유를
       endOffset: quote.length,
     }),
   )
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'INTENDED' } })
+  fireEvent.click(screen.getByRole('button', { name: '의도된 설정' }))
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '대체 역사 설정' } })
   fireEvent.click(screen.getByRole('button', { name: '판단 저장' }))
   await waitFor(() => expect(props.onSaved).toHaveBeenCalledOnce())

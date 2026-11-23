@@ -128,7 +128,7 @@ test('저장 실패는 재시도할 수 있고 저장 중·충돌 상태에서�
 test('역사 고증만 요청하면 참고 설정과 이전 회차를 전송하지 않는다', async () => {
   show()
   fireEvent.click(screen.getByRole('button', { name: '원고 검토' }))
-  for (const name of ['설정 충돌 후보', '인물 행동의 설명 보완', '역사 고증']) {
+  for (const name of ['설정·세계관 충돌', '인물 행동의 설명 보완', '역사 고증']) {
     fireEvent.click(screen.getByRole('checkbox', { name }))
   }
   fireEvent.click(screen.getByRole('button', { name: 'AI 검토 시작' }))
@@ -206,7 +206,7 @@ test('실패한 검토는 분석 범위 설정을 다시 열고 바로 재접수
   show()
   fireEvent.click(screen.getByRole('button', { name: '검토', exact: true }))
   fireEvent.click(await screen.findByRole('button', { name: '다시 분석' }))
-  await screen.findByRole('dialog', { name: '분석 범위 설정' })
+  await screen.findByRole('region', { name: '분석 범위 설정' })
   expect(
     (screen.getByRole('checkbox', { name: '능력', exact: true }) as HTMLInputElement).checked,
   ).toBe(true)
@@ -228,7 +228,7 @@ test('접수 중 자료 충돌이 발생하면 오류를 표시하고 자동으�
   show()
   fireEvent.click(screen.getByRole('button', { name: '원고 검토', exact: true }))
   fireEvent.click(screen.getByRole('button', { name: 'AI 검토 시작' }))
-  await within(screen.getByRole('dialog', { name: '분석 범위 설정' })).findByText(
+  await within(screen.getByRole('region', { name: '분석 범위 설정' })).findByText(
     '자료가 바뀌었습니다.',
   )
   expect(analysisClient.create).toHaveBeenCalledTimes(1)

@@ -58,6 +58,10 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
   const [creating, setCreating] = useState(!!params.get('newChapter'))
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
+  const optionsHeading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (optionsOpen) optionsHeading.current?.focus()
+  }, [optionsOpen])
   const [settingIds, setSettingIds] = useState(
     work.settings.filter((setting) => setting.status === '확정').map((setting) => setting.id),
   )
@@ -83,6 +87,7 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
   const [markdownPreview, setMarkdownPreview] = useState(false)
   const [highlight, setHighlight] = useState(params.get('quote') || '')
   const [lineHeight, setLineHeight] = useState(1.8)
+  const historyMenu = useRef<HTMLDetailsElement>(null)
   const editor = useRef<HTMLTextAreaElement>(null)
   const pendingSourceFocus = useRef<SourceLocation | null>(null)
   const [sourceFocusRequest, setSourceFocusRequest] = useState(0)
@@ -293,6 +298,13 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
     }
   }
   function retryAnalysis() {
+    if (reportState.report?.history) {
+      setHistorical(true)
+      if (reportState.report.history.standardStatus === 'NOT_REQUESTED') {
+        setConsistency(false)
+        setMotivation(false)
+      }
+    }
     if (analysis) {
       const nextSettingIds = analysis.settingIds.filter((id) =>
         work.settings.some((setting) => setting.id === id && setting.status === '확정'),
@@ -351,8 +363,144 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
   function toggle(ids: string[], id: string) {
     return ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]
   }
+  if (optionsOpen) {
+    return (
+      <section className="history-scope" aria-labelledby="history-scope-heading">
+        <button
+          type="button"
+          className="text-button history-mobile-back"
+          onClick={() => setOptionsOpen(false)}
+        >
+          ‹ 뒤로
+        </button>
+        <h1 id="history-scope-heading" ref={optionsHeading} tabIndex={-1}>
+          분석 범위 설정
+        </h1>
+        <p className="muted">
+          {work.title} / {chapter?.title}
+        </p>
+        <div className="history-scope-card">
+          <div className="history-scope-selection">
+            <div className="history-scope-target">
+              <Icon name="file" />
+              <div>
+                <strong>검토 원고</strong>
+                <p>
+                  {chapter?.title} · {dirty ? '검토 전 자동 저장' : '저장된 원고'}
+                </p>
+              </div>
+              <span className="badge green">선택됨</span>
+            </div>
+            <fieldset className="history-options">
+              <legend className="sr-only">분석 항목</legend>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={consistency}
+                  onChange={(event) => setConsistency(event.target.checked)}
+                />
+                설정·세계관 충돌
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={motivation}
+                  onChange={(event) => setMotivation(event.target.checked)}
+                />
+                인물 행동의 설명 보완
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={historical}
+                  onChange={(event) => setHistorical(event.target.checked)}
+                />
+                역사 고증
+              </label>
+            </fieldset>
+          </div>
+          <div className="history-reference-groups">
+            <fieldset disabled={!standard}>
+              <legend>참고할 확정 설정</legend>
+              {work.settings
+                .filter((setting) => setting.status === '확정')
+                .map((setting) => (
+                  <label className="check" key={setting.id}>
+                    <input
+                      type="checkbox"
+                      checked={settingIds.includes(setting.id)}
+                      onChange={() => setSettingIds(toggle(settingIds, setting.id))}
+                    />
+                    {setting.title}
+                  </label>
+                ))}
+              {!work.settings.some((setting) => setting.status === '확정') && (
+                <p className="small muted">설정집에서 확정 설정을 먼저 등록해 주세요.</p>
+              )}
+            </fieldset>
+            <fieldset disabled={!standard}>
+              <legend>참고할 이전 원고</legend>
+              {work.chapters
+                .filter(
+                  (_item, index) =>
+                    index < work.chapters.findIndex((item) => item.id === chapter?.id),
+                )
+                .map((item) => (
+                  <label className="check" key={item.id}>
+                    <input
+                      type="checkbox"
+                      checked={previousIds.includes(item.id)}
+                      onChange={() => setPreviousIds(toggle(previousIds, item.id))}
+                    />
+                    {item.title}
+                  </label>
+                ))}
+              {work.chapters.findIndex((item) => item.id === chapter?.id) < 1 && (
+                <p className="small muted">선택할 다른 회차가 없습니다.</p>
+              )}
+            </fieldset>
+          </div>
+          <section className="history-transmission">
+            <h2>
+              <Icon name="file" /> 외부 AI에 전송할 내용
+            </h2>
+            <p>
+              Gemini에 현재 회차 원고{standard ? '와 선택한 이전 회차·확정 설정' : ''}를 전송합니다.
+              {historical && ' 역사 기관에는 검색 대상명만 보냅니다.'}
+            </p>
+            {historical && (
+              <p className="small muted">
+                원고 {chapter?.content.length.toLocaleString() ?? 0} / 6,000자
+              </p>
+            )}
+            <p className="notice">AI 검토 시작을 누르면 위 자료가 외부 AI에 전송됩니다.</p>
+          </section>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="history-scope-actions">
+            <button onClick={() => setOptionsOpen(false)}>닫기</button>
+            <button
+              className="primary"
+              disabled={!chapter || analyzing || submitting || (!standard && !historical)}
+              onClick={analyze}
+            >
+              {submitting ? 'AI 검토 시작 중…' : 'AI 검토 시작'}
+            </button>
+          </div>
+        </div>
+      </section>
+    )
+  }
   return (
-    <div className="manuscript-workspace">
+    <div
+      className={
+        'manuscript-workspace' +
+        (view === '검토' && reportState.report?.history ? ' manuscript-workspace--history' : '')
+      }
+    >
       {jumpError && jumpError.id === selectedJobId && (
         <p className="error" role="alert">
           {jumpError.message}
@@ -415,7 +563,7 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
             <ManuscriptTransfer work={work} chapter={chapter} onImported={changeChapter} />
           )}
           {work.source === 'server' && chapter && (
-            <details aria-label="분석 작업 이력" className="analysis-history">
+            <details ref={historyMenu} aria-label="분석 작업 이력" className="analysis-history">
               <summary>
                 <Icon name="history" />
                 <span>이전 검토 보기</span>
@@ -772,6 +920,12 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
                 ? 'AI 검토를 취소했습니다.'
                 : '')
           }
+          onHistory={() => {
+            if (!historyMenu.current) return
+            historyMenu.current.open = true
+            historyMenu.current.querySelector('summary')?.focus()
+            historyMenu.current.scrollIntoView({ block: 'nearest' })
+          }}
           retry={retryAnalysis}
           onJump={jump}
           onDecisionSaved={reportState.retry}
@@ -806,105 +960,6 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
               <button className="primary">회차 만들기</button>
             </div>
           </form>
-        </Dialog>
-      )}
-      {optionsOpen && (
-        <Dialog title="분석 범위 설정" onClose={() => setOptionsOpen(false)}>
-          <div className="stack">
-            <fieldset>
-              <legend>분석 항목</legend>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={consistency}
-                  onChange={(event) => setConsistency(event.target.checked)}
-                />
-                설정 충돌 후보
-              </label>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={motivation}
-                  onChange={(event) => setMotivation(event.target.checked)}
-                />
-                인물 행동의 설명 보완
-              </label>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={historical}
-                  onChange={(event) => setHistorical(event.target.checked)}
-                />
-                역사 고증
-              </label>
-            </fieldset>
-            {historical && (
-              <p className="notice small">
-                현재 회차 원고를 Gemini에 전송하고 공식 기관에는 검색 대상명만 보냅니다. 원고{' '}
-                {chapter?.content.length.toLocaleString() ?? 0} / 6,000자
-              </p>
-            )}
-            <fieldset disabled={!standard}>
-              <legend>참고할 확정 설정</legend>
-              {work.settings
-                .filter((setting) => setting.status === '확정')
-                .map((setting) => (
-                  <label className="check" key={setting.id}>
-                    <input
-                      type="checkbox"
-                      checked={settingIds.includes(setting.id)}
-                      onChange={() => setSettingIds(toggle(settingIds, setting.id))}
-                    />
-                    {setting.title}
-                  </label>
-                ))}
-              {!work.settings.some((setting) => setting.status === '확정') && (
-                <p className="small muted">설정집에서 확정 설정을 먼저 등록해 주세요.</p>
-              )}
-            </fieldset>
-            <fieldset disabled={!standard}>
-              <legend>참고할 이전 원고</legend>
-              {work.chapters
-                .filter(
-                  (_item, index) =>
-                    index < work.chapters.findIndex((item) => item.id === chapter?.id),
-                )
-                .map((item) => (
-                  <label className="check" key={item.id}>
-                    <input
-                      type="checkbox"
-                      checked={previousIds.includes(item.id)}
-                      onChange={() => setPreviousIds(toggle(previousIds, item.id))}
-                    />
-                    {item.title}
-                  </label>
-                ))}
-              {work.chapters.length < 2 && (
-                <p className="small muted">선택할 다른 회차가 없습니다.</p>
-              )}
-            </fieldset>
-            {standard && (
-              <p className="notice small">
-                현재 원고와 선택한 이전 회차·확정 설정을 외부 AI에 전송합니다. 결과는 검토 후보이며
-                설정을 자동으로 변경하지 않습니다.
-              </p>
-            )}
-            {error && (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            )}
-            <div className="dialog-actions">
-              <button onClick={() => setOptionsOpen(false)}>닫기</button>
-              <button
-                className="primary"
-                disabled={!chapter || analyzing || submitting}
-                onClick={analyze}
-              >
-                {submitting ? 'AI 검토 시작 중…' : 'AI 검토 시작'}
-              </button>
-            </div>
-          </div>
         </Dialog>
       )}
     </div>
