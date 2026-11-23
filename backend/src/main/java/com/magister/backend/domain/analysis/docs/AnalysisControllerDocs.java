@@ -282,4 +282,35 @@ public interface AnalysisControllerDocs {
     })
     ApiResult<AnalysisJobResponse> cancel(
             LoginUser user, @Positive Long workId, @NotBlank @Size(max = 36) String id);
+
+    @Operation(
+            summary = "분석 작업 이력 삭제",
+            description =
+                    "본인 작품의 분석 작업 이력 1건과 연결된 후보·근거·판단 기록을 삭제합니다. 대기·실행 중인 작업은 취소 처리 후 삭제합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "분석 작업 이력 삭제 완료"),
+        @ApiResponse(
+                responseCode = "401",
+                description = "로그인 필요 또는 세션 만료",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "CSRF 토큰 누락 또는 검증 실패",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "작품·작업 없음 또는 접근 불가",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
+    })
+    ResponseEntity<Void> delete(
+            LoginUser user, @Positive Long workId, @NotBlank @Size(max = 36) String id);
 }

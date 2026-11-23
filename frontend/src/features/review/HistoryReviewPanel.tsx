@@ -108,7 +108,8 @@ export function HistoryReviewPanel({
             <Icon name="check" /> 검토 후보
           </h3>
           <p className="muted">
-            역사 고증 {report.findings.length}건 · 충돌 후보 {conflicts}건
+            역사 고증 {report.findings.length}건 · 충돌 후보 {conflicts}건 · 국내
+            역사(국가유산청·한국민족문화대백과사전) 기준
           </p>
           <div className="history-filters" aria-label="역사 고증 판단 필터">
             {filters.map((label) => (

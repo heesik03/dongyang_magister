@@ -1644,8 +1644,17 @@ fieldset input {
 }
 .work-management-trigger {
   min-width: 0;
-  padding-inline: 16px;
-  border-color: var(--color-control-border);
+  padding-inline: 18px;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 10px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgb(40 82 64 / 0.12);
+}
+.work-management-trigger:hover {
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--color-primary-soft));
+  border-color: var(--color-primary-hover);
 }
 .management-actions {
   display: grid;

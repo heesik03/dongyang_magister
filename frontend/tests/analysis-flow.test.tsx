@@ -17,6 +17,7 @@ vi.mock('../src/features/analysis/analysisClient', async (importOriginal) => {
       list: vi.fn(),
       get: vi.fn(),
       cancel: vi.fn(),
+      remove: vi.fn(),
     },
   }
 })
@@ -128,7 +129,7 @@ test('저장 실패는 재시도할 수 있고 저장 중·충돌 상태에서�
 test('역사 고증만 요청하면 참고 설정과 이전 회차를 전송하지 않는다', async () => {
   show()
   fireEvent.click(screen.getByRole('button', { name: '원고 검토' }))
-  for (const name of ['설정·세계관 충돌', '인물 행동의 설명 보완', '역사 고증']) {
+  for (const name of ['설정·세계관 충돌', '인물 행동의 설명 보완', '역사 고증 (국내 역사)']) {
     fireEvent.click(screen.getByRole('checkbox', { name }))
   }
   fireEvent.click(screen.getByRole('button', { name: 'AI 검토 시작' }))
@@ -251,4 +252,29 @@ test('화면을 떠난 뒤 도착한 폴링 응답을 적용하거나 취소 POS
   await act(async () => finish(currentJob))
   expect(analysisClient.cancel).not.toHaveBeenCalled()
   expect(analysisClient.create).not.toHaveBeenCalled()
+})
+
+test('이전 검토 목록에서 선택한 AI 검토 이력을 삭제할 수 있다', async () => {
+  history = [summary('SUCCEEDED')]
+  currentJob = {
+    ...currentJob,
+    status: 'SUCCEEDED',
+    result: {
+      chapterId: 'target',
+      revision: 1,
+      source: '검토 원고',
+      settingIds: ['1'],
+      previousIds: [],
+      createdAt: work.updatedAt,
+      reviews: [],
+    },
+  }
+  vi.mocked(analysisClient.remove).mockImplementation(async () => {
+    history = []
+  })
+  show()
+  const deleteButton = await screen.findByRole('button', { name: /검토 이력 삭제/ })
+  fireEvent.click(deleteButton)
+  await waitFor(() => expect(analysisClient.remove).toHaveBeenCalledWith('1', 'job-1'))
+  await screen.findByText('아직 이 회차의 분석 기록이 없습니다.')
 })

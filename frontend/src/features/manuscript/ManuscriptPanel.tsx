@@ -143,6 +143,14 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
       analysis.source !== chapter?.content ||
       settingsChanged(analysis, work.settings) ||
       !!reportState.report?.stale)
+  async function deleteReviewHistory(jobId: string) {
+    await jobs.remove(jobId)
+    if (params.get('reviewJob') === jobId) {
+      const next = new URLSearchParams(params)
+      next.delete('reviewJob')
+      setParams(next, { replace: true })
+    }
+  }
   const saveStatusText =
     conflict || storageError || saveError
       ? '저장 실패 · 입력 유지'
@@ -415,7 +423,7 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
                   checked={historical}
                   onChange={(event) => setHistorical(event.target.checked)}
                 />
-                역사 고증
+                역사 고증 (국내 역사)
               </label>
             </fieldset>
           </div>
@@ -466,11 +474,19 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
             </h2>
             <p>
               Gemini에 현재 회차 원고{standard ? '와 선택한 이전 회차·확정 설정' : ''}를 전송합니다.
-              {historical && ' 역사 기관에는 검색 대상명만 보냅니다.'}
+              {historical &&
+                ' 역사 고증은 현재 국내 역사(국가유산청·한국민족문화대백과사전 공식 자료)만 지원하며, 역사 기관에는 검색 대상명만 보냅니다.'}
             </p>
             {historical && (
               <p className="small muted">
-                원고 {chapter?.content.length.toLocaleString() ?? 0} / 6,000자
+                국내 역사 고증 대상 원고 {chapter?.content.length.toLocaleString() ?? 0} / 6,000자
+              </p>
+            )}
+            {historical && (
+              <p className="notice">
+                역사 고증 검토는 현재 국내 역사(국가유산청·한국민족문화대백과사전 공식 자료)만
+                지원합니다. 해외 역사나 공식 사료에 등록되지 않은 대상은 검토되지 않거나 근거
+                부족으로 분류됩니다.
               </p>
             )}
             <p className="notice">AI 검토 시작을 누르면 위 자료가 외부 AI에 전송됩니다.</p>
@@ -583,36 +599,55 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
                       <span>검토한 회차</span>
                       <span>검토 시각</span>
                       <span>상태</span>
+                      <span>관리</span>
                     </div>
-                    {jobs.history.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className="workspace-list-row"
-                        aria-pressed={jobs.job?.id === item.id}
-                        onClick={() => {
-                          jobs.select(item.id)
-                          setView('검토')
-                        }}
-                      >
-                        <strong>{chapter.title}</strong>
-                        <time dateTime={item.createdAt}>
-                          {new Date(item.createdAt).toLocaleString('ko-KR')}
-                        </time>
-                        <span
+                    {jobs.history.map((item) => {
+                      const timestamp = new Date(item.createdAt).toLocaleString('ko-KR')
+                      return (
+                        <div
+                          key={item.id}
                           className={
-                            'badge ' +
-                            (item.status === 'SUCCEEDED'
-                              ? 'green'
-                              : item.status === 'FAILED'
-                                ? 'danger'
-                                : 'info')
+                            'workspace-list-row review-history-row' +
+                            (jobs.job?.id === item.id ? ' review-history-row--selected' : '')
                           }
                         >
-                          {reviewStatusLabels[item.status] ?? '상태 확인 필요'}
-                        </span>
-                      </button>
-                    ))}
+                          <button
+                            type="button"
+                            className="review-history-select"
+                            aria-pressed={jobs.job?.id === item.id}
+                            onClick={() => {
+                              jobs.select(item.id)
+                              setView('검토')
+                            }}
+                          >
+                            <strong>{chapter.title}</strong>
+                            <time dateTime={item.createdAt}>{timestamp}</time>
+                            <span
+                              className={
+                                'badge ' +
+                                (item.status === 'SUCCEEDED'
+                                  ? 'green'
+                                  : item.status === 'FAILED'
+                                    ? 'danger'
+                                    : 'info')
+                              }
+                            >
+                              {reviewStatusLabels[item.status] ?? '상태 확인 필요'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="review-history-delete"
+                            disabled={jobs.deletingId === item.id}
+                            aria-label={`${chapter.title} ${timestamp} 검토 이력 삭제`}
+                            onClick={() => void deleteReviewHistory(item.id)}
+                          >
+                            <Icon name="trash" />
+                            <span>{jobs.deletingId === item.id ? '삭제 중…' : '이력 삭제'}</span>
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
                 <div className="analysis-history-actions">
@@ -855,12 +890,20 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
                 <Icon name="grid" />
                 작품의 확정 설정
               </h3>
-              {noteSettings.length > 0 && (
-                <ul>
+              {noteSettings.length > 0 ? (
+                <ul className="confirmed-setting-list">
                   {noteSettings.map((setting) => (
-                    <li key={setting.id}>{setting.title}</li>
+                    <li key={setting.id} className="confirmed-setting-item">
+                      <Icon name={setting.kind === '세계관' ? 'book' : 'file'} />
+                      <div className="confirmed-setting-copy">
+                        <strong>{setting.title}</strong>
+                        <span>{setting.kind} · 확정</span>
+                      </div>
+                    </li>
                   ))}
                 </ul>
+              ) : (
+                <p className="small muted">아직 등록된 확정 설정이 없습니다.</p>
               )}
               <Link className="button" to={`/works/${work.id}/settings`}>
                 <Icon name="arrow" />

@@ -105,9 +105,21 @@
   line-height: 29px;
 }
 
+.history-decision legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .history-reference-groups .check {
   margin-block-end: 12px;
   color: var(--history-muted);
+  font-size: 0.9375rem;
+  line-height: 26px;
+}
+
+.history-reference-groups .small.muted {
+  margin: 0;
   font-size: 0.9375rem;
   line-height: 26px;
 }
@@ -126,6 +138,9 @@
 .history-result-list h3,
 .history-result-detail h3,
 .history-evidence-card h4 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 0;
   color: var(--history-accent);
 }

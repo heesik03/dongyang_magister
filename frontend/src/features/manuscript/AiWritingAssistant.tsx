@@ -9,6 +9,18 @@ const ACTION_LABELS: Record<WritingAction, string> = {
   DIALOGUE: '대사 다듬기',
 }
 
+const ACTION_DESCRIPTIONS: Record<WritingAction, string> = {
+  CONTINUE: '원고 끝 최대 1,800자를 바탕으로 자연스러운 다음 전개를 제안합니다.',
+  DESCRIBE: '선택한 구간의 분위기와 감각 묘사를 풍부하게 다듬습니다.',
+  DIALOGUE: '선택한 대사의 호흡과 인물 어조를 자연스럽게 정돈합니다.',
+}
+
+const ACTION_ICONS: Record<WritingAction, 'spark' | 'edit' | 'book'> = {
+  CONTINUE: 'spark',
+  DESCRIBE: 'book',
+  DIALOGUE: 'edit',
+}
+
 export function AiWritingAssistant({
   workId,
   content,
@@ -102,18 +114,26 @@ export function AiWritingAssistant({
   }
 
   return (
-    <section aria-label="AI 집필 도우미">
-      <h3>
-        <Icon name="spark" />
-        AI 집필 도우미
-      </h3>
+    <section className="ai-writing-assistant" aria-label="AI 집필 도우미">
+      <div className="ai-assistant-header">
+        <h3>
+          <Icon name="spark" />
+          AI 집필 도우미
+        </h3>
+        <span className="badge green">Gemini 보조</span>
+      </div>
       <p className="small muted">
         이어쓰기는 원고 끝 최대 1,800자를, 묘사·대사 편집은 선택한 문장과 앞뒤 최대 300자씩을
         Gemini에 전송합니다. 선택한 확정 설정의 제목과 본문도 함께 전송합니다.
       </p>
       {confirmedSettings.length > 0 && (
-        <details className="workspace-disclosure">
-          <summary>참고할 확정 설정 선택 (최대 5개)</summary>
+        <details className="workspace-disclosure ai-assistant-settings">
+          <summary>
+            참고할 확정 설정 선택 (최대 5개)
+            {settingIds.length > 0 && (
+              <span className="badge green">{settingIds.length}개 선택</span>
+            )}
+          </summary>
           <fieldset disabled={busy || disabled}>
             <legend>Gemini에 보낼 설정</legend>
             {confirmedSettings.map(({ id, title }) => (
@@ -135,15 +155,23 @@ export function AiWritingAssistant({
           </fieldset>
         </details>
       )}
-      <div className="stack">
+      <div className="ai-assistant-actions">
         {(['CONTINUE', 'DESCRIBE', 'DIALOGUE'] as const).map((action) => (
           <button
             key={action}
             type="button"
+            className="ai-assistant-action-card"
             disabled={busy || disabled || !content.trim()}
             onClick={() => void runAction(action)}
           >
-            {ACTION_LABELS[action]}
+            <span className="ai-assistant-action-icon">
+              <Icon name={ACTION_ICONS[action]} />
+            </span>
+            <span className="ai-assistant-action-copy">
+              <strong>{ACTION_LABELS[action]}</strong>
+              <small>{ACTION_DESCRIPTIONS[action]}</small>
+            </span>
+            <Icon name="arrow" />
           </button>
         ))}
       </div>
@@ -154,7 +182,7 @@ export function AiWritingAssistant({
         </p>
       )}
       {suggestion && (
-        <div className="notice small stack">
+        <div className="notice small stack ai-assistant-suggestion">
           <strong>AI 제안 문장</strong>
           <p style={{ whiteSpace: 'pre-wrap' }}>{suggestion.text}</p>
           <div className="dialog-actions">

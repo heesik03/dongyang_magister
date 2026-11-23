@@ -15,6 +15,7 @@ import com.magister.backend.global.error.code.GeminiErrorCode;
 import com.magister.backend.global.error.exception.GeminiApiException;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -588,5 +589,13 @@ class AnalysisFlowTests {
                         new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
         mockMvc.perform(get(path() + "/" + jobId).with(authentication(other)))
                 .andExpect(status().isNotFound());
+        mockMvc.perform(delete(path() + "/" + jobId).with(authentication(other)).with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(delete(path() + "/" + jobId).with(authentication(owner)).with(csrf()))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get(path() + "/" + jobId).with(authentication(owner)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get(path()).with(authentication(owner)).param("chapterId", "target"))
+                .andExpect(jsonPath("$.data.totalElements").value(0));
     }
 }

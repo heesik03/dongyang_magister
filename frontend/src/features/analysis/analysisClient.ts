@@ -202,4 +202,7 @@ export const analysisClient = {
       await httpClient.post(path(workId) + '/' + encodeURIComponent(jobId) + '/cancel'),
     )
   },
+  async remove(workId: string, jobId: string): Promise<void> {
+    await httpClient.delete(path(workId) + '/' + encodeURIComponent(jobId))
+  },
 }

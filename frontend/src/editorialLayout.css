@@ -201,7 +201,7 @@
 #pending-story-order {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   font-size: clamp(20px, 1.4vw, 26px);
   font-weight: 700;
   line-height: 1.45;
@@ -214,7 +214,7 @@
 .timeline-source h3 {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   font-size: 19px;
   font-weight: 700;
   line-height: 29px;
@@ -533,6 +533,139 @@
 
 .manuscript-notes ul {
   padding-inline-start: 20px;
+}
+
+.manuscript-notes .confirmed-setting-list {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  list-style: none;
+}
+
+.manuscript-notes .confirmed-setting-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.manuscript-notes .confirmed-setting-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.manuscript-notes .confirmed-setting-copy strong {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--color-text);
+}
+
+.manuscript-notes .confirmed-setting-copy span {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--color-text-muted);
+}
+
+.manuscript-notes > section.manuscript-notes__settings > a.button {
+  width: 100%;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.manuscript-notes > section.ai-writing-assistant {
+  background: linear-gradient(180deg, var(--color-surface) 0%, #f6faf6 100%);
+  border-color: color-mix(in srgb, var(--color-primary) 26%, var(--color-border));
+}
+
+.ai-writing-assistant .ai-assistant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.ai-writing-assistant .ai-assistant-settings {
+  width: 100%;
+}
+
+.ai-writing-assistant .ai-assistant-settings > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.ai-writing-assistant .ai-assistant-actions {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.ai-writing-assistant .ai-assistant-action-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  text-align: start;
+}
+
+.ai-writing-assistant .ai-assistant-action-card:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.ai-writing-assistant .ai-assistant-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.ai-writing-assistant .ai-assistant-action-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ai-writing-assistant .ai-assistant-action-copy strong {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--color-text);
+}
+
+.ai-writing-assistant .ai-assistant-action-copy small {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 19px;
+  color: var(--color-text-muted);
+}
+
+.ai-writing-assistant .ai-assistant-suggestion {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-border));
+  background: var(--color-primary-soft);
 }
 
 .manuscript-workspace .review-panel:not([hidden]) {

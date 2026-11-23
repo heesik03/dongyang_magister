@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -105,5 +106,15 @@ public class AnalysisController implements AnalysisControllerDocs {
             @PathVariable Long workId,
             @PathVariable String id) {
         return ApiResult.success(analysisJobService.cancel(user.id(), workId, id));
+    }
+
+    @Override
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId,
+            @PathVariable String id) {
+        analysisJobService.delete(user.id(), workId, id);
+        return ResponseEntity.noContent().build();
     }
 }

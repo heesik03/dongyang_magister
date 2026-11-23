@@ -20,7 +20,7 @@ test('대사 다듬기는 선택한 구간만 바꾸고 주변 문장을 보존�
   const assist = vi.spyOn(aiWritingClient, 'assist').mockResolvedValue('문을 열어.')
   const apply = vi.fn(() => true)
   render(<AiWritingAssistant {...props} onApply={apply} />)
-  fireEvent.click(screen.getByRole('button', { name: '대사 다듬기' }))
+  fireEvent.click(screen.getByRole('button', { name: /대사 다듬기/ }))
   expect(assist).toHaveBeenCalledWith(
     '1',
     {
@@ -48,7 +48,7 @@ test('회차가 전환되면 이전 요청의 신호를 취소하고 결과를 �
   )
   const apply = vi.fn(() => true)
   const view = render(<AiWritingAssistant key="first" {...props} onApply={apply} />)
-  fireEvent.click(screen.getByRole('button', { name: '다음 문장 이어쓰기' }))
+  fireEvent.click(screen.getByRole('button', { name: /다음 문장 이어쓰기/ }))
   view.rerender(<AiWritingAssistant key="second" {...props} content="다른 회차" onApply={apply} />)
   expect(assist.mock.calls[0][2].aborted).toBe(true)
   complete('이전 회차의 제안')

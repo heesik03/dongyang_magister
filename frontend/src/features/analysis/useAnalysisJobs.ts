@@ -17,6 +17,7 @@ export function useAnalysisJobs(
   const [storedJob, setJob] = useState<Job | null>(null)
   const [page, setPage] = useState(0)
   const [pollError, setPollError] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selection, setSelection] = useState<string | null>(initialJobId ?? null)
   const [refreshKey, setRefreshKey] = useState(0)
   const context = workId + ':' + chapterId
@@ -102,15 +103,43 @@ export function useAnalysisJobs(
     setSelection(created.id)
     refresh()
   }
+  async function remove(id: string) {
+    if (deletingId) return
+    setDeletingId(id)
+    setPollError('')
+    try {
+      await analysisClient.remove(workId, id)
+      const remaining = (currentList?.items ?? []).filter((item) => item.id !== id)
+      setListState((previous) =>
+        previous
+          ? {
+              ...previous,
+              items: previous.items.filter((item) => item.id !== id),
+            }
+          : previous,
+      )
+      if (selection === id) {
+        setJob(null)
+        setSelection(remaining[0]?.id ?? null)
+      }
+      refresh()
+    } catch (error) {
+      setPollError(error instanceof Error ? error.message : '분석 이력 삭제 실패')
+    } finally {
+      setDeletingId((current) => (current === id ? null : current))
+    }
+  }
   return {
     history: currentList?.items ?? [],
     job,
     page,
     totalPages: currentList?.totalPages ?? 0,
     loading: enabled && !!chapterId && !currentList,
+    deletingId,
     error: currentList?.error || pollError,
     refresh,
     select,
+    remove,
     changePage: (page: number) => {
       setPollError('')
       setSelection(null)
