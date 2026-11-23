@@ -17,6 +17,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,12 +35,22 @@ public class HistoryCheckService {
 
     /** 제출된 원고에서 최대 세 주장을 검토한다. 위치는 UTF-16 시작 포함·끝 제외이며 결과를 저장하지 않는다. */
     public List<Finding> check(long ownerId, String manuscript) {
-        try (GeminiRateLimiter.Reservation reservation = limiter.reserve(ownerId)) {
+        return check(ownerId, manuscript, false);
+    }
+
+    /** 접수된 비동기 작업은 기존 Gemini 사용자별 호출 간격과 슬롯을 기다린다. */
+    public List<Finding> checkJob(long ownerId, String manuscript) {
+        return check(ownerId, manuscript, true);
+    }
+
+    private List<Finding> check(long ownerId, String manuscript, boolean queued) {
+        try (GeminiRateLimiter.Reservation reservation = queued ? limiter.awaitReservation(ownerId) : limiter.reserve(ownerId)) {
+            Map<Search, List<HistoryCandidate>> searches = new HashMap<>();
             List<Finding> findings = new ArrayList<>();
             List<HistoryClaimModel.Input> inputs = new ArrayList<>();
             for (Claim claim : model.extract(ownerId, manuscript).claims()) {
                 int start = locate(manuscript, claim);
-                Finding finding = lookup(claim, start);
+                Finding finding = lookup(claim, start, searches);
                 if (finding.reason().isEmpty()) {
                     inputs.add(new HistoryClaimModel.Input(findings.size(), claim, finding.evidence()));
                 }
@@ -67,7 +79,9 @@ public class HistoryCheckService {
         return start;
     }
 
-    private Finding lookup(Claim claim, int start) {
+    private record Search(HistorySource source, String target) {}
+
+    private Finding lookup(Claim claim, int start, Map<Search, List<HistoryCandidate>> searches) {
         List<HistoryEvidence> evidence = new ArrayList<>();
         String reason = "";
         Status status = Status.INSUFFICIENT_EVIDENCE;
@@ -76,7 +90,8 @@ public class HistoryCheckService {
         } else {
             for (HistorySource source : List.<HistorySource>of(heritage, encyclopedia)) {
                 try {
-                    List<HistoryCandidate> exact = source.candidates(claim.target()).stream()
+                    List<HistoryCandidate> exact = searches.computeIfAbsent(new Search(source, claim.target()),
+                            search -> search.source().candidates(search.target())).stream()
                             .filter(candidate -> candidate.title().equals(claim.target())).toList();
                     if (exact.size() > 1) {
                         reason = "동일한 이름의 자료가 여러 건이어서 대상을 특정할 수 없습니다.";

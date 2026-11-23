@@ -4,6 +4,7 @@ import com.magister.backend.domain.decision.dto.DecisionReference;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ChapterData;
 import com.magister.backend.domain.workspace.dto.WorkspaceData.ReviewData;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 import java.util.Objects;
 
@@ -14,7 +15,12 @@ public record AnalysisInput(
         List<ReviewData> decisions,
         boolean consistency,
         boolean motivation,
-        List<DecisionReference> decisionReferences) {
+        List<DecisionReference> decisionReferences,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean historical) {
+    public AnalysisInput(ChapterData chapter, List<SettingReference> settings, List<ChapterData> previous,
+            List<ReviewData> decisions, boolean consistency, boolean motivation, List<DecisionReference> decisionReferences) {
+        this(chapter, settings, previous, decisions, consistency, motivation, decisionReferences, null);
+    }
     /** 검증 뒤 다른 스레드에서 사용할 스냅샷이므로 원본 List의 후속 변경을 허용하지 않는다. */
     public AnalysisInput {
         Objects.requireNonNull(chapter);

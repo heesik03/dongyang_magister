@@ -11,7 +11,15 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.stereotype.Component;
 
+import com.magister.backend.domain.analysis.converter.AnalysisConverter;
+import com.magister.backend.domain.analysis.dto.HistoryJobReport;
+import com.magister.backend.domain.analysis.dto.HistoryJobReport.Status;
+import com.magister.backend.domain.history.dto.HistoryCheck;
+import com.magister.backend.domain.history.service.HistoryCheckService;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 
 /** 작업 하나의 실행 순서만 조율한다. DB 상태 저장과 공급자 자료 규격은 협력 객체가 담당한다. */
 @Component
@@ -21,6 +29,8 @@ public class AnalysisWorker {
     private final AnalysisJobStateService jobStateService;
     private final GeminiService geminiService;
     private final AnalysisResultProcessor resultProcessor;
+    private final AnalysisConverter converter;
+    private final HistoryCheckService historyService;
 
     /**
      * 선점 -> 공급자 호출 -> 근거 검증 -> 결과 저장 순으로 실행한다. 메서드 전체에 트랜잭션을 열지 않아 네트워크 대기 중 DB 연결·행 잠금을 점유하지 않는다.
@@ -37,18 +47,12 @@ public class AnalysisWorker {
 
             Claim claim = optionalClaim.get();
 
-            // 선점 트랜잭션이 끝난 뒤 호출한다. 슬롯 대기는 취소 인터럽트를 수용한다.
-            stage = "provider";
-            String raw =
-                    geminiService.analyze(
-                            claim.ownerId(), resultProcessor.buildPrompt(claim.input()));
-
-            // 공급자 JSON이 정상이어도 원문·설정·요청 옵션과 맞지 않으면 결과로 채택하지 않는다.
-            stage = "validation";
-            ValidatedAnalysis result = resultProcessor.validateDetailed(raw, claim.input());
-
-            stage = "completion";
-            jobStateService.succeed(jobId, result);
+            stage = "review";
+            if (Boolean.TRUE.equals(claim.input().historical())) {
+                reviewWithHistory(jobId, claim);
+            } else {
+                jobStateService.succeed(jobId, standardReview(claim));
+            }
         } catch (Exception error) {
             String message =
                     error instanceof CustomException custom
@@ -73,5 +77,49 @@ public class AnalysisWorker {
                 throw persistenceError;
             }
         }
+    }
+
+    private ValidatedAnalysis standardReview(Claim claim) {
+        String raw = geminiService.analyze(claim.ownerId(), resultProcessor.buildPrompt(claim.input()));
+        return resultProcessor.validateDetailed(raw, claim.input());
+    }
+
+    private void reviewWithHistory(String jobId, Claim claim) {
+        ValidatedAnalysis result = new ValidatedAnalysis(converter.toResult(claim.input(), List.of()), List.of());
+        Status standard = Status.NOT_REQUESTED;
+        if (claim.input().consistency() || claim.input().motivation()) {
+            try {
+                result = standardReview(claim);
+                standard = Status.COMPLETED;
+            } catch (CancellationException cancelled) {
+                throw cancelled;
+            } catch (RuntimeException failure) {
+                log.warn("Standard review failed: jobId={}, type={}", jobId, failure.getClass().getSimpleName());
+                standard = Status.FAILED;
+            }
+        }
+        if (Thread.currentThread().isInterrupted()) {
+            throw new CancellationException();
+        }
+
+        List<HistoryCheck.Finding> findings = List.of();
+        Status historical;
+        try {
+            findings = historyService.checkJob(claim.ownerId(), claim.input().chapter().content());
+            long failed = findings.stream().filter(item -> item.status() == HistoryCheck.Status.LOOKUP_FAILED).count();
+            if (failed == 0) {
+                historical = Status.COMPLETED;
+            } else {
+                historical = failed == findings.size() ? Status.FAILED : Status.PARTIAL;
+            }
+        } catch (CancellationException cancelled) {
+            throw cancelled;
+        } catch (RuntimeException failure) {
+            log.warn("Historical review failed: jobId={}, type={}", jobId, failure.getClass().getSimpleName());
+            historical = Status.FAILED;
+        }
+        HistoryJobReport report = new HistoryJobReport(claim.input().chapter().revision(), Instant.now(),
+                historical, standard, findings);
+        jobStateService.succeed(jobId, result, report);
     }
 }

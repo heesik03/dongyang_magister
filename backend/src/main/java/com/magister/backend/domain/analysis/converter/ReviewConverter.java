@@ -11,6 +11,7 @@ import com.magister.backend.global.pagination.OffsetPageResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
+import com.magister.backend.domain.analysis.dto.HistoryJobReport;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -22,7 +23,7 @@ public class ReviewConverter {
             List<ReviewEvidence> evidences,
             boolean legacy,
             boolean stale,
-            Map<String, DecisionResponse> decisions) {
+            Map<String, DecisionResponse> decisions, HistoryJobReport history) {
         Map<String, List<ReviewEvidence>> byReview =
                 evidences.stream().collect(Collectors.groupingBy(item -> item.getReview().getId()));
         return new ReviewReportResponse(
@@ -35,7 +36,7 @@ public class ReviewConverter {
                                                         candidate.getId(), List.of())))),
                 legacy,
                 stale,
-                decisions);
+                decisions, history);
     }
 
     public ReviewResponse toCandidateResponse(

@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import tools.jackson.databind.ObjectMapper;
 
+import com.magister.backend.domain.analysis.dto.HistoryJobReport;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -57,7 +58,7 @@ public class AnalysisJobStateService {
                 && !job.getWorkerId().equals(executionProperties.getInstanceId())) {
             return Optional.empty();
         }
-        if (!job.start()) {
+        if (job.getLeaseUntil() == null || !Instant.now().isBefore(job.getLeaseUntil()) || !job.start()) {
             return Optional.empty();
         }
 
@@ -74,13 +75,28 @@ public class AnalysisJobStateService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void succeed(String jobId, ValidatedAnalysis result) {
+        succeed(jobId, result, null);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void succeed(String jobId, ValidatedAnalysis result, HistoryJobReport history) {
         Optional<AnalysisJob> optionalJob = analysisJobRepository.lockById(jobId);
         if (optionalJob.isEmpty()) {
             return;
         }
         AnalysisJob job = optionalJob.get();
-        if (job.getStatus() != AnalysisJobStatus.RUNNING) {
+        if (job.getStatus() != AnalysisJobStatus.RUNNING
+                || job.getLeaseUntil() == null || !Instant.now().isBefore(job.getLeaseUntil())
+                || (job.getWorkerId() != null && !job.getWorkerId().equals(executionProperties.getInstanceId()))) {
             return;
+        }
+        if (history != null) {
+            job.recordHistoryReport(objectMapper.writeValueAsString(history));
+            if (history.historicalStatus() == HistoryJobReport.Status.FAILED
+                    && history.standardStatus() != HistoryJobReport.Status.COMPLETED) {
+                job.fail("요청한 검토를 완료하지 못했습니다.");
+                return;
+            }
         }
         reviewResultService.save(job, result);
         job.succeed(objectMapper.writeValueAsString(result.result()));

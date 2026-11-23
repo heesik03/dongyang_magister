@@ -9,4 +9,4 @@ public record ReviewReportResponse(
         OffsetPageResponse<ReviewResponse> candidates,
         boolean legacy,
         boolean stale,
-        Map<String, DecisionResponse> decisions) {}
+        Map<String, DecisionResponse> decisions, HistoryJobReport history) {}

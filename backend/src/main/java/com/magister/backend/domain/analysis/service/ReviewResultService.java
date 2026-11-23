@@ -27,6 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.magister.backend.domain.analysis.dto.HistoryJobReport;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -35,6 +37,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ReviewResultService {
+    private final ObjectMapper objectMapper;
     private final AnalysisJobRepository jobRepository;
     private final AnalysisSourceRepository sourceRepository;
     private final ReviewCandidateRepository candidateRepository;
@@ -113,6 +116,7 @@ public class ReviewResultService {
                 evidences,
                 job.getResultFormatVersion() == 0,
                 snapshotService.isStale(workId, job.getInput()),
-                pageDecisions);
+                pageDecisions, job.getHistoryReport() == null ? null
+                        : objectMapper.readValue(job.getHistoryReport(), HistoryJobReport.class));
     }
 }

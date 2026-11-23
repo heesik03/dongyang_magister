@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -14,13 +14,20 @@ public record AnalysisRequest(
         @NotBlank @Size(max = 64) String requestId,
         @NotBlank @Size(max = 64) String chapterId,
         @Min(0) long workspaceVersion,
-        @NotEmpty @Size(max = 1000) List<@NotBlank String> settingIds,
+        @NotNull @Size(max = 1000) List<@NotBlank String> settingIds,
         @NotNull @Size(max = 100) List<@NotBlank String> previousIds,
         boolean consistency,
         boolean motivation,
-        @Min(1) Long chapterRevision) {
+        @Min(1) Long chapterRevision, @JsonInclude(JsonInclude.Include.NON_NULL) Boolean historical) {
     @JsonCreator
-    public AnalysisRequest {}
+    public AnalysisRequest {
+        historical = Boolean.TRUE.equals(historical) ? Boolean.TRUE : null;
+    }
+
+    public AnalysisRequest(String requestId, String chapterId, long workspaceVersion, List<String> settingIds,
+            List<String> previousIds, boolean consistency, boolean motivation, Long chapterRevision) {
+        this(requestId, chapterId, workspaceVersion, settingIds, previousIds, consistency, motivation, chapterRevision, null);
+    }
 
     public AnalysisRequest(
             String requestId,

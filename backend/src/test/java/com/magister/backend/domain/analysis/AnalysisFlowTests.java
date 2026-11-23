@@ -7,6 +7,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import com.magister.backend.domain.history.service.HistoryCheckService;
+import com.magister.backend.domain.history.dto.HistoryCheck;
+import com.magister.backend.domain.history.dto.HistoryEvidence;
+import com.magister.backend.global.error.code.GeminiErrorCode;
+import com.magister.backend.global.error.exception.GeminiApiException;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -60,6 +66,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URI;
 import java.util.List;
 import java.time.Duration;
 import java.util.Map;
@@ -83,6 +90,7 @@ class AnalysisFlowTests {
     @Autowired AnalysisWorker worker;
     @Autowired JdbcTemplate jdbcTemplate;
     @Autowired TransactionTemplate transactionTemplate;
+    @MockitoBean HistoryCheckService history;
     @MockitoBean AnalysisDispatcher dispatcher;
     @MockitoBean GeminiClient geminiClient;
     private Long ownerId, workId, settingId;
@@ -135,6 +143,68 @@ class AnalysisFlowTests {
                 true,
                 true,
                 1L);
+    }
+
+    @Test
+    void historyOnlyUsesSnapshotAndReplaysStoredEvidence() throws Exception {
+        String manuscript = "1392년, 사신은 경복궁에 도착했다.";
+        chapterService.update(ownerId, workId, "target", new UpdateChapterRequest("2화", manuscript, 0, "1392"));
+        AnalysisRequest request = new AnalysisRequest("history", "target", 0, List.of(), List.of(), false, false, 2L, true);
+        String jobId = jobService.create(ownerId, workId, request).id();
+        chapterService.update(ownerId, workId, "target", new UpdateChapterRequest("2화",
+                manuscript.replace("1392", "1396"), 1, "1396"));
+        HistoryEvidence evidence = new HistoryEvidence("국가유산청", "palace", "경복궁",
+                URI.create("https://www.heritage.go.kr/"), HistoryEvidence.Status.FOUND, "1395년에 창건했다.");
+        when(history.checkJob(ownerId, manuscript)).thenReturn(List.of(new HistoryCheck.Finding(
+                manuscript, 0, manuscript.length(), "1392년", "경복궁", "경복궁이 존재했다",
+                HistoryCheck.Status.POSSIBLE_CONFLICT, "창건 전", List.of(evidence))));
+        worker.execute(jobId);
+        worker.execute(jobId);
+        assertThat(jobService.create(ownerId, workId, request).id()).isEqualTo(jobId);
+        mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(owner)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.stale").value(true))
+                .andExpect(jsonPath("$.data.history.revision").value(2))
+                .andExpect(jsonPath("$.data.history.findings[0].quote").value(manuscript))
+                .andExpect(jsonPath("$.data.history.findings[0].evidence[0].passage").value("1395년에 창건했다."));
+        String revised = manuscript.replace("1392", "1396");
+        AnalysisRequest next = new AnalysisRequest("history-revised", "target", 0, List.of(), List.of(),
+                false, false, 3L, true);
+        when(history.checkJob(ownerId, revised)).thenReturn(List.of(new HistoryCheck.Finding(
+                revised, 0, revised.length(), "1396년", "경복궁", "경복궁이 존재했다",
+                HistoryCheck.Status.NO_CONFLICT_FOUND, "창건 이후", List.of(evidence))));
+        String nextId = jobService.create(ownerId, workId, next).id();
+        worker.execute(nextId);
+        mockMvc.perform(get(path() + "/" + nextId + "/review").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.stale").value(false))
+                .andExpect(jsonPath("$.data.history.findings[0].status").value("NO_CONFLICT_FOUND"));
+        verify(history).checkJob(ownerId, manuscript);
+        verifyNoInteractions(geminiClient);
+    }
+
+    @Test
+    void historyFailurePreservesStandardFindings() throws Exception {
+        AnalysisRequest request = new AnalysisRequest("mixed", "target", 0, List.of(settingId.toString()),
+                List.of("previous"), true, true, 1L, true);
+        String jobId = jobService.create(ownerId, workId, request).id();
+        when(geminiClient.generateAnalysis(anyString())).thenReturn(linkedProviderResult());
+        when(history.checkJob(ownerId, "검토 원고")).thenThrow(new GeminiApiException(GeminiErrorCode.UNAVAILABLE));
+        worker.execute(jobId);
+        mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.history.historicalStatus").value("FAILED"))
+                .andExpect(jsonPath("$.data.history.standardStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.candidates.totalElements").value(1));
+    }
+
+    @Test
+    void refusesOversizeHistoricalManuscriptBeforeDispatch() throws Exception {
+        chapterService.update(ownerId, workId, "target", new UpdateChapterRequest(
+                "2화", "가".repeat(6001), 0, "long-chapter"));
+        AnalysisRequest request = new AnalysisRequest("long", "target", 0, List.of(), List.of(),
+                false, false, 2L, true);
+        mockMvc.perform(post(path()).with(authentication(owner)).with(csrf()).contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("HISTORY_SIZE_LIMIT"));
+        verifyNoInteractions(dispatcher, history, geminiClient);
     }
 
     private AnalysisRequest confirmed() {
