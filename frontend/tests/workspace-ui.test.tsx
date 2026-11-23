@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { Dialog } from '../src/shared/Dialog'
 import { Shell } from '../src/shared/Shell'
+import { LibraryPage } from '../src/features/works/LibraryPage'
 import { WorkPage } from '../src/features/works/WorkPage'
 import { SettingsPanel } from '../src/features/settings/SettingsPanel'
 import { useAuthStore } from '../src/features/auth/useAuthStore'
@@ -221,4 +222,31 @@ test('모바일 하단 탐색과 입력 포커스 시 키보드 열림 상태 �
   expect(document.querySelector('.app-layout--keyboard-open')).not.toBeNull()
   fireEvent.blur(editor)
   expect(document.querySelector('.app-layout--keyboard-open')).toBeNull()
+})
+
+test('작품 목록에서 화살표를 누르면 해당 작품의 원고 화면으로 바로 이동한다', () => {
+  const secondWork: Work = {
+    ...work,
+    id: '2',
+    title: '두 번째 작품',
+    updatedAt: '2026-10-20T00:00:00Z',
+    chapters: [{ id: 'ch-2', title: '1화 시작', content: '본문', revision: 1 }],
+  }
+  useWorksStore.setState({
+    ...useWorksStore.getState(),
+    works: [work, secondWork],
+    listedIds: ['1', '2'],
+    totalElements: 2,
+    loadWorks: vi.fn().mockResolvedValue(undefined),
+  })
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <Routes>
+        <Route path="/" element={<LibraryPage />} />
+        <Route path="/works/:workId/manuscript" element={<p>원고 화면 진입</p>} />
+      </Routes>
+    </MemoryRouter>,
+  )
+  fireEvent.click(screen.getByTestId('open-work-2'))
+  expect(screen.getByText('원고 화면 진입')).toBeTruthy()
 })

@@ -126,6 +126,10 @@
   cursor: pointer;
 }
 
+.workspace-disclosure > :not(summary) {
+  margin-block-start: 10px;
+}
+
 .workspace-disclosure[open] > summary,
 .timeline-help > p {
   background: var(--color-info-soft);

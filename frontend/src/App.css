@@ -1108,11 +1108,11 @@ legend {
   font-weight: 600;
   padding: 0 6px;
 }
-fieldset .check {
+fieldset :is(.check, .extraction-check) {
   margin-bottom: 12px;
   font-size: 13px;
 }
-fieldset .check:last-child {
+fieldset :is(.check, .extraction-check):last-child {
   margin: 0;
 }
 fieldset input {
