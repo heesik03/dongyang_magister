@@ -1,6 +1,7 @@
 package com.magister.backend.domain.analysis.controller;
 
 import com.magister.backend.domain.analysis.docs.AnalysisControllerDocs;
+import com.magister.backend.domain.analysis.dto.HistoryDecision;
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
@@ -26,11 +27,23 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import com.magister.backend.domain.analysis.service.HistoryDecisionService;
+import org.springframework.web.bind.annotation.PutMapping;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/work/{workId}/analysis")
 public class AnalysisController implements AnalysisControllerDocs {
+    private final HistoryDecisionService historyDecisions;
+
+    @Override
+    @PutMapping("/{id}/review/history/{index}/decision")
+    public ApiResult<HistoryDecision> decideHistory(@AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId, @PathVariable String id, @PathVariable int index,
+            @RequestBody HistoryDecision input) {
+        return ApiResult.success(historyDecisions.save(user.id(), workId, id, index, input));
+    }
+
     private final AnalysisJobService analysisJobService;
     private final ReviewResultService reviewResultService;
 

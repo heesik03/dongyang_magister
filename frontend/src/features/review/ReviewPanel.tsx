@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Analysis, Decision, Work } from '../works/workTypes'
+import { HistoryReviewPanel } from './HistoryReviewPanel'
 import { DecisionEditor } from './DecisionEditor'
 import { RevisionSuggestionPanel } from './RevisionSuggestionPanel'
 import type { RevisionTarget } from './revisionSuggestionClient'
@@ -13,6 +14,8 @@ import {
 
 export function ReviewPanel({
   work,
+  jobId,
+  chapterId,
   hidden = false,
   initialFilter = '전체',
   analysis,
@@ -31,6 +34,8 @@ export function ReviewPanel({
   onViewManuscript,
 }: {
   work: Work
+  jobId?: string
+  chapterId?: string
   hidden?: boolean
   initialFilter?: ReviewFilter
   analysis?: Analysis
@@ -53,6 +58,8 @@ export function ReviewPanel({
   const filter = chosenFilter ?? initialFilter
   const [editing, setEditing] = useState<{ id: string; status: Decision } | null>(null)
 
+  const showStandard =
+    !analyzing && (!report?.history || report.history.standardStatus === 'COMPLETED')
   const filtered =
     analysis?.reviews
       .map((review) => {
@@ -110,7 +117,7 @@ export function ReviewPanel({
           <div className="notice analyzing">
             <span className="analysis-spinner" aria-hidden="true" />
             <span className="analysis-state-label">AI 검토 진행 중</span>
-            <strong>선택한 원고와 설정을 비교하고 있어요.</strong>
+            <strong>선택한 항목으로 회차 원고를 검토하고 있어요.</strong>
             <p>
               결과가 준비되면 자동으로 표시됩니다.
               <br />
@@ -128,17 +135,29 @@ export function ReviewPanel({
           <button onClick={retry}>다시 분석</button>
         </div>
       )}
-      {!analysis && !analyzing && !error && (
+      {report?.history && jobId && !analyzing && (
+        <HistoryReviewPanel
+          key={jobId}
+          workId={work.id}
+          jobId={jobId}
+          report={report.history}
+          chapter={work.chapters.find((item) => item.id === chapterId)}
+          stale={stale || report.stale}
+          onJump={onJump}
+          onSaved={onDecisionSaved}
+        />
+      )}
+      {!analysis && !report?.history && !analyzing && !error && (
         <div className="empty">
           <Icon name="book-empty" />
           <h3>이야기를 함께 살펴볼까요?</h3>
           <p>
-            확정 설정과 참고 범위를 고른 뒤<br />
+            검토 항목과 참고 범위를 고른 뒤<br />
             AI 검토를 실행해 주세요.
           </p>
         </div>
       )}
-      {analysis && !analyzing && (
+      {analysis && showStandard && (
         <>
           <div className="analysis-scope">
             <strong>검토 범위</strong>

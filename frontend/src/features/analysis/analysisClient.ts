@@ -5,6 +5,7 @@ import type { Analysis, Chapter, Review } from '../works/workTypes'
 import { parseDecisionReference, type DecisionReference } from '../review/decisionClient'
 
 export interface AnalysisInput {
+  historical?: boolean
   chapterId: string
   chapterRevision?: number
   workspaceVersion: number

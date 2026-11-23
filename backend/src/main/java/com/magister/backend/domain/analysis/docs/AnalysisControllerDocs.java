@@ -1,5 +1,6 @@
 package com.magister.backend.domain.analysis.docs;
 
+import com.magister.backend.domain.analysis.dto.HistoryDecision;
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
@@ -29,6 +30,11 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Analysis", description = "저장된 회차 원고와 확정 설정을 비교하는 비동기 AI 검토")
 @SecurityRequirement(name = "session")
 public interface AnalysisControllerDocs {
+    @Operation(summary = "역사 고증 항목의 작가 판단 저장",
+            description = "본인 작품의 검토 항목에 수용·보류·의도된 설정과 사유를 기록합니다. 같은 작품의 후속 검토에서 대상·시점·주장이 같은 항목에 의도된 설정을 표시합니다. 변경된 원고는 409입니다.")
+    ApiResult<HistoryDecision> decideHistory(LoginUser user, @Positive Long workId,
+            @NotBlank @Size(max = 36) String id, @Min(0) @Max(2) int index, @Valid HistoryDecision input);
+
     @Operation(
             summary = "근거가 연결된 검토 후보",
             description =

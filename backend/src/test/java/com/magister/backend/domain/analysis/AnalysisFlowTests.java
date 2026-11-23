@@ -182,6 +182,38 @@ class AnalysisFlowTests {
     }
 
     @Test
+    void historyDecisionCarriesOnlyMatchingIntentAndSurvivesRetention() throws Exception {
+        String quote = "검토 원고";
+        HistoryCheck.Finding first = new HistoryCheck.Finding(quote, 0, quote.length(), "1392년",
+                "경복궁", "궁이 존재했다", HistoryCheck.Status.INSUFFICIENT_EVIDENCE, "자료 부족", List.of());
+        HistoryCheck.Finding another = new HistoryCheck.Finding(quote, 0, quote.length(), "1392년",
+                "경복궁", "왕이 거주했다", HistoryCheck.Status.INSUFFICIENT_EVIDENCE, "자료 부족", List.of());
+        when(history.checkJob(ownerId, quote)).thenReturn(List.of(first, another));
+        String job = jobService.create(ownerId, workId, new AnalysisRequest("initial", "target", 0,
+                List.of(), List.of(), false, false, 1L, true)).id();
+        worker.execute(job);
+        String decisionPath = path() + "/" + job + "/review/history/0/decision";
+        String body = """
+                {"choice":"INTENDED","reason":"대체 역사 설정"}
+                """;
+        mockMvc.perform(put(decisionPath).with(authentication(owner)).with(csrf())
+                        .contentType("application/json").content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.choice").value("INTENDED"));
+        String next = jobService.create(ownerId, workId, new AnalysisRequest("next", "target", 0,
+                List.of(), List.of(), false, false, 1L, true)).id();
+        worker.execute(next);
+        mockMvc.perform(get(path() + "/" + next + "/review").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.historyDecisions['0'].reason").value("대체 역사 설정"))
+                .andExpect(jsonPath("$.data.historyDecisions['1']").doesNotExist());
+        transactionTemplate.executeWithoutResult(status ->
+                assertThat(jobRepository.deleteExpiredWithoutDecisions(List.of(job))).isZero());
+        chapterService.update(ownerId, workId, "target", new UpdateChapterRequest("2화", "바뀐 원고", 0, "changed"));
+        mockMvc.perform(put(decisionPath).with(authentication(owner)).with(csrf())
+                        .contentType("application/json").content(body))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void historyFailurePreservesStandardFindings() throws Exception {
         AnalysisRequest request = new AnalysisRequest("mixed", "target", 0, List.of(settingId.toString()),
                 List.of("previous"), true, true, 1L, true);

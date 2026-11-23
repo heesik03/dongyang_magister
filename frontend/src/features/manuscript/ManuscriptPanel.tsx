@@ -47,10 +47,14 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
   const overviewJobId = params.get('reviewJob') ?? undefined
   const overviewFilter = REVIEW_FILTERS.find((filter) => filter === params.get('reviewFilter'))
   const jobs = useAnalysisJobs(work.id, chapter?.id, work.source === 'server', overviewJobId)
-  const reportState = useReviewReport(work.id, jobs.job?.id, jobs.job?.status === 'SUCCEEDED')
+  const reportState = useReviewReport(
+    work.id,
+    jobs.job?.id,
+    jobs.job?.status === 'SUCCEEDED' || jobs.job?.status === 'FAILED',
+  )
   const [jumpError, setJumpError] = useState<{ id: string; message: string } | null>(null)
   const savedAnalysis = work.analyses.find((item) => item.chapterId === chapter?.id)
-  const analysis = jobs.job?.result ?? savedAnalysis
+  const analysis = jobs.job ? (jobs.job.result ?? undefined) : savedAnalysis
   const [creating, setCreating] = useState(!!params.get('newChapter'))
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -60,6 +64,8 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
   const [previousIds, setPreviousIds] = useState<string[]>([])
   const [consistency, setConsistency] = useState(true)
   const [motivation, setMotivation] = useState(true)
+  const [historical, setHistorical] = useState(false)
+  const standard = consistency || motivation
   const [submitting, setSubmitting] = useState(false)
   const analyzing = jobs.active
   const [error, setError] = useState('')
@@ -222,11 +228,16 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
       setError('서버에 저장된 작품에서 AI 검토를 실행해 주세요.')
       return
     }
-    if (!consistency && !motivation) {
+    if (!standard && !historical) {
       setError('분석 항목을 하나 이상 선택해 주세요.')
       return
     }
+    if (historical && chapter.content.length > 6000) {
+      setError('역사 고증은 회차 원고 6,000자까지 지원합니다.')
+      return
+    }
     if (
+      standard &&
       !work.settings.some((setting) => setting.status === '확정' && settingIds.includes(setting.id))
     ) {
       setError('참고할 확정 설정을 하나 이상 선택해 주세요.')
@@ -261,8 +272,9 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
           chapterId: chapter.id,
           chapterRevision: latest.chapters.find((item) => item.id === chapter.id)?.revision,
           workspaceVersion: latest.workspaceVersion ?? 0,
-          settingIds: confirmedSettingIds,
-          previousIds: validPreviousIds,
+          settingIds: standard ? confirmedSettingIds : [],
+          previousIds: standard ? validPreviousIds : [],
+          ...(historical && { historical }),
           consistency,
           motivation,
         },
@@ -492,7 +504,7 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
               ) : (
                 <Icon name="spark" />
               )}
-              {analyzing ? '검토 중…' : '설정과 맞는지 검토'}
+              {analyzing ? '검토 중…' : '원고 검토'}
             </button>
           </div>
         </div>
@@ -740,6 +752,12 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
           work={work}
           initialFilter={overviewJobId === jobs.job?.id ? overviewFilter : undefined}
           analysis={analysis}
+          jobId={jobs.job?.id}
+          chapterId={
+            jobs.job?.result?.chapterId ??
+            jobs.history.find((item) => item.id === jobs.job?.id)?.chapterId ??
+            undefined
+          }
           report={reportState.report}
           reportLoading={reportState.loading}
           reportError={reportState.error}
@@ -811,8 +829,22 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
                 />
                 인물 행동의 설명 보완
               </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={historical}
+                  onChange={(event) => setHistorical(event.target.checked)}
+                />
+                역사 고증
+              </label>
             </fieldset>
-            <fieldset>
+            {historical && (
+              <p className="notice small">
+                현재 회차 원고를 Gemini에 전송하고 공식 기관에는 검색 대상명만 보냅니다. 원고{' '}
+                {chapter?.content.length.toLocaleString() ?? 0} / 6,000자
+              </p>
+            )}
+            <fieldset disabled={!standard}>
               <legend>참고할 확정 설정</legend>
               {work.settings
                 .filter((setting) => setting.status === '확정')
@@ -830,7 +862,7 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
                 <p className="small muted">설정집에서 확정 설정을 먼저 등록해 주세요.</p>
               )}
             </fieldset>
-            <fieldset>
+            <fieldset disabled={!standard}>
               <legend>참고할 이전 원고</legend>
               {work.chapters
                 .filter(
@@ -851,10 +883,12 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
                 <p className="small muted">선택할 다른 회차가 없습니다.</p>
               )}
             </fieldset>
-            <p className="notice small">
-              현재 원고와 선택한 이전 회차·확정 설정을 외부 AI에 전송합니다. 결과는 검토 후보이며
-              설정을 자동으로 변경하지 않습니다.
-            </p>
+            {standard && (
+              <p className="notice small">
+                현재 원고와 선택한 이전 회차·확정 설정을 외부 AI에 전송합니다. 결과는 검토 후보이며
+                설정을 자동으로 변경하지 않습니다.
+              </p>
+            )}
             {error && (
               <p className="error" role="alert">
                 {error}

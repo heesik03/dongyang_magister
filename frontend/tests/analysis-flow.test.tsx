@@ -125,9 +125,31 @@ test('저장 실패는 재시도할 수 있고 저장 중·충돌 상태에서�
   await waitFor(() => expect(analysisClient.list).toHaveBeenCalled())
 })
 
+test('역사 고증만 요청하면 참고 설정과 이전 회차를 전송하지 않는다', async () => {
+  show()
+  fireEvent.click(screen.getByRole('button', { name: '원고 검토' }))
+  for (const name of ['설정 충돌 후보', '인물 행동의 설명 보완', '역사 고증']) {
+    fireEvent.click(screen.getByRole('checkbox', { name }))
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'AI 검토 시작' }))
+  await waitFor(() =>
+    expect(analysisClient.create).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({
+        historical: true,
+        consistency: false,
+        motivation: false,
+        settingIds: [],
+        previousIds: [],
+      }),
+      expect.any(AbortSignal),
+    ),
+  )
+})
+
 test('분석 범위를 선택하면 바로 분석을 접수한다', async () => {
   show()
-  fireEvent.click(screen.getByRole('button', { name: '설정과 맞는지 검토', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: '원고 검토', exact: true }))
   fireEvent.click(screen.getByRole('checkbox', { name: '1화', exact: true }))
   fireEvent.click(screen.getByRole('button', { name: 'AI 검토 시작' }))
   await waitFor(() => expect(analysisClient.create).toHaveBeenCalledTimes(1))
@@ -204,7 +226,7 @@ test('이력 조회 실패를 빈 결과로 표시하지 않는다', async () =>
 test('접수 중 자료 충돌이 발생하면 오류를 표시하고 자동으로 다시 접수하지 않는다', async () => {
   vi.mocked(analysisClient.create).mockRejectedValue(new ApiError('자료가 바뀌었습니다.', 409))
   show()
-  fireEvent.click(screen.getByRole('button', { name: '설정과 맞는지 검토', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: '원고 검토', exact: true }))
   fireEvent.click(screen.getByRole('button', { name: 'AI 검토 시작' }))
   await within(screen.getByRole('dialog', { name: '분석 범위 설정' })).findByText(
     '자료가 바뀌었습니다.',

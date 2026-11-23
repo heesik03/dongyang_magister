@@ -44,6 +44,7 @@ public class ReviewResultService {
     private final ReviewEvidenceRepository evidenceRepository;
     private final AnalysisSnapshotService snapshotService;
     private final ReviewConverter reviewConverter;
+    private final HistoryDecisionService historyDecisions;
     private final DecisionService decisionService;
 
     /** 완료 상태와 같은 트랜잭션에서만 저장한다. 출처·후보는 같은 작업의 FK로도 묶는다. */
@@ -111,12 +112,13 @@ public class ReviewResultService {
         Map<String, DecisionResponse> pageDecisions =
                 decisionService.summaries(workId, candidates.getContent(), evidences);
 
+        HistoryJobReport history = job.getHistoryReport() == null ? null
+                : objectMapper.readValue(job.getHistoryReport(), HistoryJobReport.class);
         return reviewConverter.toReport(
                 candidates,
                 evidences,
                 job.getResultFormatVersion() == 0,
                 snapshotService.isStale(workId, job.getInput()),
-                pageDecisions, job.getHistoryReport() == null ? null
-                        : objectMapper.readValue(job.getHistoryReport(), HistoryJobReport.class));
+                pageDecisions, history, historyDecisions.summaries(job, history));
     }
 }
