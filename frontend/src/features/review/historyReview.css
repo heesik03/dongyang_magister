@@ -266,7 +266,7 @@
   display: none;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1023px) {
   .history-scope {
     padding-block-start: 4px;
   }
@@ -424,7 +424,7 @@
   background: transparent;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1023px) {
   .history-scope-selection {
     gap: 12px;
     padding: 16px;
