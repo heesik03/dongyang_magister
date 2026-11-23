@@ -112,7 +112,12 @@ export function WorkspaceStatus({ work }: { work: Work }) {
         }
       </div>
       {comparison && (
-        <Dialog size="wide" title="충돌 원고 비교" onClose={() => setComparison(null)}>
+        <Dialog
+          size="wide"
+          title="충돌 원고 비교"
+          initialFocus="heading"
+          onClose={() => setComparison(null)}
+        >
           <div className="stack">
             <p>
               두 원고를 확인하고 선택한 회차만 다시 저장합니다. 비교 이후 다른 수정이 발생하면 다시
@@ -128,34 +133,42 @@ export function WorkspaceStatus({ work }: { work: Work }) {
               const draft = work.chapters.find((chapter) => chapter.id === server.id)
               return (
                 draft && (
-                  <section className="stack" key={server.id}>
+                  <section className="dialog-section" key={server.id}>
                     <h3>{draft.title}</h3>
-                    <label>
-                      현재 입력 · {draft.title}
-                      <textarea readOnly rows={5} value={draft.content} />
-                    </label>
-                    <label>
-                      서버 원고 · {server.title}
-                      <textarea readOnly rows={5} value={server.content} />
-                    </label>
-                    <button
-                      disabled={saving}
-                      onClick={() => {
-                        try {
-                          useWorksStore.getState().resolveChapterConflict(work.id, server)
-                          void useWorksStore.getState().flushWorkspace(work.id)
-                          setComparison(null)
-                        } catch (error) {
-                          setNotice(error instanceof Error ? error.message : '복구 실패')
-                        }
-                      }}
-                    >
-                      이 회차를 내 입력으로 저장
-                    </button>
+                    <div className="manuscript-comparison">
+                      <label>
+                        서버 원고 · {server.title}
+                        <textarea readOnly rows={5} value={server.content} />
+                      </label>
+                      <label>
+                        현재 편집본 · {draft.title}
+                        <textarea readOnly rows={5} value={draft.content} />
+                      </label>
+                    </div>
+                    <div className="dialog-actions">
+                      <button
+                        disabled={saving}
+                        onClick={() => {
+                          try {
+                            useWorksStore.getState().resolveChapterConflict(work.id, server)
+                            void useWorksStore.getState().flushWorkspace(work.id)
+                            setComparison(null)
+                          } catch (error) {
+                            setNotice(error instanceof Error ? error.message : '복구 실패')
+                          }
+                        }}
+                      >
+                        이 회차를 내 입력으로 저장
+                      </button>
+                    </div>
                   </section>
                 )
               )
             })}
+            <div className="dialog-actions dialog-action-bar">
+              <button onClick={() => setComparison(null)}>닫기</button>
+              <button onClick={download}>현재 입력 내려받기</button>
+            </div>
           </div>
         </Dialog>
       )}

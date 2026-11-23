@@ -64,12 +64,21 @@ export function WithdrawAccountDialog({ user, activity, onClose }: WithdrawAccou
       }}
     >
       <form className="stack mypage-withdraw-form" onSubmit={(event) => void handleSubmit(event)}>
-        <div className="mypage-danger-badge-row">
-          <span className="mypage-danger-badge">영구 삭제 후 복구 불가</span>
-        </div>
-        <p className="muted">
-          탈퇴가 완료되면 아래의 창작 자료가 즉시 영구 삭제되며 복구할 수 없습니다.
-        </p>
+        <details className="dialog-disclosure">
+          <summary>원고 보관과 외부 전송 자료</summary>
+          <p>원고가 필요하면 탈퇴 전에 작품 화면에서 파일로 내보내 주세요.</p>
+          <p>
+            대기·실행 중인 AI 작업은 취소됩니다. Google Gemini API에 이미 전송된 자료에는 공급자
+            정책이 적용됩니다.
+          </p>
+        </details>
+
+        {dirtyIds.length > 0 && (
+          <p role="status" className="mypage-unsaved-warning">
+            이 브라우저에 저장되지 않은 원고가 있습니다. 탈퇴 시 브라우저 초안과 복구 자료도
+            삭제됩니다.
+          </p>
+        )}
 
         <div className="mypage-deletion-scope" role="region" aria-label="영구 삭제 대상">
           <strong>영구 삭제 대상</strong>
@@ -79,25 +88,7 @@ export function WithdrawAccountDialog({ user, activity, onClose }: WithdrawAccou
             <li>AI 검토 결과, 근거 스냅샷 및 작가 판단 기록</li>
             <li>작가 계정 ({user.email}) 및 로그인 정보</li>
           </ul>
-          <p className="small muted">
-            원고를 보관하려면 탈퇴 전에 작품 화면에서 Markdown 또는 텍스트 파일로 내보내 주세요.
-          </p>
         </div>
-
-        <div className="mypage-ai-notice-box">
-          <p className="small">
-            진행 중이거나 대기 중인 AI 분석·사건 추출 작업은 즉시 취소되며 늦게 도착한 결과도
-            반영되지 않습니다. 단, 이미 외부 AI 공급자(Google Gemini API)로 전송된 요청 자료는
-            공급자 정책에 따라 처리되며 탈퇴로 회수할 수 없습니다.
-          </p>
-        </div>
-
-        {dirtyIds.length > 0 && (
-          <p role="status" className="mypage-unsaved-warning">
-            현재 브라우저에 아직 서버로 저장되지 않은 편집 중 원고가 있습니다. 탈퇴 시 브라우저
-            초안과 복구 자료도 함께 삭제됩니다.
-          </p>
-        )}
 
         <PasswordInput
           label="현재 비밀번호 확인"
@@ -122,10 +113,7 @@ export function WithdrawAccountDialog({ user, activity, onClose }: WithdrawAccou
               if (error) setError('')
             }}
           />
-          <span>
-            위 작품·원고·설정·사건 타임라인·AI 검토 결과·판단 기록이 모두 영구 삭제되며 복구할 수
-            없음을 확인했고 이에 동의합니다.
-          </span>
+          <span>위 자료가 영구 삭제되며 복구할 수 없음을 확인했고 이에 동의합니다.</span>
         </label>
 
         {error && (
@@ -134,7 +122,7 @@ export function WithdrawAccountDialog({ user, activity, onClose }: WithdrawAccou
           </p>
         )}
 
-        <div className="dialog-actions mypage-withdraw-actions">
+        <div className="dialog-actions dialog-action-bar mypage-withdraw-actions">
           <button type="button" className="ghost" disabled={busy} onClick={onClose}>
             취소하고 돌아가기
           </button>

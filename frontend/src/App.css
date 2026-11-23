@@ -2772,7 +2772,9 @@ fieldset input {
   margin: 0;
 }
 .mypage-password-wrapper {
-  max-width: 580px;
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
 }
 .mypage-session-warning,
 .mypage-ai-notice-box {

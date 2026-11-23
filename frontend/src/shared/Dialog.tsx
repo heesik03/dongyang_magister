@@ -4,6 +4,7 @@ import { Icon } from './Icon'
 export function Dialog({
   title,
   size = 'default',
+  className,
   initialFocus = 'first-input',
   onClose,
   children,
@@ -12,6 +13,7 @@ export function Dialog({
   confirmCloseLabel = '입력 버리고 닫기',
 }: {
   size?: 'default' | 'wide' | 'compact'
+  className?: string
   initialFocus?: 'first-input' | 'heading'
   title: string
   onClose: () => void
@@ -49,7 +51,7 @@ export function Dialog({
   }, [onOpen, initialFocus])
   return (
     <dialog
-      className={'dialog dialog--' + size}
+      className={['dialog', 'dialog--' + size, className].filter(Boolean).join(' ')}
       ref={ref}
       aria-labelledby={titleId}
       onInputCapture={(event) => {

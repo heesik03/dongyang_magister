@@ -220,6 +220,7 @@ export function ManuscriptTransfer({
       {mode && (
         <Dialog
           title={mode === 'import' ? '원고 가져오기' : '원고 내보내기'}
+          size={mode === 'import' && preview ? 'wide' : 'default'}
           onClose={() => {
             if (!busy) setMode(null)
           }}
@@ -227,26 +228,27 @@ export function ManuscriptTransfer({
           <div className="stack manuscript-transfer" aria-busy={busy}>
             {mode === 'import' ? (
               <>
-                <p className="small muted">
-                  TXT · Markdown · PDF · DOCX / 8MB 미만 · 본문 최대 20만 자
-                </p>
-                <p className="small">
-                  파일은 이 작품의 원고로 가져옵니다. 작품 정보와 설정집은 변경하지 않습니다.
-                </p>
-                <label>
-                  원고 파일
-                  <input
-                    type="file"
-                    accept=".txt,.md,.markdown,.pdf,.docx"
-                    disabled={busy}
-                    onChange={(event) => void selectFile(event.target.files?.[0])}
-                  />
-                </label>
-                {file && !preview && !busy && (
-                  <button onClick={() => void selectFile(file)}>파일 다시 확인</button>
-                )}
+                <section className="dialog-section">
+                  <h3>파일 선택</h3>
+                  <label>
+                    원고 파일
+                    <input
+                      type="file"
+                      accept=".txt,.md,.markdown,.pdf,.docx"
+                      disabled={busy}
+                      onChange={(event) => void selectFile(event.target.files?.[0])}
+                    />
+                  </label>
+                  <p className="small muted">
+                    TXT · Markdown · PDF · DOCX / 8MB 미만 · 본문 최대 20만 자
+                  </p>
+                  {file && !preview && !busy && (
+                    <button onClick={() => void selectFile(file)}>파일 다시 확인</button>
+                  )}
+                </section>
                 {preview && (
-                  <>
+                  <section className="dialog-section">
+                    <h3>본문 미리보기</h3>
                     {preview.workTitle && (
                       <p className="small muted">
                         파일 정보 · {preview.workTitle}
@@ -298,7 +300,7 @@ export function ManuscriptTransfer({
                         있습니다.
                       </label>
                     )}
-                  </>
+                  </section>
                 )}
               </>
             ) : (
@@ -352,7 +354,7 @@ export function ManuscriptTransfer({
                 {error}
               </p>
             )}
-            <div className="dialog-actions">
+            <div className="dialog-actions dialog-action-bar">
               <button disabled={busy} onClick={() => setMode(null)}>
                 취소
               </button>

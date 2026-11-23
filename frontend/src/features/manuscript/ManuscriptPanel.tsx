@@ -58,10 +58,6 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
   const [creating, setCreating] = useState(!!params.get('newChapter'))
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
-  const optionsHeading = useRef<HTMLHeadingElement>(null)
-  useEffect(() => {
-    if (optionsOpen) optionsHeading.current?.focus()
-  }, [optionsOpen])
   const [settingIds, setSettingIds] = useState(
     work.settings.filter((setting) => setting.status === '확정').map((setting) => setting.id),
   )
@@ -371,19 +367,17 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
   function toggle(ids: string[], id: string) {
     return ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]
   }
-  if (optionsOpen) {
-    return (
-      <section className="history-scope" aria-labelledby="history-scope-heading">
-        <button
-          type="button"
-          className="text-button history-mobile-back"
-          onClick={() => setOptionsOpen(false)}
-        >
-          ‹ 뒤로
-        </button>
-        <h1 id="history-scope-heading" ref={optionsHeading} tabIndex={-1}>
-          분석 범위 설정
-        </h1>
+  const analysisScope = optionsOpen && (
+    <Dialog
+      size="wide"
+      className="history-scope-dialog"
+      title="분석 범위 설정"
+      initialFocus="heading"
+      onClose={() => {
+        if (!submitting) setOptionsOpen(false)
+      }}
+    >
+      <section className="history-scope" aria-label="분석 범위 설정">
         <p className="muted">
           {work.title} / {chapter?.title}
         </p>
@@ -392,7 +386,7 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
             <div className="history-scope-target">
               <Icon name="file" />
               <div>
-                <strong>검토 원고</strong>
+                <strong>검토할 회차</strong>
                 <p>
                   {chapter?.title} · {dirty ? '검토 전 자동 저장' : '저장된 원고'}
                 </p>
@@ -472,11 +466,16 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
             <h2>
               <Icon name="file" /> 외부 AI에 전송할 내용
             </h2>
-            <p>
-              Gemini에 현재 회차 원고{standard ? '와 선택한 이전 회차·확정 설정' : ''}를 전송합니다.
-              {historical &&
-                ' 역사 고증은 현재 국내 역사(국가유산청·한국민족문화대백과사전 공식 자료)만 지원하며, 역사 기관에는 검색 대상명만 보냅니다.'}
-            </p>
+            <ul>
+              <li>Google Gemini API · 현재 회차 원고</li>
+              {standard && (
+                <>
+                  <li>선택한 확정 설정 {settingIds.length}개</li>
+                  <li>선택한 이전 회차 원고 {previousIds.length}개</li>
+                </>
+              )}
+              {historical && <li>국가유산청·한국민족문화대백과사전 · 검색 대상명만</li>}
+            </ul>
             {historical && (
               <p className="small muted">
                 국내 역사 고증 대상 원고 {chapter?.content.length.toLocaleString() ?? 0} / 6,000자
@@ -484,20 +483,20 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
             )}
             {historical && (
               <p className="notice">
-                역사 고증 검토는 현재 국내 역사(국가유산청·한국민족문화대백과사전 공식 자료)만
-                지원합니다. 해외 역사나 공식 사료에 등록되지 않은 대상은 검토되지 않거나 근거
-                부족으로 분류됩니다.
+                국내 역사만 지원합니다. 공식 자료를 찾지 못한 항목은 근거 부족으로 표시될 수
+                있습니다.
               </p>
             )}
-            <p className="notice">AI 검토 시작을 누르면 위 자료가 외부 AI에 전송됩니다.</p>
           </section>
           {error && (
             <p className="error" role="alert">
               {error}
             </p>
           )}
-          <div className="history-scope-actions">
-            <button onClick={() => setOptionsOpen(false)}>닫기</button>
+          <div className="dialog-actions dialog-action-bar history-scope-actions">
+            <button disabled={submitting} onClick={() => setOptionsOpen(false)}>
+              취소
+            </button>
             <button
               className="primary"
               disabled={!chapter || analyzing || submitting || (!standard && !historical)}
@@ -508,8 +507,8 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
           </div>
         </div>
       </section>
-    )
-  }
+    </Dialog>
+  )
   return (
     <div
       className={
@@ -517,6 +516,7 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
         (view === '검토' && reportState.report?.history ? ' manuscript-workspace--history' : '')
       }
     >
+      {analysisScope}
       {jumpError && jumpError.id === selectedJobId && (
         <p className="error" role="alert">
           {jumpError.message}

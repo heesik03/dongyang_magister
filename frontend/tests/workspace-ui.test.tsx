@@ -88,7 +88,7 @@ test('충돌 복구는 서버 원고와 초안을 보여준 뒤 작가가 선택
   render(<WorkspaceStatus work={current} />)
   fireEvent.click(screen.getByRole('button', { name: '충돌 원고 비교·복구' }))
   await screen.findByRole('dialog', { name: '충돌 원고 비교' })
-  expect((screen.getByLabelText('현재 입력 · 1화') as HTMLTextAreaElement).value).toBe(
+  expect((screen.getByLabelText('현재 편집본 · 1화') as HTMLTextAreaElement).value).toBe(
     '화면의 초안',
   )
   expect((screen.getByLabelText('서버 원고 · 1화') as HTMLTextAreaElement).value).toBe(
