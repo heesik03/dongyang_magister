@@ -12,11 +12,22 @@ export interface RecentManuscriptSummary {
   updatedAt: string
 }
 
+export interface AiQuotaSummary {
+  textUsed: number
+  textLimit: number
+  textRemaining: number
+  characterImageUsed: number
+  characterImageLimit: number
+  characterImageRemaining: number
+  resetAt: string
+}
+
 export interface UserActivity {
   workCount: number
   chapterCount: number
   unreviewedCount: number
   recentManuscript: RecentManuscriptSummary | null
+  aiQuota?: AiQuotaSummary | null
 }
 
 function parseUser(raw: unknown): User {
@@ -42,11 +53,25 @@ function parseActivity(raw: unknown): UserActivity {
       updatedAt: readString(recent, 'updatedAt'),
     }
   }
+  let aiQuota: AiQuotaSummary | null = null
+  if (record.aiQuota !== null && record.aiQuota !== undefined) {
+    const quota = readRecord(record.aiQuota)
+    aiQuota = {
+      textUsed: readInteger(quota, 'textUsed', 0),
+      textLimit: readInteger(quota, 'textLimit', 1),
+      textRemaining: readInteger(quota, 'textRemaining', 0),
+      characterImageUsed: readInteger(quota, 'characterImageUsed', 0),
+      characterImageLimit: readInteger(quota, 'characterImageLimit', 1),
+      characterImageRemaining: readInteger(quota, 'characterImageRemaining', 0),
+      resetAt: readString(quota, 'resetAt'),
+    }
+  }
   return {
     workCount: readInteger(record, 'workCount', 0),
     chapterCount: readInteger(record, 'chapterCount', 0),
     unreviewedCount: readInteger(record, 'unreviewedCount', 0),
     recentManuscript,
+    aiQuota,
   }
 }
 

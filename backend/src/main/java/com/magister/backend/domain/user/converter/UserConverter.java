@@ -3,6 +3,7 @@ package com.magister.backend.domain.user.converter;
 import com.magister.backend.domain.user.dto.CsrfResponse;
 import com.magister.backend.domain.user.dto.EmailCheckResponse;
 import com.magister.backend.domain.user.dto.UserActivityResponse;
+import com.magister.backend.domain.user.dto.UserActivityResponse.AiQuotaSummary;
 import com.magister.backend.domain.user.dto.UserActivityResponse.RecentManuscriptSummary;
 import com.magister.backend.domain.user.dto.UserResponse;
 import com.magister.backend.domain.user.entity.User;
@@ -41,6 +42,15 @@ public final class UserConverter {
             long chapterCount,
             long unreviewedCount,
             RecentManuscriptRow recentRow) {
+        return toActivityResponse(workCount, chapterCount, unreviewedCount, recentRow, null);
+    }
+
+    public static UserActivityResponse toActivityResponse(
+            long workCount,
+            long chapterCount,
+            long unreviewedCount,
+            RecentManuscriptRow recentRow,
+            AiQuotaSummary aiQuota) {
         RecentManuscriptSummary recent =
                 recentRow == null
                         ? null
@@ -51,6 +61,7 @@ public final class UserConverter {
                                 recentRow.chapterNo(),
                                 recentRow.chapterTitle(),
                                 recentRow.updatedAt());
-        return new UserActivityResponse(workCount, chapterCount, unreviewedCount, recent);
+        return new UserActivityResponse(
+                workCount, chapterCount, unreviewedCount, recent, aiQuota);
     }
 }

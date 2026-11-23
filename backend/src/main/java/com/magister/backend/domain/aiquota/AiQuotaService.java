@@ -104,5 +104,9 @@ public class AiQuotaService {
         };
     }
 
-    public record Usage(Feature feature, int used, int limit, Instant resetAt) {}
+    public record Usage(Feature feature, int used, int limit, Instant resetAt) {
+        public int remaining() {
+            return Math.max(0, limit - used);
+        }
+    }
 }

@@ -43,6 +43,15 @@ const sampleActivity = {
     chapterTitle: '3화 안개 낀 부두',
     updatedAt: '2026-10-26T12:00:00Z',
   },
+  aiQuota: {
+    textUsed: 4,
+    textLimit: 20,
+    textRemaining: 16,
+    characterImageUsed: 1,
+    characterImageLimit: 3,
+    characterImageRemaining: 2,
+    resetAt: '2026-10-26T15:00:00Z',
+  },
 }
 
 beforeEach(() => {
@@ -86,6 +95,10 @@ test('창작 공간 현황과 프로필을 표시하고 필명 수정 시 인증
   expect(screen.getByText('2')).toBeTruthy()
   expect(screen.getByText('5')).toBeTruthy()
   expect(screen.getByText('3')).toBeTruthy()
+  expect(screen.getByText('4 / 20회 사용')).toBeTruthy()
+  expect(screen.getByText('오늘 16회 남음')).toBeTruthy()
+  expect(screen.getByText('1 / 3회 사용')).toBeTruthy()
+  expect(screen.getByText('오늘 2회 남음')).toBeTruthy()
 
   const nameInput = screen.getByLabelText(/필명/)
   fireEvent.change(nameInput, { target: { value: '  이도윤  ' } })

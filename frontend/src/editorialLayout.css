@@ -950,8 +950,61 @@
 
 .mypage-tabs,
 .mypage-metric-box,
-.mypage-recent-box {
+.mypage-recent-box,
+.mypage-ai-quota-box {
   background: var(--color-canvas);
+}
+
+.mypage-ai-quota-box {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.mypage-ai-quota-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mypage-ai-quota-header strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-primary);
+}
+
+.mypage-ai-quota-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mypage-ai-quota-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.mypage-ai-quota-item > div {
+  display: grid;
+  gap: 4px;
+}
+
+@media (max-width: 1023px) {
+  .mypage-ai-quota-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .mypage-tabs button.active {

@@ -316,6 +316,57 @@ export function MyPage() {
                     </div>
                   </div>
 
+                  <div className="mypage-ai-quota-box" aria-label="오늘의 AI 호출 한도">
+                    <div className="mypage-ai-quota-header">
+                      <strong>
+                        <Icon name="spark" /> 오늘의 AI 호출 한도
+                      </strong>
+                      <span className="small muted">한국 시간 자정 초기화</span>
+                    </div>
+                    <div className="mypage-ai-quota-grid">
+                      <div className="mypage-ai-quota-item">
+                        <div>
+                          <span className="small muted">
+                            AI 텍스트 작업 (검토·집필 도우미·사건 추출)
+                          </span>
+                          <strong>
+                            {activityLoading
+                              ? '…'
+                              : `${activity?.aiQuota?.textUsed ?? 0} / ${activity?.aiQuota?.textLimit ?? 20}회 사용`}
+                          </strong>
+                        </div>
+                        <span
+                          className={`badge ${(activity?.aiQuota?.textRemaining ?? 20) === 0 ? 'danger' : 'green'}`}
+                        >
+                          {activityLoading
+                            ? '…'
+                            : (activity?.aiQuota?.textRemaining ?? 20) === 0
+                              ? '한도 소진'
+                              : `오늘 ${activity?.aiQuota?.textRemaining ?? 20}회 남음`}
+                        </span>
+                      </div>
+                      <div className="mypage-ai-quota-item">
+                        <div>
+                          <span className="small muted">인물 이미지 생성</span>
+                          <strong>
+                            {activityLoading
+                              ? '…'
+                              : `${activity?.aiQuota?.characterImageUsed ?? 0} / ${activity?.aiQuota?.characterImageLimit ?? 3}회 사용`}
+                          </strong>
+                        </div>
+                        <span
+                          className={`badge ${(activity?.aiQuota?.characterImageRemaining ?? 3) === 0 ? 'danger' : 'green'}`}
+                        >
+                          {activityLoading
+                            ? '…'
+                            : (activity?.aiQuota?.characterImageRemaining ?? 3) === 0
+                              ? '한도 소진'
+                              : `오늘 ${activity?.aiQuota?.characterImageRemaining ?? 3}회 남음`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="mypage-recent-box">
                     <div>
                       <span className="small muted">최근 작업 원고</span>
