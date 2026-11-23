@@ -92,6 +92,19 @@ public class AnalysisSnapshotService {
         return isStale(workId, parseInput(rawInput));
     }
 
+    /** 역사 고증 판단은 참고 설정·이전 회차가 바뀌어도 대상 회차 원고가 그대로면 유효하다. */
+    @Transactional(readOnly = true)
+    public boolean isTargetChapterStale(Long workId, String rawInput) {
+        AnalysisInput input = parseInput(rawInput);
+        List<ChapterData> currentChapters =
+                chapterRepository
+                        .findByWork_IdAndChapterKeyIn(workId, List.of(input.chapter().id()))
+                        .stream()
+                        .map(chapterConverter::toWorkspaceChapter)
+                        .toList();
+        return !currentChapters.contains(input.chapter());
+    }
+
     private boolean isStale(Long workId, AnalysisInput input) {
         List<String> chapterKeys = new ArrayList<>();
         chapterKeys.add(input.chapter().id());

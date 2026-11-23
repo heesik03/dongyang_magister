@@ -70,7 +70,7 @@ public class AnalysisConverter {
                 decisions,
                 request.consistency(),
                 request.motivation(),
-                decisionReferences);
+                decisionReferences, request.historical());
     }
 
     public static SettingReference toReference(WorkSetting setting) {

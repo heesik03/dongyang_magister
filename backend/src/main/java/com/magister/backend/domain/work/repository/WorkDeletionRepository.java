@@ -23,6 +23,62 @@ public class WorkDeletionRepository {
                 workId);
     }
 
+    /** 단일 분석 작업 삭제 시 소속 작품을 확인하고 작업 행을 잠근다. */
+    public List<LockedJob> lockJob(Long workId, String jobId) {
+        return jdbcTemplate.query(
+                "SELECT id,status FROM analysis_jobs WHERE id=? AND work_id=? FOR UPDATE",
+                (row, index) -> new LockedJob(row.getString("id"), row.getString("status")),
+                jobId,
+                workId);
+    }
+
+    /** 단일 분석 작업과 연결된 별칭·참조·판단·결과·원본을 FK 순서에 맞게 같은 트랜잭션에서 삭제한다. */
+    public void deleteJob(Long workId, String jobId) {
+        jdbcTemplate.update(
+                "UPDATE analysis_jobs SET"
+                    + " status='CANCELLED',version=version+1,updated_at=CURRENT_TIMESTAMP WHERE"
+                    + " id=? AND work_id=? AND status IN ('QUEUED','RUNNING')",
+                jobId,
+                workId);
+        jdbcTemplate.update(
+                "DELETE FROM analysis_request_aliases WHERE job_id=? AND work_id=?",
+                jobId,
+                workId);
+        jdbcTemplate.update(
+                "DELETE FROM analysis_decision_references WHERE job_id=?",
+                jobId);
+        jdbcTemplate.update(
+                "DELETE FROM analysis_decision_references WHERE scope_id IN (SELECT s.id FROM"
+                    + " review_decision_scopes s JOIN review_decisions d ON d.id=s.decision_id JOIN"
+                    + " review_candidates r ON r.id=d.review_id WHERE r.job_id=?)",
+                jobId);
+        jdbcTemplate.update(
+                "DELETE FROM review_decision_scopes WHERE decision_id IN (SELECT d.id FROM"
+                    + " review_decisions d JOIN review_candidates r ON r.id=d.review_id WHERE"
+                    + " r.job_id=?)",
+                jobId);
+        jdbcTemplate.update(
+                "DELETE FROM review_decisions WHERE review_id IN (SELECT id FROM"
+                    + " review_candidates WHERE job_id=?)",
+                jobId);
+        jdbcTemplate.update(
+                "DELETE FROM history_finding_decisions WHERE job_id=?",
+                jobId);
+        jdbcTemplate.update(
+                "DELETE FROM review_evidences WHERE job_id=?",
+                jobId);
+        jdbcTemplate.update(
+                "DELETE FROM review_candidates WHERE job_id=?",
+                jobId);
+        jdbcTemplate.update(
+                "DELETE FROM analysis_sources WHERE job_id=?",
+                jobId);
+        jdbcTemplate.update(
+                "DELETE FROM analysis_jobs WHERE id=? AND work_id=?",
+                jobId,
+                workId);
+    }
+
     /** 작품 삭제와 사건 추출 상태 저장의 순서를 맞추기 위해 추출 작업 행도 ID 순서로 잠근다. */
     public List<LockedJob> lockExtractions(Long workId) {
         return jdbcTemplate.query(

@@ -53,11 +53,14 @@ public class ExtractionStateService {
     /** 공급자 예외 전문과 원고는 영속 오류 메시지에 포함하지 않는다. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(String id) {
+        fail(id, "사건 추출에 실패했습니다. 원고와 기존 사건은 유지됩니다. 다시 요청해 주세요.");
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void fail(String id, String message) {
         eventExtractionRepository
                 .lockById(id)
-                .ifPresent(
-                        extraction ->
-                                extraction.fail("사건 추출에 실패했습니다. 원고와 기존 사건은 유지됩니다. 다시 요청해 주세요."));
+                .ifPresent(extraction -> extraction.fail(message));
     }
 
     /** 살아 있는 로컬 작업의 lease를 연장하고 만료·취소된 작업 ID를 반환해 실행기에서 중단시킨다. */

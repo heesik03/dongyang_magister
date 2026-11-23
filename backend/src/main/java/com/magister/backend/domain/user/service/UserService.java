@@ -1,10 +1,14 @@
 package com.magister.backend.domain.user.service;
 
+import com.magister.backend.domain.aiquota.AiQuotaPolicy.Feature;
+import com.magister.backend.domain.aiquota.AiQuotaService;
+import com.magister.backend.domain.aiquota.AiQuotaService.Usage;
 import com.magister.backend.domain.user.converter.UserConverter;
 import com.magister.backend.domain.user.dto.ChangePasswordRequest;
 import com.magister.backend.domain.user.dto.SignupRequest;
 import com.magister.backend.domain.user.dto.UpdateProfileRequest;
 import com.magister.backend.domain.user.dto.UserActivityResponse;
+import com.magister.backend.domain.user.dto.UserActivityResponse.AiQuotaSummary;
 import com.magister.backend.domain.user.dto.UserResponse;
 import com.magister.backend.domain.user.entity.User;
 import com.magister.backend.domain.user.error.UserErrorCode;
@@ -26,30 +30,43 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.Instant;
+
 @Service
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserActivityRepository userActivityRepository;
     private final AuthRequestLimiter authRequestLimiter;
+    private final AiQuotaService aiQuotaService;
 
     @Autowired
     public UserService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             UserActivityRepository userActivityRepository,
-            AuthRequestLimiter authRequestLimiter) {
+            AuthRequestLimiter authRequestLimiter,
+            AiQuotaService aiQuotaService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userActivityRepository = userActivityRepository;
         this.authRequestLimiter = authRequestLimiter;
+        this.aiQuotaService = aiQuotaService;
+    }
+
+    public UserService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            UserActivityRepository userActivityRepository,
+            AuthRequestLimiter authRequestLimiter) {
+        this(userRepository, passwordEncoder, userActivityRepository, authRequestLimiter, null);
     }
 
     public UserService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             UserActivityRepository userActivityRepository) {
-        this(userRepository, passwordEncoder, userActivityRepository, null);
+        this(userRepository, passwordEncoder, userActivityRepository, null, null);
     }
 
     /** 가입 가능 여부 안내다. 실제 중복 방지는 가입 저장 시 DB 유일 제약으로 보장한다. */
@@ -109,7 +126,7 @@ public class UserService {
         }
     }
 
-    /** 마이페이지에 표시할 작품 수·저장 회차 수·최신 원고 기준 미검토 후보 수·최근 작업 원고를 조회한다. */
+    /** 마이페이지에 표시할 작품 수·저장 회차 수·최신 원고 기준 미검토 후보 수·최근 작업 원고·일일 AI 호출 한도를 조회한다. */
     @Transactional(readOnly = true)
     public UserActivityResponse getActivity(Long userId) {
         if (!userRepository.existsById(userId)) {
@@ -120,8 +137,23 @@ public class UserService {
         long unreviewedCount = userActivityRepository.countUnreviewedLatestCandidates(userId);
         RecentManuscriptRow recent =
                 userActivityRepository.findRecentManuscript(userId).orElse(null);
+        AiQuotaSummary aiQuota = null;
+        if (aiQuotaService != null) {
+            Instant now = Instant.now();
+            Usage textUsage = aiQuotaService.usage(userId, Feature.GEMINI_TEXT, now);
+            Usage imageUsage = aiQuotaService.usage(userId, Feature.CHARACTER_IMAGE, now);
+            aiQuota =
+                    new AiQuotaSummary(
+                            textUsage.used(),
+                            textUsage.limit(),
+                            textUsage.remaining(),
+                            imageUsage.used(),
+                            imageUsage.limit(),
+                            imageUsage.remaining(),
+                            textUsage.resetAt());
+        }
         return UserConverter.toActivityResponse(
-                workCount, chapterCount, unreviewedCount, recent);
+                workCount, chapterCount, unreviewedCount, recent, aiQuota);
     }
     private String encodePasswordWithPermit(String rawPassword) {
         try (Permit ignored = acquireDirectHashingPermitIfNeeded()) {

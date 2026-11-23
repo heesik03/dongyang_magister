@@ -64,6 +64,13 @@ public class AnalysisJob {
     @Column(name = "result_json", columnDefinition = "LONGTEXT")
     private String result;
 
+    @Column(name = "history_report", columnDefinition = "LONGTEXT")
+    private String historyReport;
+
+    public void recordHistoryReport(String report) {
+        historyReport = report;
+    }
+
     @Column(name = "error_message", length = 500)
     private String error;
 

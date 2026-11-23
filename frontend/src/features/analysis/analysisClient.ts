@@ -5,6 +5,7 @@ import type { Analysis, Chapter, Review } from '../works/workTypes'
 import { parseDecisionReference, type DecisionReference } from '../review/decisionClient'
 
 export interface AnalysisInput {
+  historical?: boolean
   chapterId: string
   chapterRevision?: number
   workspaceVersion: number
@@ -200,5 +201,8 @@ export const analysisClient = {
     return parseJob(
       await httpClient.post(path(workId) + '/' + encodeURIComponent(jobId) + '/cancel'),
     )
+  },
+  async remove(workId: string, jobId: string): Promise<void> {
+    await httpClient.delete(path(workId) + '/' + encodeURIComponent(jobId))
   },
 }

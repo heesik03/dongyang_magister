@@ -17,6 +17,7 @@ import com.magister.backend.domain.decision.service.DecisionReferenceService;
 import com.magister.backend.domain.timeline.repository.EventExtractionRepository;
 import com.magister.backend.domain.work.entity.Work;
 import com.magister.backend.domain.work.error.WorkErrorCode;
+import com.magister.backend.domain.work.repository.WorkDeletionRepository;
 import com.magister.backend.domain.work.service.WorkAccessService;
 import com.magister.backend.domain.workspace.dto.WorkspaceResponse;
 import com.magister.backend.domain.workspace.service.WorkspaceSnapshotService;
@@ -54,6 +55,7 @@ public class AnalysisJobService {
     private final EventExtractionRepository eventExtractionRepository;
     private final AnalysisJobRepository analysisJobRepository;
     private final AnalysisRequestAliasRepository analysisRequestAliasRepository;
+    private final WorkDeletionRepository workDeletionRepository;
     private final WorkAccessService workAccessService;
     private final WorkspaceSnapshotService snapshotService;
     private final AnalysisInputFactory inputFactory;
@@ -236,6 +238,36 @@ public class AnalysisJobService {
         }
 
         return converter.toResponse(job);
+    }
+
+    /**
+     * 소유한 작품의 분석 작업 이력 1건을 영구 삭제한다. 대기·실행 중인 작업도 삭제 시 즉시 취소 처리하고 커밋 후 로컬 실행기를 중단한다.
+     */
+    @Transactional
+    public void delete(Long ownerId, Long workId, String jobId) {
+        workAccessService.requireOwned(ownerId, workId);
+
+        List<WorkDeletionRepository.LockedJob> lockedJobs =
+                workDeletionRepository.lockJob(workId, jobId);
+        if (lockedJobs.isEmpty()) {
+            throw new CustomException(WorkErrorCode.WORK_NOT_FOUND);
+        }
+
+        WorkDeletionRepository.LockedJob lockedJob = lockedJobs.getFirst();
+        boolean active =
+                lockedJob.status().equals("QUEUED") || lockedJob.status().equals("RUNNING");
+
+        workDeletionRepository.deleteJob(workId, jobId);
+
+        if (active) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            dispatcher.cancel(jobId);
+                        }
+                    });
+        }
     }
 
     private void invalid() {

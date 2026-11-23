@@ -54,18 +54,19 @@ export function DeleteWorkDialog({ work, onClose }: { work: Work; onClose: () =>
       }}
     >
       <form className="stack" onSubmit={remove}>
-        <p>
-          작품의 원고·설정·분석 원본·검토·판단 이력·타임라인과 이 탭의 복구 자료를 삭제합니다.
-          되돌릴 수 없습니다.
-        </p>
-        <p>
-          이미 외부 AI에 전송한 자료와 다른 브라우저에 보관한 복사본의 삭제는 보장하지 않습니다.
-        </p>
-        {latest && (
-          <p>
-            삭제할 최신 작품: <strong>{latest.title}</strong> · 버전 {latest.version ?? 0}
-          </p>
-        )}
+        <div className="dialog-section mypage-deletion-scope">
+          <strong>영구 삭제 대상</strong>
+          <p>이 작품의 원고·설정·사건·AI 분석·작가 판단 기록과 이 탭의 복구 자료</p>
+          {latest && (
+            <p>
+              <strong>{latest.title}</strong> · 버전 {latest.version ?? 0}
+            </p>
+          )}
+          <details className="dialog-disclosure">
+            <summary>외부 전송 자료와 별도 복사본</summary>
+            <p>전송된 자료는 공급자 정책을 따르며 다른 브라우저의 복사본은 별도로 관리됩니다.</p>
+          </details>
+        </div>
         <label>
           삭제할 작품 제목을 입력해 주세요
           <input
@@ -82,11 +83,11 @@ export function DeleteWorkDialog({ work, onClose }: { work: Work; onClose: () =>
             최신 작품 확인
           </button>
         )}
-        <div className="dialog-actions">
+        <div className="dialog-actions dialog-action-bar">
           <button type="button" disabled={busy} onClick={onClose}>
             취소
           </button>
-          <button disabled={busy || !latest || title !== latest.title}>
+          <button className="danger" disabled={busy || !latest || title !== latest.title}>
             {busy ? '삭제 중…' : '작품 영구 삭제'}
           </button>
         </div>

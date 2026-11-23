@@ -101,7 +101,8 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
     /** 보존 기간 정리 시 원고 본문을 읽지 않고 제한된 수의 ID만 가져온다. */
     @Query(
             "select j.id from AnalysisJob j where j.status in :terminal and j.updatedAt < :before"
-                + " and not exists(select d.id from ReviewDecision d where d.review.job=j) order by"
+                + " and not exists(select d.id from ReviewDecision d where d.review.job=j)"
+                + " and not exists(select h.id from HistoryFindingDecision h where h.job=j) order by"
                 + " j.updatedAt, j.id")
     List<String> findExpiredResultIds(
             Collection<AnalysisJobStatus> terminal, Instant before, Pageable limit);
@@ -110,6 +111,7 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJob, String
     @Modifying
     @Query(
             "delete from AnalysisJob j where j.id in :ids and not exists(select d.id from"
-                    + " ReviewDecision d where d.review.job=j)")
+                    + " ReviewDecision d where d.review.job=j)"
+                    + " and not exists(select h.id from HistoryFindingDecision h where h.job=j)")
     int deleteExpiredWithoutDecisions(List<String> ids);
 }

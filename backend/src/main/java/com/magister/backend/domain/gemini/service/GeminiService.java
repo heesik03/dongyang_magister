@@ -45,6 +45,9 @@ public class GeminiService {
     /** 이미 접수된 분석은 슬롯 부족을 실패로 처리하지 않고 전송 전에 대기한다. */
     public String analyze(Long ownerId, String prompt) {
         try (Reservation reservation = rateLimiter.awaitReservation(ownerId)) {
+            if (aiQuotaService != null) {
+                aiQuotaService.chargeGeminiText(ownerId);
+            }
             return geminiClient.generateAnalysis(prompt);
         }
     }
@@ -52,6 +55,9 @@ public class GeminiService {
     /** 사건 추출도 같은 사용자별 호출 제한과 공급자 슬롯을 사용한다. */
     public String extractEvents(Long ownerId, String prompt) {
         try (Reservation reservation = rateLimiter.awaitReservation(ownerId)) {
+            if (aiQuotaService != null) {
+                aiQuotaService.chargeGeminiText(ownerId);
+            }
             return geminiClient.generateEvents(prompt);
         }
     }

@@ -115,6 +115,12 @@ class GeminiServiceTests {
 
         assertThatThrownBy(() -> service.generate(1L, new GeminiRequest("hello")))
                 .isInstanceOf(AiQuotaExceededException.class);
+        assertThatThrownBy(() -> service.analyze(1L, "analysis"))
+                .isInstanceOf(AiQuotaExceededException.class);
+        assertThatThrownBy(() -> service.extractEvents(1L, "events"))
+                .isInstanceOf(AiQuotaExceededException.class);
         verify(client, never()).generateText("hello", 1024);
+        verify(client, never()).generateAnalysis("analysis");
+        verify(client, never()).generateEvents("events");
     }
 }

@@ -15,6 +15,7 @@ import com.magister.backend.domain.workspace.dto.WorkspaceResponse;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 
+import com.magister.backend.domain.analysis.error.AnalysisErrorCode;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Component;
@@ -44,6 +45,9 @@ public class AnalysisInputFactory {
                         .filter(item -> item.id().equals(request.chapterId()))
                         .findFirst()
                         .orElseThrow(() -> new CustomException(CommonErrorCode.INVALID_REQUEST));
+        if (Boolean.TRUE.equals(request.historical()) && chapter.content().length() > 6000) {
+            throw new CustomException(AnalysisErrorCode.HISTORY_SIZE_LIMIT);
+        }
         if (chapter.content().isBlank()) {
             throw new CustomException(CommonErrorCode.INVALID_REQUEST);
         }
@@ -110,7 +114,8 @@ public class AnalysisInputFactory {
         if (workspace.version() != request.workspaceVersion()) {
             throw new CustomException(WorkErrorCode.VERSION_CONFLICT);
         }
-        if (!request.consistency() && !request.motivation()) {
+        boolean standard = request.consistency() || request.motivation();
+        if ((standard && request.settingIds().isEmpty()) || (!standard && !Boolean.TRUE.equals(request.historical()))) {
             invalid();
         }
     }

@@ -326,7 +326,13 @@ class UserMyPageApiTests {
                 .andExpect(jsonPath("$.data.unreviewedCount").value(1))
                 .andExpect(jsonPath("$.data.recentManuscript.workId").value(work.getId()))
                 .andExpect(jsonPath("$.data.recentManuscript.chapterId").value("ch-2"))
-                .andExpect(jsonPath("$.data.recentManuscript.chapterTitle").value("2화 전개"));
+                .andExpect(jsonPath("$.data.recentManuscript.chapterTitle").value("2화 전개"))
+                .andExpect(jsonPath("$.data.aiQuota.textUsed").value(0))
+                .andExpect(jsonPath("$.data.aiQuota.textLimit").value(50))
+                .andExpect(jsonPath("$.data.aiQuota.textRemaining").value(50))
+                .andExpect(jsonPath("$.data.aiQuota.characterImageUsed").value(0))
+                .andExpect(jsonPath("$.data.aiQuota.characterImageLimit").value(3))
+                .andExpect(jsonPath("$.data.aiQuota.characterImageRemaining").value(3));
     }
 
     @Test

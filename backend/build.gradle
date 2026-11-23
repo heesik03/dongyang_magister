@@ -9,11 +9,22 @@ version = '0.0.1-SNAPSHOT'
 description = 'backend'
 
 ext['tomcat.version'] = '11.0.27'
+// 2026-11 보안 패치(CVE-2026-114938 / JDK-8393212: HotSpot Base64 AVX-512 디코더 힙 버퍼 오버플로우) 반영 기준 버전.
+// 21.0.13.1 미만 로컬·CI 런타임에서도 취약한 어셈블리 경로를 타지 않도록 실행·테스트 JVM에 완화 옵션을 기본 적용한다.
+ext['java.version'] = '21.0.13.1'
 
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
+}
+
+tasks.withType(JavaExec).configureEach {
+    jvmArgs '-XX:-UseBASE64Intrinsics'
+}
+
+tasks.withType(Test).configureEach {
+    jvmArgs '-XX:-UseBASE64Intrinsics'
 }
 
 repositories {

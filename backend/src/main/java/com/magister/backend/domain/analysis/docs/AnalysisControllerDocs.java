@@ -1,5 +1,6 @@
 package com.magister.backend.domain.analysis.docs;
 
+import com.magister.backend.domain.analysis.dto.HistoryDecision;
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
@@ -29,11 +30,16 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Analysis", description = "저장된 회차 원고와 확정 설정을 비교하는 비동기 AI 검토")
 @SecurityRequirement(name = "session")
 public interface AnalysisControllerDocs {
+    @Operation(summary = "역사 고증 항목의 작가 판단 저장",
+            description = "본인 작품의 검토 항목에 수용·보류·의도된 설정과 사유를 기록합니다. WITHDRAWN은 해당 판단을 철회합니다. 같은 작품의 후속 검토에서 대상·시점·주장이 같은 항목에 의도된 설정을 표시합니다. 변경된 원고는 409입니다.")
+    ApiResult<HistoryDecision> decideHistory(LoginUser user, @Positive Long workId,
+            @NotBlank @Size(max = 36) String id, @Min(0) @Max(2) int index, @Valid HistoryDecision input);
+
     @Operation(
             summary = "근거가 연결된 검토 후보",
             description =
                     "본인 작업만 조회. 후보·다중 근거·UTF-16 위치와 legacy/stale 반환."
-                        + " page=0,size=20(최대100). 200/400/401/404/409. 과거 결과의 없는 위치는 추정하지 않습니다.")
+                        + " history에 검토 당시 원고 버전·시각·판정·공식 근거를 반환합니다. 기존 작업은 history=null입니다. page=0,size=20(최대100). 200/400/401/404/409. 과거 결과의 없는 위치는 추정하지 않습니다.")
     ApiResult<ReviewReportResponse> reviews(
             LoginUser user,
             @Positive Long workId,
@@ -64,12 +70,14 @@ public interface AnalysisControllerDocs {
 
                     **제공 기능**
 
-                    설정 충돌 검토(consistency)와 인물 개연성 검토(motivation) 중 하나 이상을 선택하여 비동기 작업을 요청합니다.
+                    설정 충돌(consistency), 인물 개연성(motivation), 역사 고증(historical) 중 하나 이상을 선택하여 비동기 작업을 요청합니다.
 
                     **도메인 정책**
 
                     - 본인 작품의 저장된 원고를 사용합니다. workspaceVersion이 현재 작업공간 버전과 일치해야 하며, 분석할 회차 원고가 비어 있으면 요청할 수 없습니다.
-                    - settingIds에는 같은 작품의 확정(CONFIRMED) 설정을 1~1,000개 지정합니다. 아이디어와 AI 후보는 사용할 수 없습니다.
+                    - historical=true이면 접수 당시 회차 원고(최대 6,000자)를 Gemini에 전달하고 공식 기관에 대상명을 조회합니다.
+                    - 역사 고증만 요청하면 consistency와 motivation은 false, settingIds는 빈 배열로 지정합니다.
+                    - 설정·개연성 검토 시 settingIds에는 같은 작품의 확정(CONFIRMED) 설정을 1~1,000개 지정합니다. 아이디어와 AI 후보는 사용할 수 없습니다.
                     - previousIds에는 같은 작업공간의 참고 회차를 최대 100개 지정합니다. 분석 대상 회차 자체는 참고 회차로 지정할 수 없습니다.
                     - 대상 원고·선택한 설정·참고 회차·해당 회차의 기존 판단을 접수 시점의 자료로 묶어 외부 Gemini API에 전송합니다. 직렬화된 분석 자료는 최대 200,000자입니다.
                     - AI 결과는 작가가 판단할 검토 후보입니다. 원고와 설정을 자동으로 수정하지 않습니다. 작업 결과는 서버에 저장되어 화면 이동 후에도 조회할 수 있습니다. 작가 판단은 workspace 저장으로 보관합니다.
@@ -273,5 +281,36 @@ public interface AnalysisControllerDocs {
                                 schema = @Schema(implementation = ApiResult.class)))
     })
     ApiResult<AnalysisJobResponse> cancel(
+            LoginUser user, @Positive Long workId, @NotBlank @Size(max = 36) String id);
+
+    @Operation(
+            summary = "분석 작업 이력 삭제",
+            description =
+                    "본인 작품의 분석 작업 이력 1건과 연결된 후보·근거·판단 기록을 삭제합니다. 대기·실행 중인 작업은 취소 처리 후 삭제합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "분석 작업 이력 삭제 완료"),
+        @ApiResponse(
+                responseCode = "401",
+                description = "로그인 필요 또는 세션 만료",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "CSRF 토큰 누락 또는 검증 실패",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "작품·작업 없음 또는 접근 불가",
+                content =
+                        @Content(
+                                mediaType = "application/json",
+                                schema = @Schema(implementation = ApiResult.class)))
+    })
+    ResponseEntity<Void> delete(
             LoginUser user, @Positive Long workId, @NotBlank @Size(max = 36) String id);
 }

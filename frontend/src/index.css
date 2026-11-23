@@ -64,10 +64,10 @@
   --color-danger-soft: #fdedec;
   --color-hold: #7040a0;
   --color-hold-soft: #f1eaf9;
-  --page-inset: clamp(16px, 2vw, 32px);
-  --editorial-inset: clamp(16px, 1.5vw, 24px);
-  --page-heading-size: 18px;
-  --editorial-gap: clamp(14px, 1.2vw, 20px);
+  --page-inset: clamp(16px, 3.3vw, 64px);
+  --editorial-inset: clamp(16px, 2vw, 32px);
+  --page-heading-size: clamp(28px, 2.2vw, 42px);
+  --editorial-gap: clamp(16px, 1.3vw, 24px);
 }
 * {
   box-sizing: border-box;

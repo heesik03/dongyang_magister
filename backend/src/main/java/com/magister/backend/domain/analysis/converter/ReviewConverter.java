@@ -11,18 +11,37 @@ import com.magister.backend.global.pagination.OffsetPageResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
+import com.magister.backend.domain.analysis.dto.HistoryDecision;
+import com.magister.backend.domain.analysis.dto.HistoryJobReport;
+import com.magister.backend.domain.analysis.entity.HistoryFindingDecision;
+import com.magister.backend.domain.history.dto.HistoryCheck;
+
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
 public class ReviewConverter {
+    public HistoryDecision toHistoryDecision(HistoryFindingDecision entity) {
+        return new HistoryDecision(entity.getChoice(), entity.getReason());
+    }
+
+    public HistoryJobReport toHistoryJobReport(
+            long revision,
+            HistoryJobReport.Status historicalStatus,
+            HistoryJobReport.Status standardStatus,
+            List<HistoryCheck.Finding> findings) {
+        return new HistoryJobReport(
+                revision, Instant.now(), historicalStatus, standardStatus, List.copyOf(findings));
+    }
+
     public ReviewReportResponse toReport(
             Page<ReviewCandidate> candidates,
             List<ReviewEvidence> evidences,
             boolean legacy,
             boolean stale,
-            Map<String, DecisionResponse> decisions) {
+            Map<String, DecisionResponse> decisions, HistoryJobReport history, Map<Integer, HistoryDecision> historyDecisions) {
         Map<String, List<ReviewEvidence>> byReview =
                 evidences.stream().collect(Collectors.groupingBy(item -> item.getReview().getId()));
         return new ReviewReportResponse(
@@ -35,7 +54,7 @@ public class ReviewConverter {
                                                         candidate.getId(), List.of())))),
                 legacy,
                 stale,
-                decisions);
+                decisions, history, historyDecisions);
     }
 
     public ReviewResponse toCandidateResponse(

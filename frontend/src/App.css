@@ -1108,11 +1108,11 @@ legend {
   font-weight: 600;
   padding: 0 6px;
 }
-fieldset .check {
+fieldset :is(.check, .extraction-check) {
   margin-bottom: 12px;
   font-size: 13px;
 }
-fieldset .check:last-child {
+fieldset :is(.check, .extraction-check):last-child {
   margin: 0;
 }
 fieldset input {
@@ -1644,8 +1644,17 @@ fieldset input {
 }
 .work-management-trigger {
   min-width: 0;
-  padding-inline: 16px;
-  border-color: var(--color-control-border);
+  padding-inline: 18px;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 10px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgb(40 82 64 / 0.12);
+}
+.work-management-trigger:hover {
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--color-primary-soft));
+  border-color: var(--color-primary-hover);
 }
 .management-actions {
   display: grid;
@@ -2607,9 +2616,9 @@ fieldset input {
 .mypage-tabs {
   display: inline-flex;
   background: #edeef0;
-  padding: 4px;
+  padding: 6px;
   border-radius: 10px;
-  gap: 4px;
+  gap: 12px;
 }
 .mypage-tabs button {
   min-height: 36px;
@@ -2763,7 +2772,9 @@ fieldset input {
   margin: 0;
 }
 .mypage-password-wrapper {
-  max-width: 580px;
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
 }
 .mypage-session-warning,
 .mypage-ai-notice-box {

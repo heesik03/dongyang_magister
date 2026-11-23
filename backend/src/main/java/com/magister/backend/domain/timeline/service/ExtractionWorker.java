@@ -1,5 +1,6 @@
 package com.magister.backend.domain.timeline.service;
 
+import com.magister.backend.domain.aiquota.AiQuotaExceededException;
 import com.magister.backend.domain.gemini.service.GeminiService;
 import com.magister.backend.domain.timeline.service.ExtractionStateService.Claim;
 
@@ -34,7 +35,11 @@ public class ExtractionWorker {
                     "Event extraction failed: id={}, type={}",
                     id,
                     error.getClass().getSimpleName());
-            extractionStateService.fail(id);
+            if (error instanceof AiQuotaExceededException) {
+                extractionStateService.fail(id, error.getMessage());
+            } else {
+                extractionStateService.fail(id);
+            }
         }
     }
 }

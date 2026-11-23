@@ -126,6 +126,10 @@
   cursor: pointer;
 }
 
+.workspace-disclosure > :not(summary) {
+  margin-block-start: 10px;
+}
+
 .workspace-disclosure[open] > summary,
 .timeline-help > p {
   background: var(--color-info-soft);
@@ -623,10 +627,80 @@
 }
 
 .review-history-list {
-  --list-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(80px, 0.7fr);
+  --list-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(76px, 0.65fr) auto;
 }
 
-.review-history-list button[aria-pressed='true'] {
+.review-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.review-history-list .workspace-list-header {
+  grid-template-columns: var(--list-columns);
+}
+
+.review-history-select {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(76px, 0.65fr);
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: start;
+}
+
+.review-history-select > * {
+  position: relative;
+  min-width: 0;
+  padding-inline: 14px;
+  overflow-wrap: anywhere;
+}
+
+.review-history-select > :not(:first-child)::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 50%;
+  height: 16px;
+  border-inline-start: 1px solid var(--color-border);
+  opacity: 0.65;
+  transform: translateY(-50%);
+}
+
+.review-history-select > .badge {
+  justify-self: start;
+  margin-inline: 16px;
+  padding-inline: 10px;
+}
+
+.review-history-select > .badge::before {
+  inset-inline-start: -16px;
+}
+
+.review-history-delete {
+  min-height: 36px;
+  margin-inline-end: 12px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 35%, var(--color-border));
+  border-radius: 8px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.review-history-delete:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 14%, var(--color-danger-soft));
+}
+
+.review-history-list button[aria-pressed='true'],
+.review-history-row--selected {
   background: var(--color-info-soft);
 }
 

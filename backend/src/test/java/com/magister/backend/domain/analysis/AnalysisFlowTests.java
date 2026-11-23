@@ -7,8 +7,15 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import com.magister.backend.domain.history.service.HistoryCheckService;
+import com.magister.backend.domain.history.dto.HistoryCheck;
+import com.magister.backend.domain.history.dto.HistoryEvidence;
+import com.magister.backend.global.error.code.GeminiErrorCode;
+import com.magister.backend.global.error.exception.GeminiApiException;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -60,6 +67,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URI;
 import java.util.List;
 import java.time.Duration;
 import java.util.Map;
@@ -83,6 +91,7 @@ class AnalysisFlowTests {
     @Autowired AnalysisWorker worker;
     @Autowired JdbcTemplate jdbcTemplate;
     @Autowired TransactionTemplate transactionTemplate;
+    @MockitoBean HistoryCheckService history;
     @MockitoBean AnalysisDispatcher dispatcher;
     @MockitoBean GeminiClient geminiClient;
     private Long ownerId, workId, settingId;
@@ -135,6 +144,121 @@ class AnalysisFlowTests {
                 true,
                 true,
                 1L);
+    }
+
+    @Test
+    void historyOnlyUsesSnapshotAndReplaysStoredEvidence() throws Exception {
+        String manuscript = "1392년, 사신은 경복궁에 도착했다.";
+        chapterService.update(ownerId, workId, "target", new UpdateChapterRequest("2화", manuscript, 0, "1392"));
+        AnalysisRequest request = new AnalysisRequest("history", "target", 0, List.of(), List.of(), false, false, 2L, true);
+        String jobId = jobService.create(ownerId, workId, request).id();
+        chapterService.update(ownerId, workId, "target", new UpdateChapterRequest("2화",
+                manuscript.replace("1392", "1396"), 1, "1396"));
+        HistoryEvidence evidence = new HistoryEvidence("국가유산청", "palace", "경복궁",
+                URI.create("https://www.heritage.go.kr/"), HistoryEvidence.Status.FOUND, "1395년에 창건했다.");
+        when(history.checkJob(ownerId, manuscript)).thenReturn(List.of(new HistoryCheck.Finding(
+                manuscript, 0, manuscript.length(), "1392년", "경복궁", "경복궁이 존재했다",
+                HistoryCheck.Status.POSSIBLE_CONFLICT, "창건 전", List.of(evidence))));
+        worker.execute(jobId);
+        worker.execute(jobId);
+        assertThat(jobService.create(ownerId, workId, request).id()).isEqualTo(jobId);
+        mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(owner)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.stale").value(true))
+                .andExpect(jsonPath("$.data.history.revision").value(2))
+                .andExpect(jsonPath("$.data.history.findings[0].quote").value(manuscript))
+                .andExpect(jsonPath("$.data.history.findings[0].evidence[0].passage").value("1395년에 창건했다."));
+        String revised = manuscript.replace("1392", "1396");
+        AnalysisRequest next = new AnalysisRequest("history-revised", "target", 0, List.of(), List.of(),
+                false, false, 3L, true);
+        when(history.checkJob(ownerId, revised)).thenReturn(List.of(new HistoryCheck.Finding(
+                revised, 0, revised.length(), "1396년", "경복궁", "경복궁이 존재했다",
+                HistoryCheck.Status.NO_CONFLICT_FOUND, "창건 이후", List.of(evidence))));
+        String nextId = jobService.create(ownerId, workId, next).id();
+        worker.execute(nextId);
+        mockMvc.perform(get(path() + "/" + nextId + "/review").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.stale").value(false))
+                .andExpect(jsonPath("$.data.history.findings[0].status").value("NO_CONFLICT_FOUND"));
+        verify(history).checkJob(ownerId, manuscript);
+        verifyNoInteractions(geminiClient);
+    }
+
+    @Test
+    void historyDecisionCarriesOnlyMatchingIntentAndSurvivesRetention() throws Exception {
+        String quote = "검토 원고";
+        HistoryCheck.Finding first = new HistoryCheck.Finding(quote, 0, quote.length(), "1392년",
+                "경복궁", "궁이 존재했다", HistoryCheck.Status.INSUFFICIENT_EVIDENCE, "자료 부족", List.of());
+        HistoryCheck.Finding another = new HistoryCheck.Finding(quote, 0, quote.length(), "1392년",
+                "경복궁", "왕이 거주했다", HistoryCheck.Status.INSUFFICIENT_EVIDENCE, "자료 부족", List.of());
+        when(history.checkJob(ownerId, quote)).thenReturn(List.of(first, another));
+        String job = jobService.create(ownerId, workId, new AnalysisRequest("initial", "target", 0,
+                List.of(), List.of(), false, false, 1L, true)).id();
+        worker.execute(job);
+        String decisionPath = path() + "/" + job + "/review/history/0/decision";
+        String body = """
+                {"choice":"INTENDED","reason":"대체 역사 설정"}
+                """;
+        mockMvc.perform(put(decisionPath).with(authentication(owner)).with(csrf())
+                        .contentType("application/json").content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.choice").value("INTENDED"));
+        String next = jobService.create(ownerId, workId, new AnalysisRequest("next", "target", 0,
+                List.of(), List.of(), false, false, 1L, true)).id();
+        worker.execute(next);
+        mockMvc.perform(get(path() + "/" + next + "/review").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.historyDecisions['0'].reason").value("대체 역사 설정"))
+                .andExpect(jsonPath("$.data.historyDecisions['1']").doesNotExist());
+        mockMvc.perform(put(path() + "/" + next + "/review/history/0/decision")
+                        .with(authentication(owner)).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"choice":"WITHDRAWN","reason":"판단 철회"}
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(path() + "/" + next + "/review").with(authentication(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.historyDecisions['0']").doesNotExist());
+        String later = jobService.create(ownerId, workId, new AnalysisRequest("later", "target", 0,
+                List.of(), List.of(), false, false, 1L, true)).id();
+        worker.execute(later);
+        mockMvc.perform(get(path() + "/" + later + "/review").with(authentication(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.historyDecisions['0']").doesNotExist());
+        transactionTemplate.executeWithoutResult(status ->
+                assertThat(jobRepository.deleteExpiredWithoutDecisions(List.of(job))).isZero());
+        // 참고한 이전 회차가 바뀌어도 대상 회차 원고가 그대로면 역사 고증 판단을 저장할 수 있다.
+        chapterService.update(ownerId, workId, "previous", new UpdateChapterRequest("1화", "바뀐 이전 원고", 0, "prev-changed"));
+        mockMvc.perform(put(decisionPath).with(authentication(owner)).with(csrf())
+                        .contentType("application/json").content(body))
+                .andExpect(status().isOk());
+        chapterService.update(ownerId, workId, "target", new UpdateChapterRequest("2화", "바뀐 원고", 0, "changed"));
+        mockMvc.perform(put(decisionPath).with(authentication(owner)).with(csrf())
+                        .contentType("application/json").content(body))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void historyFailurePreservesStandardFindings() throws Exception {
+        AnalysisRequest request = new AnalysisRequest("mixed", "target", 0, List.of(settingId.toString()),
+                List.of("previous"), true, true, 1L, true);
+        String jobId = jobService.create(ownerId, workId, request).id();
+        when(geminiClient.generateAnalysis(anyString())).thenReturn(linkedProviderResult());
+        when(history.checkJob(ownerId, "검토 원고")).thenThrow(new GeminiApiException(GeminiErrorCode.UNAVAILABLE));
+        worker.execute(jobId);
+        mockMvc.perform(get(path() + "/" + jobId + "/review").with(authentication(owner)))
+                .andExpect(jsonPath("$.data.history.historicalStatus").value("FAILED"))
+                .andExpect(jsonPath("$.data.history.standardStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.candidates.totalElements").value(1));
+    }
+
+    @Test
+    void refusesOversizeHistoricalManuscriptBeforeDispatch() throws Exception {
+        chapterService.update(ownerId, workId, "target", new UpdateChapterRequest(
+                "2화", "가".repeat(6001), 0, "long-chapter"));
+        AnalysisRequest request = new AnalysisRequest("long", "target", 0, List.of(), List.of(),
+                false, false, 2L, true);
+        mockMvc.perform(post(path()).with(authentication(owner)).with(csrf()).contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("HISTORY_SIZE_LIMIT"));
+        verifyNoInteractions(dispatcher, history, geminiClient);
     }
 
     private AnalysisRequest confirmed() {
@@ -465,5 +589,13 @@ class AnalysisFlowTests {
                         new LoginUser(-1L, "other@example.com", "타인"), null, List.of());
         mockMvc.perform(get(path() + "/" + jobId).with(authentication(other)))
                 .andExpect(status().isNotFound());
+        mockMvc.perform(delete(path() + "/" + jobId).with(authentication(other)).with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(delete(path() + "/" + jobId).with(authentication(owner)).with(csrf()))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get(path() + "/" + jobId).with(authentication(owner)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get(path()).with(authentication(owner)).param("chapterId", "target"))
+                .andExpect(jsonPath("$.data.totalElements").value(0));
     }
 }

@@ -273,6 +273,18 @@ export function MyPage() {
                   </button>
                 </div>
               </form>
+
+              <div className="mypage-withdraw-footer">
+                <span className="small muted">계정과 모든 창작 자료를 영구 삭제합니다.</span>
+                <button
+                  type="button"
+                  className="danger ghost small"
+                  onClick={() => setShowWithdrawDialog(true)}
+                >
+                  <Icon name="trash" />
+                  회원 탈퇴
+                </button>
+              </div>
             </section>
 
             <section className="mypage-card" aria-labelledby="mypage-activity-heading">
@@ -313,6 +325,57 @@ export function MyPage() {
                         {activityLoading ? '…' : (activity?.unreviewedCount ?? 0)}
                       </strong>
                       <span className="small">최신 원고의 완료된 분석 기준</span>
+                    </div>
+                  </div>
+
+                  <div className="mypage-ai-quota-box" aria-label="오늘의 AI 호출 한도">
+                    <div className="mypage-ai-quota-header">
+                      <strong>
+                        <Icon name="spark" /> 오늘의 AI 호출 한도
+                      </strong>
+                      <span className="small muted">한국 시간 자정 초기화</span>
+                    </div>
+                    <div className="mypage-ai-quota-grid">
+                      <div className="mypage-ai-quota-item">
+                        <div>
+                          <span className="small muted">
+                            AI 텍스트 작업 (검토·집필 도우미·사건 추출)
+                          </span>
+                          <strong>
+                            {activityLoading
+                              ? '…'
+                              : `${activity?.aiQuota?.textUsed ?? 0} / ${activity?.aiQuota?.textLimit ?? 50}회 사용`}
+                          </strong>
+                        </div>
+                        <span
+                          className={`badge ${(activity?.aiQuota?.textRemaining ?? 50) === 0 ? 'danger' : 'green'}`}
+                        >
+                          {activityLoading
+                            ? '…'
+                            : (activity?.aiQuota?.textRemaining ?? 50) === 0
+                              ? '한도 소진'
+                              : `오늘 ${activity?.aiQuota?.textRemaining ?? 50}회 남음`}
+                        </span>
+                      </div>
+                      <div className="mypage-ai-quota-item">
+                        <div>
+                          <span className="small muted">인물 이미지 생성</span>
+                          <strong>
+                            {activityLoading
+                              ? '…'
+                              : `${activity?.aiQuota?.characterImageUsed ?? 0} / ${activity?.aiQuota?.characterImageLimit ?? 3}회 사용`}
+                          </strong>
+                        </div>
+                        <span
+                          className={`badge ${(activity?.aiQuota?.characterImageRemaining ?? 3) === 0 ? 'danger' : 'green'}`}
+                        >
+                          {activityLoading
+                            ? '…'
+                            : (activity?.aiQuota?.characterImageRemaining ?? 3) === 0
+                              ? '한도 소진'
+                              : `오늘 ${activity?.aiQuota?.characterImageRemaining ?? 3}회 남음`}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -364,20 +427,6 @@ export function MyPage() {
               </div>
             </section>
           </div>
-
-          <section className="mypage-danger-card" aria-labelledby="mypage-withdraw-heading">
-            <div>
-              <h2 id="mypage-withdraw-heading">회원 탈퇴</h2>
-              <p className="small muted">
-                계정과 보유 작품, 설정집, 원고, AI 검토 이력을 영구 삭제합니다. 삭제된 자료는 복구할
-                수 없습니다.
-              </p>
-            </div>
-            <button type="button" className="danger" onClick={() => setShowWithdrawDialog(true)}>
-              <Icon name="trash" />
-              회원 탈퇴 안내
-            </button>
-          </section>
         </div>
       ) : (
         <div
@@ -487,28 +536,43 @@ export function MyPage() {
       )}
 
       {showAiPolicyDialog && (
-        <Dialog title="AI 자료 처리 및 개인정보 안내" onClose={() => setShowAiPolicyDialog(false)}>
+        <Dialog
+          title="AI 자료 처리 및 개인정보 안내"
+          initialFocus="heading"
+          onClose={() => setShowAiPolicyDialog(false)}
+        >
           <div className="stack">
-            <p>
-              <strong>1. 비공개 창작 공간</strong>
-              <br />
-              작품·설정집·원고·타임라인·판단 기록은 로그인한 작가 본인만 조회할 수 있습니다.
-            </p>
-            <p>
-              <strong>2. 선택 기반 외부 AI 전송</strong>
-              <br />
-              AI 검토와 사건 추출은 작가가 직접 선택한 대상 회차·확정 설정·참고 회차만 접수 시점에
-              외부 공급자(Google Gemini API)로 전송합니다. 선택하지 않은 자료는 전송하거나 평가하지
-              않으며, AI가 원고나 설정집을 자동으로 수정하지 않습니다.
-            </p>
-            <p>
-              <strong>3. 삭제 및 취소 정책</strong>
-              <br />
-              작품 삭제 또는 회원 탈퇴 시 서버에 저장된 모든 창작 자료와 분석 이력은 즉시 영구
-              삭제되고 대기·실행 중인 작업은 취소됩니다. 다만 이미 외부 AI 공급자로 전송된 요청
-              자료는 공급자 약관에 따라 처리됩니다.
-            </p>
-            <div className="dialog-actions">
+            <section className="dialog-section">
+              <h3>전송 자료</h3>
+              <p>요청 전에 표시된 범위의 원고와 참고 자료를 전송합니다.</p>
+              <details className="dialog-disclosure">
+                <summary>요청별 전송 범위</summary>
+                <p>
+                  AI 검토는 대상 회차와 선택한 확정 설정·참고 회차를 사용합니다. 사건 추출은 선택한
+                  회차의 제목과 본문을 사용합니다. 원고와 설정은 작가가 직접 수정합니다.
+                </p>
+              </details>
+            </section>
+            <section className="dialog-section">
+              <h3>보관·삭제</h3>
+              <p>로그인한 작가 본인만 작품과 창작 자료를 조회할 수 있습니다.</p>
+              <details className="dialog-disclosure">
+                <summary>작품 삭제 및 회원 탈퇴</summary>
+                <p>
+                  서버의 해당 창작 자료와 분석 이력을 영구 삭제하고 대기·실행 중인 작업을
+                  취소합니다.
+                </p>
+              </details>
+            </section>
+            <section className="dialog-section">
+              <h3>외부 공급자</h3>
+              <p>AI 작업에는 Google Gemini API를 사용합니다.</p>
+              <details className="dialog-disclosure">
+                <summary>이미 전송된 자료 처리</summary>
+                <p>외부로 전송된 요청 자료에는 공급자 정책이 적용됩니다.</p>
+              </details>
+            </section>
+            <div className="dialog-actions dialog-action-bar">
               <button
                 type="button"
                 className="primary"

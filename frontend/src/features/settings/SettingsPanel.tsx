@@ -185,7 +185,11 @@ export function SettingsPanel({ work }: { work: Work }) {
           )}
         </section>
         {selected ? (
-          <article className="setting-detail">
+          <article
+            className={
+              selected.kind === '세계관' ? 'setting-detail setting-detail--world' : 'setting-detail'
+            }
+          >
             <div className="row">
               <span className={`badge ${selected.status === '확정' ? 'green' : 'hold'}`}>
                 {selected.status}

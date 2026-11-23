@@ -1,9 +1,10 @@
 import { httpClient } from '../../shared/httpClient'
 import { parsePage, readInteger, readRecord, readString } from '../../shared/responseReader'
+import { parseHistoryReport, type HistoryReport, type HistoryDecision } from './historyReport'
 import { parseDecision, type SavedDecision } from './decisionClient'
 
 export interface SourceLocation {
-  sourceId: number
+  sourceId?: number
   sourceType?: 'TARGET' | 'SETTING' | 'PREVIOUS'
   sourceKey?: string
   quote: string
@@ -11,6 +12,7 @@ export interface SourceLocation {
   endOffset: number
 }
 export interface ReviewEvidence extends SourceLocation {
+  sourceId: number
   sourceType: 'SETTING' | 'PREVIOUS'
   sourceKey: string
   title: string
@@ -29,6 +31,7 @@ export interface LinkedReview {
   evidences: ReviewEvidence[]
 }
 export interface ReviewReport {
+  history?: HistoryReport
   reviews: LinkedReview[]
   legacy: boolean
   stale: boolean
@@ -85,6 +88,17 @@ const path = (workId: string, jobId: string) =>
   '/work/' + encodeURIComponent(workId) + '/analysis/' + encodeURIComponent(jobId)
 
 export const reviewClient = {
+  async saveHistoryDecision(
+    workId: string,
+    jobId: string,
+    index: number,
+    decision: HistoryDecision | { choice: 'WITHDRAWN'; reason: string },
+    signal?: AbortSignal,
+  ) {
+    await httpClient.put(path(workId, jobId) + '/review/history/' + index + '/decision', decision, {
+      signal,
+    })
+  },
   async list(workId: string, jobId: string, signal?: AbortSignal): Promise<ReviewReport> {
     const value = readRecord(
       await httpClient.get(path(workId, jobId) + '/review', {
@@ -107,6 +121,10 @@ export const reviewClient = {
       }
     }
     return {
+      history:
+        value.history == null
+          ? undefined
+          : parseHistoryReport(value.history, value.historyDecisions),
       reviews: page.items,
       legacy: value.legacy,
       stale: value.stale,

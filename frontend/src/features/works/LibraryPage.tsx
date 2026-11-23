@@ -44,6 +44,12 @@ export function LibraryPage() {
   const workPath = selected ? '/works/' + selected.id + '/manuscript' : ''
   const chapterPath = chapterId ? workPath + '?chapter=' + encodeURIComponent(chapterId) : workPath
   const date = (value: string) => new Date(value).toLocaleDateString('ko-KR')
+  function getWorkChapterPath(work: (typeof ordered)[number]) {
+    const recent = work.chapters.at(-1)
+    const latestId = work.summary?.latestChapterId ?? recent?.id
+    const basePath = '/works/' + work.id + '/manuscript'
+    return latestId ? basePath + '?chapter=' + encodeURIComponent(latestId) : basePath
+  }
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -156,25 +162,46 @@ export function LibraryPage() {
           )}
           {ordered.length > 0 && (
             <ul className="editorial-list">
-              {ordered.map((work) => (
-                <li key={work.id}>
-                  <button
-                    className="editorial-list-item"
-                    type="button"
-                    aria-pressed={selected?.id === work.id}
-                    onClick={() => setSelectedId(work.id)}
-                  >
-                    <Icon name="book" />
-                    <span className="editorial-list-copy">
-                      <strong>{work.title}</strong>
-                      <span className="small muted">
-                        {work.genre} · <time dateTime={work.updatedAt}>{date(work.updatedAt)}</time>
+              {ordered.map((work) => {
+                const isSelected = selected?.id === work.id
+                const targetPath = getWorkChapterPath(work)
+                return (
+                  <li key={work.id}>
+                    <button
+                      className="editorial-list-item"
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => {
+                        if (isSelected) {
+                          navigate(targetPath)
+                          return
+                        }
+                        setSelectedId(work.id)
+                      }}
+                    >
+                      <Icon name="book" />
+                      <span className="editorial-list-copy">
+                        <strong>{work.title}</strong>
+                        <span className="small muted">
+                          {work.genre} ·{' '}
+                          <time dateTime={work.updatedAt}>{date(work.updatedAt)}</time>
+                        </span>
                       </span>
-                    </span>
-                    <Icon name="arrow" />
-                  </button>
-                </li>
-              ))}
+                      <span
+                        className="editorial-list-arrow"
+                        data-testid={`open-work-${work.id}`}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setSelectedId(work.id)
+                          navigate(targetPath)
+                        }}
+                      >
+                        <Icon name="arrow" />
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
           {listPage + 1 < totalPages && (
