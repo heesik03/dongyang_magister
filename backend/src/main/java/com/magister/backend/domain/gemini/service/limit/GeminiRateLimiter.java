@@ -115,6 +115,47 @@ public class GeminiRateLimiter {
             this.window = window;
         }
 
+        /**
+         * 하나의 작업 내부에서 외부 자료 조회 동안 공급자 동시 호출 슬롯만 일시 반납한다.
+         * 사용자의 busy 상태는 유지하여 다른 요청의 중복 진입을 막고, 조회 완료 후 슬롯을 다시 획득한다.
+         */
+        public void pauseWhile(Runnable externalLookup) {
+            synchronized (GeminiRateLimiter.this) {
+                if (released) {
+                    throw new IllegalStateException("Reservation already released");
+                }
+                active--;
+                GeminiRateLimiter.this.notifyAll();
+            }
+            boolean reacquired = false;
+            try {
+                externalLookup.run();
+                synchronized (GeminiRateLimiter.this) {
+                    while (active >= MAX_ACTIVE) {
+                        if (Thread.currentThread().isInterrupted()) {
+                            throw new CancellationException();
+                        }
+                        try {
+                            GeminiRateLimiter.this.wait(100);
+                        } catch (InterruptedException error) {
+                            Thread.currentThread().interrupt();
+                            throw new CancellationException();
+                        }
+                    }
+                    active++;
+                    reacquired = true;
+                }
+            } finally {
+                if (!reacquired) {
+                    synchronized (GeminiRateLimiter.this) {
+                        released = true;
+                        window.busy = false;
+                        GeminiRateLimiter.this.notifyAll();
+                    }
+                }
+            }
+        }
+
         @Override
         public void close() {
             synchronized (GeminiRateLimiter.this) {

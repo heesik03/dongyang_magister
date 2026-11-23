@@ -8,10 +8,14 @@ import com.magister.backend.domain.history.dto.HistoryEvidence;
 import com.magister.backend.global.error.code.GeminiErrorCode;
 import com.magister.backend.global.error.exception.GeminiApiException;
 import com.magister.backend.global.gemini.GeminiClient;
+
 import jakarta.validation.Validator;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
+
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -28,7 +32,10 @@ class HistoryClaimModel {
 
     private static String loadPrompt(String path) {
         try {
-            String text = new ClassPathResource(path).getContentAsString(StandardCharsets.UTF_8).strip();
+            String text =
+                    new ClassPathResource(path)
+                            .getContentAsString(StandardCharsets.UTF_8)
+                            .strip();
             if (text.isEmpty()) {
                 throw new IllegalStateException("Empty prompt: " + path);
             }
@@ -38,26 +45,32 @@ class HistoryClaimModel {
         }
     }
 
-    private final GeminiClient gemini;
-    private final AiQuotaService quota;
-    private final ObjectMapper mapper;
+    private final GeminiClient geminiClient;
+    private final AiQuotaService quotaService;
+    private final ObjectMapper objectMapper;
     private final Validator validator;
 
     record Input(int index, Claim claim, List<HistoryEvidence> evidence) {}
 
     Extraction extract(long ownerId, String manuscript) {
-        return call(ownerId, EXTRACT_PROMPT + mapper.writeValueAsString(manuscript), Extraction.class);
+        return call(
+                ownerId,
+                EXTRACT_PROMPT + objectMapper.writeValueAsString(manuscript),
+                Extraction.class);
     }
 
     Assessments assess(long ownerId, List<Input> inputs) {
-        return call(ownerId, ASSESS_PROMPT + mapper.writeValueAsString(inputs), Assessments.class);
+        return call(
+                ownerId,
+                ASSESS_PROMPT + objectMapper.writeValueAsString(inputs),
+                Assessments.class);
     }
 
     private <T> T call(long ownerId, String prompt, Class<T> type) {
-        quota.chargeGeminiText(ownerId);
-        String json = gemini.generateHistoryJson(prompt);
+        quotaService.chargeGeminiText(ownerId);
+        String responseJson = geminiClient.generateHistoryJson(prompt);
         try {
-            T output = mapper.readValue(json, type);
+            T output = objectMapper.readValue(responseJson, type);
             if (output == null || !validator.validate(output).isEmpty()) {
                 throw invalidOutput();
             }

@@ -1,10 +1,11 @@
 package com.magister.backend.domain.history.client;
 
-import org.springframework.http.HttpStatus;
+import com.magister.backend.domain.history.error.HistoryErrorCode;
+import com.magister.backend.global.error.exception.CustomException;
+
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -23,21 +24,23 @@ final class HistoryHttp {
 
     static byte[] read(RestClient.RequestHeadersSpec<?> request) {
         try {
-            return request.exchange((sent, response) -> {
-                if (response.getStatusCode().value() == 204 || response.getStatusCode().value() == 404) {
-                    throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-                }
-                if (!response.getStatusCode().is2xxSuccessful()) {
-                    throw new ResponseStatusException(HttpStatus.BAD_GATEWAY);
-                }
-                byte[] body = response.getBody().readNBytes(MAX_BYTES + 1);
-                if (body.length == 0 || body.length > MAX_BYTES) {
-                    throw new ResponseStatusException(HttpStatus.BAD_GATEWAY);
-                }
-                return body;
-            });
+            return request.exchange(
+                    (sent, response) -> {
+                        if (response.getStatusCode().value() == 204
+                                || response.getStatusCode().value() == 404) {
+                            throw new CustomException(HistoryErrorCode.SOURCE_NOT_FOUND);
+                        }
+                        if (!response.getStatusCode().is2xxSuccessful()) {
+                            throw new CustomException(HistoryErrorCode.PROVIDER_LOOKUP_FAILED);
+                        }
+                        byte[] body = response.getBody().readNBytes(MAX_BYTES + 1);
+                        if (body.length == 0 || body.length > MAX_BYTES) {
+                            throw new CustomException(HistoryErrorCode.PROVIDER_LOOKUP_FAILED);
+                        }
+                        return body;
+                    });
         } catch (RestClientException exception) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY);
+            throw new CustomException(HistoryErrorCode.PROVIDER_LOOKUP_FAILED);
         }
     }
 }

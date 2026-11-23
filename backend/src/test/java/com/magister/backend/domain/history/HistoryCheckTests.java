@@ -1,37 +1,7 @@
 package com.magister.backend.domain.history;
 
-import com.magister.backend.domain.aiquota.AiQuotaService;
-import com.magister.backend.domain.history.client.EncyKoreaClient;
-import com.magister.backend.domain.history.client.HeritageClient;
-import com.magister.backend.domain.history.dto.HistoryCandidate;
-import com.magister.backend.domain.history.dto.HistoryEvidence;
-import com.magister.backend.domain.user.security.LoginUser;
-import com.magister.backend.global.gemini.GeminiClient;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.mockito.ArgumentCaptor;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.web.server.ResponseStatusException;
-import tools.jackson.databind.ObjectMapper;
-
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -42,13 +12,46 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.magister.backend.domain.aiquota.AiQuotaService;
+import com.magister.backend.domain.history.client.EncyKoreaClient;
+import com.magister.backend.domain.history.client.HeritageClient;
+import com.magister.backend.domain.history.dto.HistoryCandidate;
+import com.magister.backend.domain.history.dto.HistoryEvidence;
+import com.magister.backend.domain.history.error.HistoryErrorCode;
+import com.magister.backend.domain.user.security.LoginUser;
+import com.magister.backend.global.error.exception.CustomException;
+import com.magister.backend.global.gemini.GeminiClient;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+
+import tools.jackson.databind.ObjectMapper;
+
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class HistoryCheckTests {
     private static final AtomicLong IDS = new AtomicLong();
     private static final String PASSAGE = "태조 4년(1395)에 처음으로 세운 궁궐이다.";
-    private static final HistoryCandidate PALACE = new HistoryCandidate("13-0001170000000-11", "경복궁", "사적");
+    private static final HistoryCandidate PALACE =
+            new HistoryCandidate("13-0001170000000-11", "경복궁", "사적");
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @MockitoBean GeminiClient gemini;
@@ -65,88 +68,173 @@ class HistoryCheckTests {
         return """
                 {"claims":[{"quote":"%s","occurrence":1,"target":"경복궁","sceneTime":"%d년",
                 "assertion":"경복궁이 존재했다","kind":"EXISTENCE","keywords":["세운"]}]}
-                """.formatted(quote(year), year);
+                """
+                .formatted(quote(year), year);
     }
 
     private String assessment(String citation) {
         return """
                 {"assessments":[{"index":0,"status":"POSSIBLE_CONFLICT","reason":"창건 시점 대조",
                 "citation":"%s","foundingYear":1395}]}
-                """.formatted(citation);
+                """
+                .formatted(citation);
     }
 
     private void palace() {
         when(heritage.candidates("경복궁")).thenReturn(List.of(PALACE));
-        when(heritage.evidence(PALACE.sourceId(), List.of("세운"))).thenReturn(
-                new HistoryEvidence("국가유산청", PALACE.sourceId(), PALACE.title(),
-                        URI.create("https://www.heritage.go.kr/"), HistoryEvidence.Status.FOUND, PASSAGE));
+        when(heritage.evidence(PALACE.sourceId(), List.of("세운")))
+                .thenReturn(
+                        new HistoryEvidence(
+                                "국가유산청",
+                                PALACE.sourceId(),
+                                PALACE.title(),
+                                URI.create("https://www.heritage.go.kr/"),
+                                HistoryEvidence.Status.FOUND,
+                                PASSAGE));
     }
 
     private ResultActions check(String manuscript) throws Exception {
         LoginUser author = new LoginUser(ownerId, "author@example.com", "작가");
-        return mvc.perform(post("/api/history/check").with(csrf())
-                .with(authentication(UsernamePasswordAuthenticationToken.authenticated(author, null, List.of())))
-                .contentType("application/json").content(mapper.writeValueAsString(Map.of("manuscript", manuscript))));
+        return mvc.perform(
+                post("/api/history/check")
+                        .with(csrf())
+                        .with(
+                                authentication(
+                                        UsernamePasswordAuthenticationToken.authenticated(
+                                                author, null, List.of())))
+                        .contentType("application/json")
+                        .content(mapper.writeValueAsString(Map.of("manuscript", manuscript))));
     }
 
     @ParameterizedTest
-    @CsvSource({"1392,POSSIBLE_CONFLICT","1396,NO_CONFLICT_FOUND"})
+    @CsvSource({"1392,POSSIBLE_CONFLICT", "1396,NO_CONFLICT_FOUND"})
     void comparesVerifiedYearsAndReturnsOriginalOffsets(int year, String status) throws Exception {
         String prefix = "📜 원고\n";
         palace();
-        when(gemini.generateHistoryJson(anyString())).thenReturn(extraction(year), assessment(PASSAGE));
-        check(prefix + quote(year)).andExpect(status().isOk())
+        when(gemini.generateHistoryJson(anyString()))
+                .thenReturn(extraction(year), assessment(PASSAGE));
+        check(prefix + quote(year))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value(status))
                 .andExpect(jsonPath("$.data[0].startOffset").value(prefix.length()))
-                .andExpect(jsonPath("$.data[0].endOffset").value(prefix.length() + quote(year).length()))
+                .andExpect(
+                        jsonPath("$.data[0].endOffset").value(prefix.length() + quote(year).length()))
                 .andExpect(jsonPath("$.data[0].evidence[0].passage").value(PASSAGE));
         verify(quota, times(2)).chargeGeminiText(ownerId);
         ArgumentCaptor<String> prompts = ArgumentCaptor.forClass(String.class);
         verify(gemini, times(2)).generateHistoryJson(prompts.capture());
         assertThat(prompts.getAllValues().getFirst())
-                .startsWith(template("history-claim-extract")).contains(quote(year));
+                .startsWith(template("history-claim-extract"))
+                .contains(quote(year));
         assertThat(prompts.getAllValues().getLast())
-                .startsWith(template("history-claim-assess")).contains(PASSAGE);
+                .startsWith(template("history-claim-assess"))
+                .contains(PASSAGE);
     }
 
     private String template(String name) throws Exception {
-        return new ClassPathResource("prompts/" + name + ".txt").getContentAsString(StandardCharsets.UTF_8).strip();
+        return new ClassPathResource("prompts/" + name + ".txt")
+                .getContentAsString(StandardCharsets.UTF_8)
+                .strip();
     }
 
     @Test
     void conflictingFoundationDatesWithholdFinding() throws Exception {
         palace();
-        when(encyclopedia.candidates("경복궁")).thenReturn(List.of(new HistoryCandidate("E0000001", "경복궁", "궁궐")));
-        when(encyclopedia.evidence("E0000001", List.of("세운"))).thenReturn(new HistoryEvidence(
-                "한국학중앙연구원", "E0000001", "경복궁", URI.create("https://encykorea.aks.ac.kr/"),
-                HistoryEvidence.Status.FOUND, "1394년에 창건하였다."));
-        when(gemini.generateHistoryJson(anyString())).thenReturn(extraction(1392), assessment(PASSAGE));
-        check(quote(1392)).andExpect(status().isOk())
+        when(encyclopedia.candidates("경복궁"))
+                .thenReturn(List.of(new HistoryCandidate("E0000001", "경복궁", "궁궐")));
+        when(encyclopedia.evidence("E0000001", List.of("세운")))
+                .thenReturn(
+                        new HistoryEvidence(
+                                "한국학중앙연구원",
+                                "E0000001",
+                                "경복궁",
+                                URI.create("https://encykorea.aks.ac.kr/"),
+                                HistoryEvidence.Status.FOUND,
+                                "1394년에 창건하였다."));
+        when(gemini.generateHistoryJson(anyString()))
+                .thenReturn(extraction(1392), assessment(PASSAGE));
+        check(quote(1392))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("INSUFFICIENT_EVIDENCE"));
+    }
+
+    @Test
+    void laterRebuildYearInSeparateSentenceDoesNotInvalidateFoundationYear() throws Exception {
+        String passageWithRebuild = "태조 4년(1395)에 처음으로 세운 궁궐이다. 1867년에 중건되었다.";
+        when(heritage.candidates("경복궁")).thenReturn(List.of(PALACE));
+        when(heritage.evidence(PALACE.sourceId(), List.of("세운")))
+                .thenReturn(
+                        new HistoryEvidence(
+                                "국가유산청",
+                                PALACE.sourceId(),
+                                PALACE.title(),
+                                URI.create("https://www.heritage.go.kr/"),
+                                HistoryEvidence.Status.FOUND,
+                                passageWithRebuild));
+        when(gemini.generateHistoryJson(anyString()))
+                .thenReturn(extraction(1392), assessment(PASSAGE));
+        check(quote(1392))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("POSSIBLE_CONFLICT"));
+    }
+
+    @Test
+    void contextSceneTimeOutsideQuoteSentenceIsAccepted() throws Exception {
+        palace();
+        String manuscript = "1392년 겨울이었다.\n사신은 경복궁에 도착했다.";
+        String contextExtraction =
+                """
+                {"claims":[{"quote":"사신은 경복궁에 도착했다.","occurrence":1,"target":"경복궁","sceneTime":"1392년",
+                "assertion":"경복궁이 존재했다","kind":"EXISTENCE","keywords":["세운"]}]}
+                """;
+        when(gemini.generateHistoryJson(anyString()))
+                .thenReturn(contextExtraction, assessment(PASSAGE));
+        check(manuscript)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("POSSIBLE_CONFLICT"));
+    }
+
+    @Test
+    void partialProviderFailureStillAssessesAvailableOfficialEvidence() throws Exception {
+        palace();
+        when(encyclopedia.candidates("경복궁"))
+                .thenThrow(new CustomException(HistoryErrorCode.PROVIDER_KEY_MISSING));
+        when(gemini.generateHistoryJson(anyString()))
+                .thenReturn(extraction(1392), assessment(PASSAGE));
+        check(quote(1392))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("POSSIBLE_CONFLICT"));
     }
 
     @Test
     void rejectsInventedSourceQuotation() throws Exception {
         palace();
-        when(gemini.generateHistoryJson(anyString())).thenReturn(extraction(1392), assessment("1395년 창건했다."));
-        check(quote(1392)).andExpect(status().isOk())
+        when(gemini.generateHistoryJson(anyString()))
+                .thenReturn(extraction(1392), assessment("1395년 창건했다."));
+        check(quote(1392))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("INSUFFICIENT_EVIDENCE"));
     }
 
     @Test
     void ambiguousIdentitySkipsJudgment() throws Exception {
-        when(heritage.candidates("경복궁")).thenReturn(List.of(PALACE, new HistoryCandidate("second", "경복궁", "다른 대상")));
+        when(heritage.candidates("경복궁"))
+                .thenReturn(
+                        List.of(PALACE, new HistoryCandidate("second", "경복궁", "다른 대상")));
         when(gemini.generateHistoryJson(anyString())).thenReturn(extraction(1392));
-        check(quote(1392)).andExpect(status().isOk())
+        check(quote(1392))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("INSUFFICIENT_EVIDENCE"));
         verify(quota).chargeGeminiText(ownerId);
     }
 
     @Test
     void lookupFailureIsNotHistoricalConflict() throws Exception {
-        when(heritage.candidates("경복궁")).thenThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY));
+        when(heritage.candidates("경복궁"))
+                .thenThrow(new CustomException(HistoryErrorCode.PROVIDER_LOOKUP_FAILED));
         when(gemini.generateHistoryJson(anyString())).thenReturn(extraction(1392));
-        check(quote(1392)).andExpect(status().isOk())
+        check(quote(1392))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("LOOKUP_FAILED"));
     }
 
