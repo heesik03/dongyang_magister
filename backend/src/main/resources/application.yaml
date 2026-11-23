@@ -29,7 +29,7 @@ gemini:
   model: ${GEMINI_MODEL:}
   timeout: ${GEMINI_TIMEOUT:30s}
   direct-endpoint-enabled: ${GEMINI_DIRECT_ENDPOINT_ENABLED:true}
-  text-daily-limit: ${GEMINI_TEXT_DAILY_LIMIT:50}
+  text-daily-limit: ${GEMINI_TEXT_DAILY_LIMIT:20}
   text-global-daily-limit: ${GEMINI_TEXT_GLOBAL_DAILY_LIMIT:500}
 
 manuscript:

@@ -1,5 +1,6 @@
 package com.magister.backend.domain.analysis.service;
 
+import com.magister.backend.domain.aiquota.AiQuotaExceededException;
 import com.magister.backend.domain.analysis.converter.AnalysisConverter;
 import com.magister.backend.domain.analysis.converter.ReviewConverter;
 import com.magister.backend.domain.analysis.dto.HistoryJobReport;
@@ -58,7 +59,9 @@ public class AnalysisWorker {
             String message =
                     error instanceof CustomException custom
                             ? custom.getErrorCode().getMessage()
-                            : "AI 검토 결과를 처리하지 못했습니다. 다시 시도해 주세요.";
+                            : error instanceof AiQuotaExceededException
+                                    ? error.getMessage()
+                                    : "AI 검토 결과를 처리하지 못했습니다. 다시 시도해 주세요.";
 
             // 작업 ID와 단계로 진단하되 예외 메시지에 섞일 수 있는 원고·토큰은 로그에 남기지 않는다.
             log.warn(
@@ -97,6 +100,8 @@ public class AnalysisWorker {
                 standard = Status.COMPLETED;
             } catch (CancellationException cancelled) {
                 throw cancelled;
+            } catch (AiQuotaExceededException quotaExceeded) {
+                throw quotaExceeded;
             } catch (RuntimeException failure) {
                 log.warn(
                         "Standard review failed: jobId={}, type={}",
@@ -125,6 +130,14 @@ public class AnalysisWorker {
             }
         } catch (CancellationException cancelled) {
             throw cancelled;
+        } catch (AiQuotaExceededException quotaExceeded) {
+            if (standard != Status.COMPLETED) {
+                throw quotaExceeded;
+            }
+            log.warn(
+                    "Historical review quota exceeded after standard review: jobId={}",
+                    jobId);
+            historical = Status.FAILED;
         } catch (RuntimeException failure) {
             log.warn(
                     "Historical review failed: jobId={}, type={}",
