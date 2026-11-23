@@ -223,6 +223,11 @@ class AnalysisFlowTests {
                 .andExpect(jsonPath("$.data.historyDecisions['0']").doesNotExist());
         transactionTemplate.executeWithoutResult(status ->
                 assertThat(jobRepository.deleteExpiredWithoutDecisions(List.of(job))).isZero());
+        // 참고한 이전 회차가 바뀌어도 대상 회차 원고가 그대로면 역사 고증 판단을 저장할 수 있다.
+        chapterService.update(ownerId, workId, "previous", new UpdateChapterRequest("1화", "바뀐 이전 원고", 0, "prev-changed"));
+        mockMvc.perform(put(decisionPath).with(authentication(owner)).with(csrf())
+                        .contentType("application/json").content(body))
+                .andExpect(status().isOk());
         chapterService.update(ownerId, workId, "target", new UpdateChapterRequest("2화", "바뀐 원고", 0, "changed"));
         mockMvc.perform(put(decisionPath).with(authentication(owner)).with(csrf())
                         .contentType("application/json").content(body))

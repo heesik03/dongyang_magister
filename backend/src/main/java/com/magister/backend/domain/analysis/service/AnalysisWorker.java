@@ -1,9 +1,15 @@
 package com.magister.backend.domain.analysis.service;
 
+import com.magister.backend.domain.analysis.converter.AnalysisConverter;
+import com.magister.backend.domain.analysis.converter.ReviewConverter;
+import com.magister.backend.domain.analysis.dto.HistoryJobReport;
+import com.magister.backend.domain.analysis.dto.HistoryJobReport.Status;
 import com.magister.backend.domain.analysis.dto.ValidatedAnalysis;
 import com.magister.backend.domain.analysis.service.AnalysisJobStateService.Claim;
 import com.magister.backend.domain.analysis.service.support.AnalysisResultProcessor;
 import com.magister.backend.domain.gemini.service.GeminiService;
+import com.magister.backend.domain.history.dto.HistoryCheck;
+import com.magister.backend.domain.history.service.HistoryCheckService;
 import com.magister.backend.global.error.exception.CustomException;
 
 import lombok.RequiredArgsConstructor;
@@ -11,12 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.stereotype.Component;
 
-import com.magister.backend.domain.analysis.converter.AnalysisConverter;
-import com.magister.backend.domain.analysis.dto.HistoryJobReport;
-import com.magister.backend.domain.analysis.dto.HistoryJobReport.Status;
-import com.magister.backend.domain.history.dto.HistoryCheck;
-import com.magister.backend.domain.history.service.HistoryCheckService;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
@@ -30,6 +30,7 @@ public class AnalysisWorker {
     private final GeminiService geminiService;
     private final AnalysisResultProcessor resultProcessor;
     private final AnalysisConverter converter;
+    private final ReviewConverter reviewConverter;
     private final HistoryCheckService historyService;
 
     /**
@@ -80,12 +81,15 @@ public class AnalysisWorker {
     }
 
     private ValidatedAnalysis standardReview(Claim claim) {
-        String raw = geminiService.analyze(claim.ownerId(), resultProcessor.buildPrompt(claim.input()));
+        String raw =
+                geminiService.analyze(
+                        claim.ownerId(), resultProcessor.buildPrompt(claim.input()));
         return resultProcessor.validateDetailed(raw, claim.input());
     }
 
     private void reviewWithHistory(String jobId, Claim claim) {
-        ValidatedAnalysis result = new ValidatedAnalysis(converter.toResult(claim.input(), List.of()), List.of());
+        ValidatedAnalysis result =
+                new ValidatedAnalysis(converter.toResult(claim.input(), List.of()), List.of());
         Status standard = Status.NOT_REQUESTED;
         if (claim.input().consistency() || claim.input().motivation()) {
             try {
@@ -94,7 +98,10 @@ public class AnalysisWorker {
             } catch (CancellationException cancelled) {
                 throw cancelled;
             } catch (RuntimeException failure) {
-                log.warn("Standard review failed: jobId={}, type={}", jobId, failure.getClass().getSimpleName());
+                log.warn(
+                        "Standard review failed: jobId={}, type={}",
+                        jobId,
+                        failure.getClass().getSimpleName());
                 standard = Status.FAILED;
             }
         }
@@ -105,8 +112,12 @@ public class AnalysisWorker {
         List<HistoryCheck.Finding> findings = List.of();
         Status historical;
         try {
-            findings = historyService.checkJob(claim.ownerId(), claim.input().chapter().content());
-            long failed = findings.stream().filter(item -> item.status() == HistoryCheck.Status.LOOKUP_FAILED).count();
+            findings =
+                    historyService.checkJob(claim.ownerId(), claim.input().chapter().content());
+            long failed =
+                    findings.stream()
+                            .filter(item -> item.status() == HistoryCheck.Status.LOOKUP_FAILED)
+                            .count();
             if (failed == 0) {
                 historical = Status.COMPLETED;
             } else {
@@ -115,11 +126,15 @@ public class AnalysisWorker {
         } catch (CancellationException cancelled) {
             throw cancelled;
         } catch (RuntimeException failure) {
-            log.warn("Historical review failed: jobId={}, type={}", jobId, failure.getClass().getSimpleName());
+            log.warn(
+                    "Historical review failed: jobId={}, type={}",
+                    jobId,
+                    failure.getClass().getSimpleName());
             historical = Status.FAILED;
         }
-        HistoryJobReport report = new HistoryJobReport(claim.input().chapter().revision(), Instant.now(),
-                historical, standard, findings);
+        HistoryJobReport report =
+                reviewConverter.toHistoryJobReport(
+                        claim.input().chapter().revision(), historical, standard, findings);
         jobStateService.succeed(jobId, result, report);
     }
 }

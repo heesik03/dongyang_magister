@@ -1,13 +1,14 @@
 package com.magister.backend.domain.analysis.controller;
 
 import com.magister.backend.domain.analysis.docs.AnalysisControllerDocs;
-import com.magister.backend.domain.analysis.dto.HistoryDecision;
 import com.magister.backend.domain.analysis.dto.AnalysisJobResponse;
 import com.magister.backend.domain.analysis.dto.AnalysisJobSummary;
 import com.magister.backend.domain.analysis.dto.AnalysisRequest;
+import com.magister.backend.domain.analysis.dto.HistoryDecision;
 import com.magister.backend.domain.analysis.dto.ReviewReportResponse;
 import com.magister.backend.domain.analysis.entity.AnalysisJobStatus;
 import com.magister.backend.domain.analysis.service.AnalysisJobService;
+import com.magister.backend.domain.analysis.service.HistoryDecisionService;
 import com.magister.backend.domain.analysis.service.ReviewResultService;
 import com.magister.backend.domain.user.security.LoginUser;
 import com.magister.backend.global.pagination.OffsetPageRequest;
@@ -21,31 +22,33 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import com.magister.backend.domain.analysis.service.HistoryDecisionService;
-import org.springframework.web.bind.annotation.PutMapping;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/work/{workId}/analysis")
 public class AnalysisController implements AnalysisControllerDocs {
-    private final HistoryDecisionService historyDecisions;
+    private final HistoryDecisionService historyDecisionService;
+    private final AnalysisJobService analysisJobService;
+    private final ReviewResultService reviewResultService;
 
     @Override
     @PutMapping("/{id}/review/history/{index}/decision")
-    public ApiResult<HistoryDecision> decideHistory(@AuthenticationPrincipal LoginUser user,
-            @PathVariable Long workId, @PathVariable String id, @PathVariable int index,
+    public ApiResult<HistoryDecision> decideHistory(
+            @AuthenticationPrincipal LoginUser user,
+            @PathVariable Long workId,
+            @PathVariable String id,
+            @PathVariable int index,
             @RequestBody HistoryDecision input) {
-        return ApiResult.success(historyDecisions.save(user.id(), workId, id, index, input));
+        return ApiResult.success(
+                historyDecisionService.save(user.id(), workId, id, index, input));
     }
-
-    private final AnalysisJobService analysisJobService;
-    private final ReviewResultService reviewResultService;
 
     @Override
     @GetMapping("/{id}/review")
@@ -56,7 +59,8 @@ public class AnalysisController implements AnalysisControllerDocs {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResult.success(
-                reviewResultService.list(user.id(), workId, id, OffsetPageRequest.of(page, size)));
+                reviewResultService.list(
+                        user.id(), workId, id, OffsetPageRequest.of(page, size)));
     }
 
     @Override
