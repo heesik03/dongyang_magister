@@ -67,12 +67,27 @@ public class EncyKoreaClient implements HistorySource {
 
     @Override
     public HistoryEvidence evidence(String sourceId, List<String> keywords) {
+        return loadEvidence(sourceId, keywords);
+    }
+
+    @Override
+    public HistoryEvidence document(String sourceId) {
+        return loadEvidence(sourceId, List.of());
+    }
+
+    private HistoryEvidence loadEvidence(String sourceId, List<String> keywords) {
         if (!sourceId.matches("E[0-9]{7}")) {
             throw new CustomException(HistoryErrorCode.INVALID_SOURCE_ID);
         }
         JsonNode article = detail(sourceId);
         if (!sourceId.equals(required(article, "eid"))) {
             throw new CustomException(HistoryErrorCode.PROVIDER_LOOKUP_FAILED);
+        }
+        if (keywords.isEmpty()) {
+            return HistoryConverter.toDocument("한국학중앙연구원", sourceId, required(article, "headword"),
+                    URI.create("https://encykorea.aks.ac.kr/Article/" + sourceId), List.of(
+                            section(article, "definition", "정의"), section(article, "summary", "요약"),
+                            section(article, "body", "본문")));
         }
         return HistorySource.excerpt(
                 "한국학중앙연구원",
@@ -87,6 +102,11 @@ public class EncyKoreaClient implements HistorySource {
 
     private static String field(JsonNode article, String name) {
         return article.path(name).asString("").strip();
+    }
+
+    private static String section(JsonNode article, String field, String label) {
+        String value = field(article, field);
+        return value.isBlank() ? "" : label + "\n" + value;
     }
 
     private static String required(JsonNode article, String name) {

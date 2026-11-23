@@ -16,7 +16,9 @@ public final class HistoryCheck {
     public record Request(@NotBlank @Size(max = 6000)
             @Schema(example = "1392년, 사신은 경복궁에 도착했다.") String manuscript) {}
 
-    public enum Kind { EXISTENCE, OTHER }
+    public enum Kind { EXISTENCE, FOUNDATION, RECONSTRUCTION, OTHER }
+    public record SourceLookup(String institution, LookupStatus status) {}
+    public enum LookupStatus { REVIEWED, NO_MATCH, AMBIGUOUS, EMPTY, FAILED }
     public enum Status { POSSIBLE_CONFLICT, NO_CONFLICT_FOUND, INSUFFICIENT_EVIDENCE, LOOKUP_FAILED }
 
     public record Claim(@NotBlank @Size(max = 500) String quote,
@@ -28,11 +30,18 @@ public final class HistoryCheck {
     public record Extraction(@NotNull @Size(max = 3) List<@NotNull @Valid Claim> claims) {}
 
     public record Finding(String quote, int startOffset, int endOffset, String sceneTime,
-            String target, String assertion, Status status, String reason, List<HistoryEvidence> evidence) {}
+            String target, String assertion, Status status, String reason, List<HistoryEvidence> evidence,
+            Kind kind, List<SourceLookup> lookups, String citation, Integer officialYear) {
+        public Finding(String quote, int startOffset, int endOffset, String sceneTime, String target,
+                String assertion, Status status, String reason, List<HistoryEvidence> evidence) {
+            this(quote, startOffset, endOffset, sceneTime, target, assertion, status, reason,
+                    evidence, null, List.of(), null, null);
+        }
+    }
 
     public record Assessment(@NotNull @Min(0) @Max(2) Integer index, @NotNull Status status,
             @NotBlank @Size(max = 350) String reason, @NotNull @Size(max = 500) String citation,
-            @NotNull @Min(0) @Max(9999) Integer foundingYear) {}
+            @NotNull @Min(0) @Max(9999) Integer eventYear) {}
 
     public record Assessments(@NotNull @Size(max = 3) List<@NotNull @Valid Assessment> assessments) {}
 }

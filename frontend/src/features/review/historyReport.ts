@@ -6,6 +6,19 @@ export const historyStatuses = {
   INSUFFICIENT_EVIDENCE: '근거 부족',
   LOOKUP_FAILED: '자료 조회 실패',
 }
+const kinds = {
+  FOUNDATION: '최초 건립',
+  RECONSTRUCTION: '중건',
+  EXISTENCE: '존재 시점',
+  OTHER: '역사적 사실',
+}
+const lookupStatuses = {
+  REVIEWED: '자료 확보',
+  NO_MATCH: '일치 항목 없음',
+  AMBIGUOUS: '동일 이름 여러 건',
+  EMPTY: '본문 없음',
+  FAILED: '조회 실패',
+}
 export const choices = { ACCEPT: '수용', HOLD: '보류', INTENDED: '의도된 설정' }
 export type HistoryDecision = { choice: keyof typeof choices; reason: string }
 const progress = {
@@ -45,6 +58,10 @@ export function parseHistoryReport(raw: unknown, decisions: unknown) {
         target: readString(finding, 'target'),
         sceneTime: readString(finding, 'sceneTime'),
         assertion: readString(finding, 'assertion'),
+        kind: finding.kind == null ? null : member(readString(finding, 'kind'), kinds),
+        officialYear: finding.officialYear == null ? null : readInteger(finding, 'officialYear', 1),
+        citation: finding.citation == null ? null : readString(finding, 'citation'),
+        lookups: readLookups(finding.lookups),
         reason: readString(finding, 'reason'),
         status: member(readString(finding, 'status'), historyStatuses),
         decision: row && {
@@ -66,6 +83,17 @@ export function parseHistoryReport(raw: unknown, decisions: unknown) {
       }
     }),
   }
+}
+function readLookups(raw: unknown) {
+  if (raw == null) return []
+  if (!Array.isArray(raw)) throw new Error('기관 조회 결과가 올바르지 않습니다.')
+  return raw.map((entry: unknown) => {
+    const lookup = readRecord(entry)
+    return {
+      institution: readString(lookup, 'institution'),
+      status: lookupStatuses[member(readString(lookup, 'status'), lookupStatuses)],
+    }
+  })
 }
 export type HistoryReport = ReturnType<typeof parseHistoryReport>
 export const historyProgress = progress

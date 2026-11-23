@@ -61,6 +61,20 @@ class HistorySourceTests {
     }
 
     @Test
+    void documentKeepsDatesAndFullDescriptionEvenWhenTheKeywordIsAbsent() {
+        String description = "궁 이름의 유래. ".repeat(120) + "1395년에 창건하였다.";
+        String xml = """
+                <result><ccbaKdcd>13</ccbaKdcd><ccbaAsno>0001170000000</ccbaAsno><ccbaCtcd>11</ccbaCtcd>
+                <ccbaCpno>1331101170000</ccbaCpno><item><ccbaMnm1>경복궁</ccbaMnm1>
+                <ccceName>조선 태조 4년</ccceName><ccbaAsdt>19630118</ccbaAsdt>
+                <content>%s</content></item></result>""".formatted(description);
+        server.expect(requestTo(containsString("ccbaAsno=0001170000000")))
+                .andRespond(withSuccess(xml, MediaType.APPLICATION_XML));
+        assertThat(heritage.document("13-0001170000000-11").passage())
+                .contains("시대\n조선 태조 4년", "지정일\n19630118", description);
+    }
+
+    @Test
     void encyclopediaSelectsBodyOfRequestedArticleOnly() {
         String body =
                 """

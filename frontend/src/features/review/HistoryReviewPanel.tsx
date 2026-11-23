@@ -177,7 +177,7 @@ export function HistoryReviewPanel({
             <div className="history-finding-reason">
               <strong>
                 {historyStatuses[finding.status]}
-                {finding.sceneTime && ` · ${finding.sceneTime}`}
+                {finding.sceneTime && ` · 원고 시점 ${finding.sceneTime}`}
               </strong>
               <p>{finding.reason}</p>
             </div>
@@ -210,23 +210,52 @@ export function HistoryReviewPanel({
               </section>
               <section className="history-evidence-card">
                 <h4>
-                  <Icon name="book" /> 공식 근거
+                  <Icon name="book" /> 판정에 사용한 인용문
                 </h4>
-                {!finding.evidence.length && <p>연결된 공식 자료가 없습니다.</p>}
-                {finding.evidence.map((source) => (
-                  <div className="history-source" key={`${source.institution}:${source.url}`}>
-                    <p>
+                {!finding.citation && finding.kind && (
+                  <p>이 주장을 직접 대조할 인용문을 확인하지 못했습니다.</p>
+                )}
+                {finding.officialYear && (
+                  <p className="small">
+                    {finding.kind === 'RECONSTRUCTION' ? '자료의 중건 연도' : '자료의 창건 연도'} ·{' '}
+                    {finding.officialYear}년
+                  </p>
+                )}
+                {finding.evidence.map((source) => {
+                  const citation =
+                    finding.citation && source.passage?.includes(finding.citation)
+                      ? finding.citation
+                      : null
+                  return (
+                    <div className="history-source" key={source.url}>
                       <a href={source.url} target="_blank" rel="noreferrer">
                         {source.institution} · {source.title} ↗
                       </a>
-                    </p>
-                    {source.passage ? (
-                      <blockquote>{source.passage}</blockquote>
-                    ) : (
-                      <p>해당 주장을 대조할 구절을 찾지 못했습니다.</p>
-                    )}
-                  </div>
-                ))}
+                      {citation && <blockquote>{citation}</blockquote>}
+                      {source.passage &&
+                        (finding.kind ? (
+                          <details>
+                            <summary>기관 자료 전체 보기</summary>
+                            <SourceText text={source.passage} citation={citation} />
+                          </details>
+                        ) : (
+                          <div>
+                            <p className="small muted">이전 검토에서 저장한 발췌문</p>
+                            <blockquote>{source.passage}</blockquote>
+                          </div>
+                        ))}
+                    </div>
+                  )
+                })}
+                {finding.lookups.length > 0 && (
+                  <ul className="history-lookup-status">
+                    {finding.lookups.map((lookup) => (
+                      <li key={lookup.institution}>
+                        {lookup.institution} · {lookup.status}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </section>
               <details className="history-revision-direction">
                 <summary>보완 방향 보기</summary>
@@ -362,5 +391,22 @@ function HistoryDecisionForm({
       </fieldset>
       {error && <p role="alert">{error}</p>}
     </form>
+  )
+}
+
+function SourceText({ text, citation }: { text: string; citation: string | null }) {
+  const start = citation ? text.indexOf(citation) : -1
+  return (
+    <p className="history-source-document">
+      {citation && start >= 0 ? (
+        <>
+          {text.slice(0, start)}
+          <mark>{citation}</mark>
+          {text.slice(start + citation.length)}
+        </>
+      ) : (
+        text
+      )}
+    </p>
   )
 }

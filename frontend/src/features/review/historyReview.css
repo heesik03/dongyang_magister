@@ -499,3 +499,21 @@
     background: var(--history-panel);
   }
 }
+
+.history-source details {
+  margin-top: 0.75rem;
+}
+.history-source summary {
+  cursor: pointer;
+}
+.history-source-document {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 26rem;
+  overflow-y: auto;
+  line-height: 1.7;
+}
+.history-lookup-status {
+  padding-inline-start: 1.2rem;
+  font-size: 0.875rem;
+}

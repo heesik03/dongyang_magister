@@ -4,6 +4,7 @@ import com.magister.backend.domain.history.dto.HistoryCandidate;
 import com.magister.backend.domain.history.dto.HistoryCheck.Claim;
 import com.magister.backend.domain.history.dto.HistoryCheck.Finding;
 import com.magister.backend.domain.history.dto.HistoryCheck.Status;
+import com.magister.backend.domain.history.dto.HistoryCheck.SourceLookup;
 import com.magister.backend.domain.history.dto.HistoryEvidence;
 
 import org.jspecify.annotations.Nullable;
@@ -19,6 +20,13 @@ public class HistoryConverter {
 
     public static HistoryCandidate toCandidate(String sourceId, String title, String description) {
         return new HistoryCandidate(sourceId, title, description);
+    }
+
+    public static HistoryEvidence toDocument(String institution, String id, String title, URI url,
+            List<String> sections) {
+        String document = String.join("\n\n", sections.stream().filter(section -> !section.isBlank()).toList());
+        return document.isEmpty() ? toMissingPassageEvidence(institution, id, title, url)
+                : toFoundEvidence(institution, id, title, url, document);
     }
 
     public static HistoryEvidence toFoundEvidence(
@@ -38,7 +46,7 @@ public class HistoryConverter {
             int startOffset,
             Status status,
             String reason,
-            List<HistoryEvidence> evidence) {
+            List<HistoryEvidence> evidence, List<SourceLookup> lookups) {
         return new Finding(
                 claim.quote(),
                 startOffset,
@@ -48,11 +56,11 @@ public class HistoryConverter {
                 claim.assertion(),
                 status,
                 reason,
-                List.copyOf(evidence));
+                List.copyOf(evidence), claim.kind(), List.copyOf(lookups), null, null);
     }
 
     public static Finding toAssessedFinding(
-            Finding original, Status status, @Nullable String reason) {
+            Finding original, Status status, String reason, String citation, Integer year) {
         return new Finding(
                 original.quote(),
                 original.startOffset(),
@@ -61,7 +69,6 @@ public class HistoryConverter {
                 original.target(),
                 original.assertion(),
                 status,
-                reason == null ? "" : reason,
-                original.evidence());
+                reason, original.evidence(), original.kind(), original.lookups(), citation, year);
     }
 }

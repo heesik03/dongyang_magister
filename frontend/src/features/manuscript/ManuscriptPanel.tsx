@@ -474,7 +474,12 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
                   <li>선택한 이전 회차 원고 {previousIds.length}개</li>
                 </>
               )}
-              {historical && <li>국가유산청·한국민족문화대백과사전 · 검색 대상명만</li>}
+              {historical && (
+                <>
+                  <li>역사 기관 · 검색 대상명과 자료 식별자</li>
+                  <li>Google Gemini API · 원고의 역사 주장과 조회한 기관 자료 전문</li>
+                </>
+              )}
             </ul>
             {historical && (
               <p className="small muted">
@@ -483,8 +488,8 @@ export function ManuscriptPanel({ work: propWork }: { work: Work }) {
             )}
             {historical && (
               <p className="notice">
-                국내 역사만 지원합니다. 공식 자료를 찾지 못한 항목은 근거 부족으로 표시될 수
-                있습니다.
+                국내 역사 자료를 검토합니다. 긴 자료는 나누어 검토하며 각 AI 호출에 할당량이
+                사용됩니다.
               </p>
             )}
           </section>

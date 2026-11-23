@@ -124,7 +124,9 @@ public class AnalysisWorker {
                             .filter(item -> item.status() == HistoryCheck.Status.LOOKUP_FAILED)
                             .count();
             if (failed == 0) {
-                historical = Status.COMPLETED;
+                boolean partial = findings.stream().anyMatch(finding -> finding.lookups() != null
+                        && finding.lookups().stream().anyMatch(lookup -> lookup.status() == HistoryCheck.LookupStatus.FAILED));
+                historical = partial ? Status.PARTIAL : Status.COMPLETED;
             } else {
                 historical = failed == findings.size() ? Status.FAILED : Status.PARTIAL;
             }

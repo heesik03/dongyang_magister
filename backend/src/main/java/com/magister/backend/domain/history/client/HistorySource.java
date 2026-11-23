@@ -26,6 +26,8 @@ public interface HistorySource {
 
     HistoryEvidence evidence(String sourceId, List<String> keywords);
 
+    HistoryEvidence document(String sourceId);
+
     static List<HistoryCandidate> ranked(List<HistoryCandidate> candidates, String query) {
         return candidates.stream()
                 .sorted(Comparator.comparing(candidate -> !candidate.title().equals(query)))

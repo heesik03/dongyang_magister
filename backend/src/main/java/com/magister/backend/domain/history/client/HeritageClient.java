@@ -65,6 +65,15 @@ public class HeritageClient implements HistorySource {
 
     @Override
     public HistoryEvidence evidence(String sourceId, List<String> keywords) {
+        return loadEvidence(sourceId, keywords);
+    }
+
+    @Override
+    public HistoryEvidence document(String sourceId) {
+        return loadEvidence(sourceId, List.of());
+    }
+
+    private HistoryEvidence loadEvidence(String sourceId, List<String> keywords) {
         if (!sourceId.matches(SOURCE_ID)) {
             throw new CustomException(HistoryErrorCode.INVALID_SOURCE_ID);
         }
@@ -97,8 +106,19 @@ public class HeritageClient implements HistorySource {
                                 + codes[1]
                                 + "&ccbaCpno="
                                 + portalId);
+        if (keywords.isEmpty()) {
+            return HistoryConverter.toDocument("국가유산청", sourceId, title, url, List.of(
+                    section(item, "ccbaMnm2", "한자명"), section(item, "ccmaName", "종목"),
+                    section(item, "ccceName", "시대"), section(item, "ccbaAsdt", "지정일"),
+                    section(item, "ccbaLcad", "소재지"), section(item, "content", "설명")));
+        }
         return HistorySource.excerpt(
                 "국가유산청", sourceId, title, url, keywords, childText(item, "content"));
+    }
+
+    private static String section(Element item, String field, String label) {
+        String value = childText(item, field);
+        return value.isBlank() ? "" : label + "\n" + value;
     }
 
     private static String sourceId(Element element) {

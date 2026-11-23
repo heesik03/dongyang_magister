@@ -11,6 +11,8 @@ import com.magister.backend.domain.history.dto.HistoryCheck.Claim;
 import com.magister.backend.domain.history.dto.HistoryCheck.Finding;
 import com.magister.backend.domain.history.dto.HistoryCheck.Kind;
 import com.magister.backend.domain.history.dto.HistoryCheck.Status;
+import com.magister.backend.domain.history.dto.HistoryCheck.SourceLookup;
+import com.magister.backend.domain.history.dto.HistoryCheck.LookupStatus;
 import com.magister.backend.domain.history.dto.HistoryEvidence;
 import com.magister.backend.global.error.exception.CustomException;
 
@@ -31,7 +33,8 @@ import java.util.regex.Pattern;
 public class HistoryCheckService {
     private static final Pattern SCENE_YEAR = Pattern.compile("([1-9][0-9]{0,3})년");
     private static final Pattern FOUNDATION =
-            Pattern.compile("창건|처음.{0,15}(세[우운웠]|지[었은])|최초.{0,15}(건립|건축)");
+            Pattern.compile("창건|건립|처음.{0,25}(세[우운웠]|지[었은])|최초.{0,25}(건설|건축)|세웠다|지어졌다");
+    private static final Pattern REBUILD = Pattern.compile("중건|재건|다시.{0,12}(지[어었은]|세[운웠])");
     private static final Pattern FOUR_DIGIT_YEAR =
             Pattern.compile("(?<![0-9])[1-9][0-9]{3}(?![0-9])");
 
@@ -54,6 +57,7 @@ public class HistoryCheckService {
         try (GeminiRateLimiter.Reservation reservation =
                 queued ? rateLimiter.awaitReservation(ownerId) : rateLimiter.reserve(ownerId)) {
             Map<Search, List<HistoryCandidate>> searches = new HashMap<>();
+            Map<Search, HistoryEvidence> documents = new HashMap<>();
             List<Finding> findings = new ArrayList<>();
             List<HistoryClaimModel.Input> inputs = new ArrayList<>();
             List<Claim> claims = claimModel.extract(ownerId, manuscript).claims();
@@ -61,9 +65,10 @@ public class HistoryCheckService {
             // 외부 역사 기관 HTTP 조회 구간 동안에는 전역 Gemini 동시 실행 슬롯만 일시 반납해 다른 AI 요청의 병목을 막는다.
             reservation.pauseWhile(
                     () -> {
-                        for (Claim claim : claims) {
+                        for (Claim extracted : claims) {
+                            Claim claim = normalizeEvent(extracted);
                             int start = locate(manuscript, claim);
-                            Finding finding = lookup(claim, start, searches);
+                            Finding finding = lookup(claim, start, searches, documents, manuscript);
                             if (finding.reason().isEmpty()) {
                                 inputs.add(
                                         new HistoryClaimModel.Input(
@@ -81,10 +86,26 @@ public class HistoryCheckService {
         }
     }
 
+    // 방문 여부로 잘못 분류된 단정형 건립 서술에 존재 시점의 부등식을 적용하지 않는다.
+    private static final Pattern CONSTRUCTION_STATEMENT = Pattern.compile(
+            "(창건|건립|건설|중건|재건)(?:되었다|됐다|하였다|했다|되었으며|되었고)[.!。]?$");
+
+    private static Claim normalizeEvent(Claim claim) {
+        if (claim.kind() != Kind.EXISTENCE || mentionsDifferentBuilding(claim.quote(), claim.target())) {
+            return claim;
+        }
+        Matcher action = CONSTRUCTION_STATEMENT.matcher(claim.quote().strip());
+        if (!action.find()) {
+            return claim;
+        }
+        Kind kind = REBUILD.matcher(action.group(1)).find() ? Kind.RECONSTRUCTION : Kind.FOUNDATION;
+        String event = kind == Kind.FOUNDATION ? "최초 건립" : "중건";
+        return new Claim(claim.quote(), claim.occurrence(), claim.target(), claim.sceneTime(),
+                claim.target() + "의 " + event + " 시점", kind, claim.keywords());
+    }
+
     private static int locate(String manuscript, Claim claim) {
-        // quote 안에 대상명이 반드시 포함되어야 하고, sceneTime이 명시된 경우 원고 본문 어딘가(동일 문장 또는 앞뒤 문맥)에 실제로 존재해야 한다.
-        if (!claim.quote().contains(claim.target())
-                || (!claim.sceneTime().isEmpty() && !manuscript.contains(claim.sceneTime()))) {
+        if (!claim.quote().contains(claim.target())) {
             throw HistoryClaimModel.invalidOutput();
         }
         int from = 0;
@@ -101,106 +122,73 @@ public class HistoryCheckService {
 
     private record Search(HistorySource source, String target) {}
 
-    private Finding lookup(
-            Claim claim, int start, Map<Search, List<HistoryCandidate>> searches) {
+    private Finding lookup(Claim claim, int start, Map<Search, List<HistoryCandidate>> searches,
+            Map<Search, HistoryEvidence> documents, String manuscript) {
         List<HistoryEvidence> evidence = new ArrayList<>();
+        List<SourceLookup> lookups = new ArrayList<>();
         String reason = "";
         Status status = Status.INSUFFICIENT_EVIDENCE;
-
-        if (claim.kind() == Kind.EXISTENCE && !SCENE_YEAR.matcher(claim.sceneTime()).matches()) {
-            reason = "창건 연도와 비교할 장면의 서기 연도를 특정할 수 없습니다.";
+        if (!hasLocalTime(manuscript, start, claim)) {
+            reason = "인용문과 바로 앞 문맥에서 원고의 시점을 확인할 수 없습니다.";
+        } else if (claim.kind() != Kind.OTHER && !SCENE_YEAR.matcher(claim.sceneTime()).matches()) {
+            reason = "사건과 비교할 원고의 서기 연도를 특정할 수 없습니다.";
         } else {
-            boolean sourceFailed = false;
-            for (HistorySource source :
-                    List.<HistorySource>of(heritageClient, encyclopediaClient)) {
+            for (HistorySource source : List.<HistorySource>of(heritageClient, encyclopediaClient)) {
+                String institution = source == heritageClient ? "국가유산청" : "한국학중앙연구원";
+                LookupStatus outcome;
                 try {
-                    List<HistoryCandidate> exact =
-                            searches
-                                    .computeIfAbsent(
-                                            new Search(source, claim.target()),
-                                            search ->
-                                                    search.source().candidates(search.target()))
-                                    .stream()
-                                    .filter(candidate -> candidate.title().equals(claim.target()))
-                                    .toList();
-                    if (exact.size() > 1) {
-                        reason = "동일한 이름의 자료가 여러 건이어서 대상을 특정할 수 없습니다.";
-                        break;
-                    }
-                    if (!exact.isEmpty()) {
-                        String sourceId = exact.getFirst().sourceId();
-                        HistoryEvidence item = source.evidence(sourceId, claim.keywords());
-                        if (item.status() != HistoryEvidence.Status.FOUND) {
-                            List<String> fallbackKeywords = fallbackKeywords(claim);
-                            if (!fallbackKeywords.equals(claim.keywords())) {
-                                HistoryEvidence retry = source.evidence(sourceId, fallbackKeywords);
-                                if (retry != null) {
-                                    item = retry;
-                                }
-                            }
-                        }
-                        if (item.status() == HistoryEvidence.Status.FOUND
-                                && item.title().equals(claim.target())) {
+                    List<HistoryCandidate> exact = searches.computeIfAbsent(
+                            new Search(source, claim.target()), key -> source.candidates(key.target()))
+                            .stream().filter(candidate -> candidate.title().equals(claim.target())).toList();
+                    if (exact.isEmpty()) {
+                        outcome = LookupStatus.NO_MATCH;
+                    } else if (exact.size() > 1) {
+                        outcome = LookupStatus.AMBIGUOUS;
+                    } else {
+                        String id = exact.getFirst().sourceId();
+                        HistoryEvidence item = documents.computeIfAbsent(new Search(source, id),
+                                key -> source.document(key.target()));
+                        if (!item.title().equals(claim.target())) {
+                            outcome = LookupStatus.NO_MATCH;
+                        } else if (item.status() == HistoryEvidence.Status.FOUND) {
+                            outcome = LookupStatus.REVIEWED;
                             evidence.add(item);
+                        } else {
+                            outcome = LookupStatus.EMPTY;
                         }
                     }
-                } catch (CustomException | ResponseStatusException exception) {
-                    // 한 기관 조회가 실패해도 다른 기관에서 공식 근거를 확보할 수 있으므로 루프를 계속 진행한다.
-                    sourceFailed = true;
+                } catch (CustomException | ResponseStatusException unavailable) {
+                    outcome = LookupStatus.FAILED;
                 }
+                lookups.add(new SourceLookup(institution, outcome));
             }
-            if (evidence.isEmpty() && reason.isEmpty()) {
-                if (sourceFailed) {
+            if (lookups.stream().anyMatch(item -> item.status() == LookupStatus.AMBIGUOUS)) {
+                reason = "동일한 이름의 자료가 여러 건이어서 대상을 특정할 수 없습니다.";
+            } else if (evidence.isEmpty()) {
+                if (lookups.stream().anyMatch(item -> item.status() == LookupStatus.FAILED)) {
                     status = Status.LOOKUP_FAILED;
                     reason = "공식 자료 조회를 완료하지 못했습니다.";
                 } else {
-                    reason = "대상이 일치하고 주장을 대조할 수 있는 공식 대목을 찾지 못했습니다.";
+                    reason = "대상이 일치하고 검토할 내용이 있는 공식 자료를 찾지 못했습니다.";
                 }
             }
         }
-        return HistoryConverter.toFinding(claim, start, status, reason, evidence);
+        return HistoryConverter.toFinding(claim, start, status, reason, evidence, lookups);
     }
 
-    /** 표제어 자체만 키워드로 추출되거나 1차 키워드 매칭이 실패한 경우 주장(assertion)·장면 시점의 핵심 토큰을 보조 키워드로 결합한다. */
-    private static List<String> fallbackKeywords(Claim claim) {
-        List<String> combined = new ArrayList<>();
-        for (String keyword : claim.keywords()) {
-            String trimmed = keyword.strip();
-            if (!trimmed.isEmpty()
-                    && !trimmed.equals(claim.target())
-                    && !combined.contains(trimmed)) {
-                combined.add(trimmed);
-            }
+    private static boolean hasLocalTime(String manuscript, int start, Claim claim) {
+        if (claim.sceneTime().isEmpty() || claim.quote().contains(claim.sceneTime())) {
+            return true;
         }
-        if (claim.kind() == Kind.EXISTENCE) {
-            for (String token : List.of("창건", "처음으로 세운", "건립", "처음 지", "세운", "지은")) {
-                if (!combined.contains(token)) {
-                    combined.add(token);
-                }
-            }
-        } else {
-            for (String rawToken : (claim.sceneTime() + " " + claim.assertion()).split("[^가-힣0-9A-Za-z一-龥]+")) {
-                String token = stripJosa(rawToken.strip());
-                if (token.length() >= 2
-                        && !token.equals(claim.target())
-                        && !combined.contains(token)) {
-                    combined.add(token);
-                }
-            }
+        String prefix = manuscript.substring(Math.max(0, start - 180), start);
+        int time = prefix.lastIndexOf(claim.sceneTime());
+        if (time < 0) {
+            return false;
         }
-        if (combined.isEmpty()) {
-            return claim.keywords();
-        }
-        return List.copyOf(combined);
-    }
+        String after = prefix.substring(time + claim.sceneTime().length());
+        return !SCENE_YEAR.matcher(after).find() && !after.matches("(?s).*\\R[\\t ]*\\R.*")
+                && !after.stripTrailing().matches("(?s).*[.!?。]\\s+\\S.*");
 
-    private static String stripJosa(String token) {
-        for (String suffix : List.of("에서", "으로", "에게", "부터", "까지", "이라", "라고", "은", "는", "이", "가", "을", "를", "의", "에", "로", "와", "과")) {
-            if (token.length() > suffix.length() + 1 && token.endsWith(suffix)) {
-                return token.substring(0, token.length() - suffix.length());
-            }
-        }
-        return token;
     }
 
     private static void applyAssessments(
@@ -235,56 +223,88 @@ public class HistoryCheckService {
                 status = Status.INSUFFICIENT_EVIDENCE;
                 reason = "판정의 인용문을 공식 대목에서 확인할 수 없습니다.";
             }
-            if (input.claim().kind() == Kind.EXISTENCE
+            Integer officialYear = null;
+            if (input.claim().kind() != Kind.OTHER
                     && status != Status.INSUFFICIENT_EVIDENCE) {
                 Matcher scene = SCENE_YEAR.matcher(original.sceneTime());
-                int founding = assessment.foundingYear();
+                int eventYear = assessment.eventYear();
                 String citation = assessment.citation();
                 if (!scene.matches()
-                        || !isFoundingDate(citation, founding)
-                        || hasConflictingDate(input.evidence(), founding)) {
+                        || !isEventDate(citation, eventYear, original.kind(), original.target())
+                        || (original.kind() != Kind.RECONSTRUCTION && hasConflictingDate(input.evidence(), eventYear, original.target()))) {
                     status = Status.INSUFFICIENT_EVIDENCE;
-                    reason = "장면의 연도와 최초 창건 연도를 직접 대조하기 어렵습니다.";
+                    reason = "원고의 시점과 공식 자료의 사건 연도를 직접 대조하기 어렵습니다.";
                 } else {
                     int year = Integer.parseInt(scene.group(1));
-                    status =
-                            year < founding
-                                    ? Status.POSSIBLE_CONFLICT
-                                    : Status.NO_CONFLICT_FOUND;
-                    reason =
-                            "%s의 창건 연도는 %d년이며 장면은 %d년입니다."
-                                    .formatted(original.target(), founding, year);
+                    officialYear = eventYear;
+                    if (original.kind() == Kind.EXISTENCE) {
+                        status = year < eventYear ? Status.POSSIBLE_CONFLICT : Status.NO_CONFLICT_FOUND;
+                        reason = "%s의 창건 연도는 %d년입니다. %d년 장면은 창건 시점%s."
+                                .formatted(original.target(), eventYear, year, year < eventYear ? "보다 앞섭니다" : "과 충돌하지 않습니다");
+                    } else if (original.kind() == Kind.RECONSTRUCTION && year != eventYear
+                            && assessment.status() != Status.POSSIBLE_CONFLICT) {
+                        status = Status.INSUFFICIENT_EVIDENCE;
+                        officialYear = null;
+                        reason = "자료에서 확인한 중건과 원고가 가리키는 중건이 같은 사건인지 확인하기 어렵습니다.";
+                    } else {
+                        status = year == eventYear ? Status.NO_CONFLICT_FOUND : Status.POSSIBLE_CONFLICT;
+                        reason = "%s의 %s 연도는 자료에서 %d년, 원고에서 %d년입니다."
+                                .formatted(original.target(), original.kind() == Kind.FOUNDATION ? "최초 건립" : "해당 중건", eventYear, year);
+                    }
                 }
             }
             findings.set(
-                    input.index(), HistoryConverter.toAssessedFinding(original, status, reason));
+                    input.index(), HistoryConverter.toAssessedFinding(original, status, reason,
+                            grounded && status != Status.INSUFFICIENT_EVIDENCE ? assessment.citation() : null, officialYear));
         }
     }
 
-    private static boolean isFoundingDate(String citation, int founding) {
-        if (founding < 1 || !FOUNDATION.matcher(citation).find()) {
+    // 한 문장에 창건과 중건을 함께 기술한 경우 사건별 절에서 연도를 검사한다.
+    private static final Pattern CLAUSE = Pattern.compile(
+            "[,;。.!?\\n]+|(?<=하고)\\s+|(?<=했으며)\\s+|(?<=하였으며)\\s+|(?<=되었고)\\s+");
+    private static final Pattern BUILDING = Pattern.compile("([가-힣]{2,}(?:궁|전|루|각|문))(?:은|는|을|를|이|가|의)");
+
+    private static boolean mentionsDifferentBuilding(String clause, String target) {
+        Matcher buildings = BUILDING.matcher(clause);
+        while (buildings.find()) {
+            if (!target.contains(buildings.group(1))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isEventDate(String citation, int year, Kind kind, String target) {
+        if (year < 1) {
             return false;
         }
-        // 여러 절대 연도가 있으면 창건·중건 연도를 잘못 연결할 수 있다.
-        Pattern year = Pattern.compile("(?<![0-9])" + founding + "(?![0-9])");
-        return year.matcher(citation).find()
-                && !FOUR_DIGIT_YEAR.matcher(year.matcher(citation).replaceAll(" ")).find();
-    }
-
-    private static boolean hasConflictingDate(List<HistoryEvidence> evidence, int founding) {
-        for (HistoryEvidence source : evidence) {
-            String passage = source.passage();
-            if (passage == null) {
+        Pattern event = kind == Kind.RECONSTRUCTION ? REBUILD : FOUNDATION;
+        Pattern claimedYear = Pattern.compile("(?<![0-9])" + year + "(?![0-9])");
+        for (String clause : CLAUSE.split(citation)) {
+            if (!event.matcher(clause).find() || mentionsDifferentBuilding(clause, target)
+                    || (kind != Kind.RECONSTRUCTION && REBUILD.matcher(clause).find())) {
                 continue;
             }
-            // 문단 전체가 아니라 창건 표현이 포함된 개별 문장 안에서만 상충하는 창건 연도가 있는지 확인해 후대 중건·지정 연도로 인한 오탐 유보를 방지한다.
-            for (String sentence : passage.split("(?<=[.!?。！？])\\s+|\\n+")) {
-                if (!FOUNDATION.matcher(sentence).find()) {
+            if (claimedYear.matcher(clause).find()
+                    && !FOUR_DIGIT_YEAR.matcher(claimedYear.matcher(clause).replaceAll(" ")).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasConflictingDate(List<HistoryEvidence> evidence, int founding, String target) {
+        for (HistoryEvidence source : evidence) {
+            String text = source.passage();
+            for (String clause : CLAUSE.split(text)) {
+                if (!FOUNDATION.matcher(clause).find() || REBUILD.matcher(clause).find()
+                        || mentionsDifferentBuilding(clause, target)) {
                     continue;
                 }
-                Matcher years = FOUR_DIGIT_YEAR.matcher(sentence);
+                Matcher years = FOUR_DIGIT_YEAR.matcher(clause);
                 while (years.find()) {
-                    if (Integer.parseInt(years.group()) != founding) {
+                    int year = Integer.parseInt(years.group());
+                    if (year != founding && isEventDate(clause, year, Kind.FOUNDATION, target)) {
                         return true;
                     }
                 }

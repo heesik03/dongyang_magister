@@ -75,14 +75,14 @@ class HistoryCheckTests {
     private String assessment(String citation) {
         return """
                 {"assessments":[{"index":0,"status":"POSSIBLE_CONFLICT","reason":"창건 시점 대조",
-                "citation":"%s","foundingYear":1395}]}
+                "citation":"%s","eventYear":1395}]}
                 """
                 .formatted(citation);
     }
 
     private void palace() {
         when(heritage.candidates("경복궁")).thenReturn(List.of(PALACE));
-        when(heritage.evidence(PALACE.sourceId(), List.of("세운")))
+        when(heritage.document(PALACE.sourceId()))
                 .thenReturn(
                         new HistoryEvidence(
                                 "국가유산청",
@@ -131,6 +131,72 @@ class HistoryCheckTests {
                 .contains(PASSAGE);
     }
 
+    @ParameterizedTest
+    @CsvSource({"1959,POSSIBLE_CONFLICT", "1395,NO_CONFLICT_FOUND"})
+    void comparesConstructionToSameEventRatherThanExistence(int year, String expected) throws Exception {
+        palace();
+        String sentence = year + "년 경복궁의 건설되었다.";
+        String claim = extraction(year).replace(quote(year), sentence)
+                .replace("존재했다", "건립되었다");
+        when(gemini.generateHistoryJson(anyString())).thenReturn(claim, assessment(PASSAGE));
+        check(sentence).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].kind").value("FOUNDATION"))
+                .andExpect(jsonPath("$.data[0].status").value(expected))
+                .andExpect(jsonPath("$.data[0].officialYear").value(1395))
+                .andExpect(jsonPath("$.data[0].citation").value(PASSAGE));
+    }
+
+    @Test
+    void reconstructionUsesTheRebuildClauseInsteadOfTheFoundingYear() throws Exception {
+        String passage = "1395년에 창건하고 1867년에 중건되었다.";
+        when(heritage.candidates("경복궁")).thenReturn(List.of(PALACE));
+        when(heritage.document(PALACE.sourceId())).thenReturn(new HistoryEvidence(
+                "국가유산청", PALACE.sourceId(), PALACE.title(), URI.create("https://www.heritage.go.kr/"),
+                HistoryEvidence.Status.FOUND, passage));
+        String sentence = "1867년 경복궁이 중건되었다.";
+        when(gemini.generateHistoryJson(anyString())).thenReturn(
+                extraction(1867).replace(quote(1867), sentence).replace("EXISTENCE", "RECONSTRUCTION"),
+                assessment(passage).replace("1395}", "1867}"));
+        check(sentence).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("NO_CONFLICT_FOUND"))
+                .andExpect(jsonPath("$.data[0].officialYear").value(1867));
+    }
+
+    @Test
+    void readsLastSectionOfLongDocumentAndReportsPartialProviderFailure() throws Exception {
+        String document = "궁궐의 이름을 지었다. ".repeat(2100) + PASSAGE;
+        when(heritage.candidates("경복궁")).thenReturn(List.of(PALACE));
+        when(heritage.document(PALACE.sourceId())).thenReturn(new HistoryEvidence(
+                "국가유산청", PALACE.sourceId(), PALACE.title(), URI.create("https://www.heritage.go.kr/"),
+                HistoryEvidence.Status.FOUND, document));
+        when(encyclopedia.candidates("경복궁")).thenThrow(new CustomException(HistoryErrorCode.PROVIDER_KEY_MISSING));
+        when(gemini.generateHistoryJson(anyString())).thenAnswer(invocation -> {
+            String prompt = invocation.getArgument(0);
+            if (prompt.contains("원고 JSON:")) {
+                return extraction(1392);
+            }
+            return prompt.contains(PASSAGE) ? assessment(PASSAGE) : """
+                    {"assessments":[{"index":0,"status":"INSUFFICIENT_EVIDENCE","reason":"연도 없음","citation":"","eventYear":0}]}
+                    """;
+        });
+        check(quote(1392)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].citation").value(PASSAGE))
+                .andExpect(jsonPath("$.data[0].evidence[0].passage").value(document))
+                .andExpect(jsonPath("$.data[0].lookups[1].status").value("FAILED"));
+        verify(heritage).document(PALACE.sourceId());
+        verify(quota, times(3)).chargeGeminiText(ownerId);
+    }
+
+    @Test
+    void unrelatedSceneYearDoesNotReachAssessment() throws Exception {
+        String manuscript = "1392년 겨울이었다.\n\n사신은 경복궁에 도착했다.";
+        when(gemini.generateHistoryJson(anyString())).thenReturn(extraction(1392)
+                .replace(quote(1392), "사신은 경복궁에 도착했다."));
+        check(manuscript).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("INSUFFICIENT_EVIDENCE"));
+        verifyNoInteractions(heritage, encyclopedia);
+    }
+
     private String template(String name) throws Exception {
         return new ClassPathResource("prompts/" + name + ".txt")
                 .getContentAsString(StandardCharsets.UTF_8)
@@ -142,7 +208,7 @@ class HistoryCheckTests {
         palace();
         when(encyclopedia.candidates("경복궁"))
                 .thenReturn(List.of(new HistoryCandidate("E0000001", "경복궁", "궁궐")));
-        when(encyclopedia.evidence("E0000001", List.of("세운")))
+        when(encyclopedia.document("E0000001"))
                 .thenReturn(
                         new HistoryEvidence(
                                 "한국학중앙연구원",
@@ -162,7 +228,7 @@ class HistoryCheckTests {
     void laterRebuildYearInSeparateSentenceDoesNotInvalidateFoundationYear() throws Exception {
         String passageWithRebuild = "태조 4년(1395)에 처음으로 세운 궁궐이다. 1867년에 중건되었다.";
         when(heritage.candidates("경복궁")).thenReturn(List.of(PALACE));
-        when(heritage.evidence(PALACE.sourceId(), List.of("세운")))
+        when(heritage.document(PALACE.sourceId()))
                 .thenReturn(
                         new HistoryEvidence(
                                 "국가유산청",
