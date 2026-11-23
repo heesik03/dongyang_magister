@@ -45,8 +45,8 @@ const sampleActivity = {
   },
   aiQuota: {
     textUsed: 4,
-    textLimit: 20,
-    textRemaining: 16,
+    textLimit: 50,
+    textRemaining: 46,
     characterImageUsed: 1,
     characterImageLimit: 3,
     characterImageRemaining: 2,
@@ -95,8 +95,8 @@ test('창작 공간 현황과 프로필을 표시하고 필명 수정 시 인증
   expect(screen.getByText('2')).toBeTruthy()
   expect(screen.getByText('5')).toBeTruthy()
   expect(screen.getByText('3')).toBeTruthy()
-  expect(screen.getByText('4 / 20회 사용')).toBeTruthy()
-  expect(screen.getByText('오늘 16회 남음')).toBeTruthy()
+  expect(screen.getByText('4 / 50회 사용')).toBeTruthy()
+  expect(screen.getByText('오늘 46회 남음')).toBeTruthy()
   expect(screen.getByText('1 / 3회 사용')).toBeTruthy()
   expect(screen.getByText('오늘 2회 남음')).toBeTruthy()
 

@@ -56,7 +56,7 @@ class AiQuotaServiceTests {
                 throw new IllegalStateException("simulated job insert failure");
             })).isInstanceOf(IllegalStateException.class);
             assertThat(quota.usage(userId, Feature.CHARACTER_IMAGE, Instant.now()).used()).isZero();
-            assertThat(quota.usage(userId, Feature.GEMINI_TEXT, Instant.now()).limit()).isEqualTo(20);
+            assertThat(quota.usage(userId, Feature.GEMINI_TEXT, Instant.now()).limit()).isEqualTo(50);
             assertThat(AiQuotaPolicy.periodAt(Instant.parse("2026-11-10T14:59:59Z")).resetAt())
                     .isEqualTo(Instant.parse("2026-11-10T15:00:00Z"));
         } finally {

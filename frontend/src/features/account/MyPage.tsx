@@ -332,17 +332,17 @@ export function MyPage() {
                           <strong>
                             {activityLoading
                               ? '…'
-                              : `${activity?.aiQuota?.textUsed ?? 0} / ${activity?.aiQuota?.textLimit ?? 20}회 사용`}
+                              : `${activity?.aiQuota?.textUsed ?? 0} / ${activity?.aiQuota?.textLimit ?? 50}회 사용`}
                           </strong>
                         </div>
                         <span
-                          className={`badge ${(activity?.aiQuota?.textRemaining ?? 20) === 0 ? 'danger' : 'green'}`}
+                          className={`badge ${(activity?.aiQuota?.textRemaining ?? 50) === 0 ? 'danger' : 'green'}`}
                         >
                           {activityLoading
                             ? '…'
-                            : (activity?.aiQuota?.textRemaining ?? 20) === 0
+                            : (activity?.aiQuota?.textRemaining ?? 50) === 0
                               ? '한도 소진'
-                              : `오늘 ${activity?.aiQuota?.textRemaining ?? 20}회 남음`}
+                              : `오늘 ${activity?.aiQuota?.textRemaining ?? 50}회 남음`}
                         </span>
                       </div>
                       <div className="mypage-ai-quota-item">

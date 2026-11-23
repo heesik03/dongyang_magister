@@ -25,7 +25,7 @@ public class AiQuotaService {
     public AiQuotaService(
             JdbcTemplate jdbcTemplate,
             @Value("${character-image.daily-limit:3}") int characterImageLimit,
-            @Value("${gemini.text-daily-limit:20}") int geminiTextDailyLimit,
+            @Value("${gemini.text-daily-limit:50}") int geminiTextDailyLimit,
             @Value("${gemini.text-global-daily-limit:500}") int geminiTextGlobalDailyLimit) {
         if (characterImageLimit < 1
                 || geminiTextDailyLimit < 1
@@ -39,7 +39,7 @@ public class AiQuotaService {
     }
 
     public AiQuotaService(JdbcTemplate jdbcTemplate, int characterImageLimit) {
-        this(jdbcTemplate, characterImageLimit, 20, 500);
+        this(jdbcTemplate, characterImageLimit, 50, 500);
     }
 
     /** 새 작업을 저장하는 트랜잭션에서만 호출한다. 재전송 판정은 호출자가 먼저 수행한다. */
