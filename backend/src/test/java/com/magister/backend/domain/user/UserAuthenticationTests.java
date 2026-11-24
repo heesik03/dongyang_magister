@@ -92,6 +92,11 @@ class UserAuthenticationTests {
         mvc.perform(
                         post("/api/user/login")
                                 .session(session)
+                                  .with(request -> {
+                                      // 브라우저가 로그인 전에 발급받은 세션 ID를 다시 보내는 요청이다.
+                                      request.setRequestedSessionId(oldId);
+                                      return request;
+                                  })
                                 .header("X-CSRF-TOKEN", token)
                                 .contentType("application/json")
                                 .content(

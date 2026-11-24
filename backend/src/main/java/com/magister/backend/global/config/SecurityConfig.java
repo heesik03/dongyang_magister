@@ -137,7 +137,7 @@ public class SecurityConfig {
                                             "/api/user/login",
                                             "/api/user/email/check")
                                     .permitAll()
-                                    .requestMatchers(HttpMethod.GET, "/api/user/csrf")
+                                    .requestMatchers(HttpMethod.GET, "/api/user/csrf", "/api/health")
                                     .permitAll();
                             if (apiDocsEnabled || swaggerUiEnabled) {
                                 auth.requestMatchers(

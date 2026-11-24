@@ -121,6 +121,8 @@ springdoc:
     enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
 
 server:
+  address: 0.0.0.0
+  port: ${PORT:8080}
   servlet:
     session:
       cookie:

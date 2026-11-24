@@ -6,6 +6,15 @@
 
 <br />
 
+## Railway 백엔드 배포 설정
+
+Railway 서비스의 Root Directory를 `/backend`, Config File Path를 `/backend/railway.toml`로 지정합니다. Dockerfile이 Java 21과 Gradle Wrapper로 실행 JAR를 빌드하고 `prod` 프로필로 실행합니다.
+
+- Railway 변수에 `PORT=8080`을 지정하고 공개 도메인의 대상 포트도 8080으로 설정합니다. Railway는 `GET /api/health`가 200을 반환하면 트래픽을 전환합니다. 이 경로는 인증 없이 빈 본문을 반환하고, 요청을 받을 준비가 되지 않았으면 503을 반환합니다.
+- MySQL 연결은 `DB_URL`(JDBC URL), `DB_USERNAME`, `DB_PASSWORD`로 설정합니다. 운영 프로필은 기본적으로 스키마를 검증하므로 최초 기동 전에 테이블을 준비합니다.
+- `CORS_ALLOWED_ORIGINS`에는 Vercel 운영 출처를, `GEMINI_API_KEY`와 `GEMINI_MODEL`에는 서버에서 사용할 키와 텍스트 모델을 설정합니다.
+- 역사 고증에서 한국민족문화대백과사전을 조회하려면 `ENCYKOREA_API_KEY`를 등록합니다.
+
 ## 주요 기능
 
 ### 1. 작품 및 설정집 관리
