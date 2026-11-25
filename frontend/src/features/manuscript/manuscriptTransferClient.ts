@@ -11,6 +11,7 @@ export interface ImportPreview {
   format: string
 }
 const path = (workId: string) => '/work/' + encodeURIComponent(workId) + '/chapter'
+const MANUSCRIPT_TRANSFER_TIMEOUT_MS = 45000
 export function validateManuscriptFile(file: File) {
   if (!/\.(txt|md|markdown|pdf|docx)$/i.test(file.name))
     throw new Error('TXT, Markdown, PDF, DOCX 파일을 선택해 주세요.')
@@ -27,7 +28,10 @@ function fileBody(file: File) {
 export const manuscriptTransferClient = {
   async preview(workId: string, file: File, signal?: AbortSignal): Promise<ImportPreview> {
     const value = readRecord(
-      await httpClient.post(path(workId) + '/import/parse', fileBody(file), { signal }),
+      await httpClient.post(path(workId) + '/import/parse', fileBody(file), {
+        signal,
+        timeout: MANUSCRIPT_TRANSFER_TIMEOUT_MS,
+      }),
     )
     const result = {
       workTitle: readString(value, 'workTitle'),
@@ -55,11 +59,17 @@ export const manuscriptTransferClient = {
     body.set('mutationId', input.mutationId)
     if (input.version === undefined) {
       body.set('id', input.id)
-      return parseChapter(await httpClient.post(path(workId) + '/import', body))
+      return parseChapter(
+        await httpClient.post(path(workId) + '/import', body, {
+          timeout: MANUSCRIPT_TRANSFER_TIMEOUT_MS,
+        }),
+      )
     }
     body.set('version', String(input.version))
     return parseChapter(
-      await httpClient.put(path(workId) + '/' + encodeURIComponent(input.id) + '/import', body),
+      await httpClient.put(path(workId) + '/' + encodeURIComponent(input.id) + '/import', body, {
+        timeout: MANUSCRIPT_TRANSFER_TIMEOUT_MS,
+      }),
     )
   },
   async exportFile(
@@ -74,6 +84,7 @@ export const manuscriptTransferClient = {
       {
         params: { format },
         responseType: 'blob',
+        timeout: MANUSCRIPT_TRANSFER_TIMEOUT_MS,
       },
     )
     if (!(result instanceof Blob) || !result.size)

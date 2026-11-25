@@ -11,11 +11,14 @@ export interface WritingInput {
   settingIds: string[]
 }
 
+const WRITING_ASSIST_TIMEOUT_MS = 45000
+
 export const aiWritingClient = {
   async assist(workId: string, input: WritingInput, signal: AbortSignal): Promise<string> {
     const response = readRecord(
       await httpClient.post('/work/' + encodeURIComponent(workId) + '/writing-assist', input, {
         signal,
+        timeout: WRITING_ASSIST_TIMEOUT_MS,
       }),
     )
     const suggestion = readString(response, 'text').trim()

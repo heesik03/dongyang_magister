@@ -39,6 +39,7 @@ test('파일 미리보기는 multipart와 세션 CSRF로 요청하고 응답을 
   expect(config.url).toBe('/work/1/chapter/import/parse')
   expect(config.data.get('file')).toBe(file)
   expect(config.headers).toEqual({ 'X-CSRF-TOKEN': 'test' })
+  expect(config.timeout).toBe(45000)
 })
 test('기존 회차 교체에 저장 버전과 동일한 재시도 식별자를 전달한다', async () => {
   request
