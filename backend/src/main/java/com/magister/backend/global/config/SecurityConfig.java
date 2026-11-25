@@ -152,11 +152,15 @@ public class SecurityConfig {
                         errors ->
                                 errors.authenticationEntryPoint(securityResponseHandler)
                                         .accessDeniedHandler(securityResponseHandler))
-                // 기본 LogoutFilter가 CSRF 확인 후 세션 무효화와 인증 컨텍스트 제거를 수행한다.
+                // 기본 LogoutFilter가 CSRF 확인 후 세션 무효화와 동일 속성(SameSite·Secure) 쿠키 삭제를 수행한다.
                 .logout(
                         logout ->
                                 logout.logoutUrl("/api/user/logout")
-                                        .deleteCookies("JSESSIONID")
+                                        .addLogoutHandler(
+                                                (request, response, authentication) ->
+                                                        sessionAuthenticationService
+                                                                .invalidateSession(
+                                                                        request, response))
                                         .logoutSuccessHandler(securityResponseHandler));
         return http.build();
     }

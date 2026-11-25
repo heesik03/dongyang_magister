@@ -11,6 +11,7 @@ import org.springframework.core.env.StandardEnvironment;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 class DatabaseConfigurationTests {
 
@@ -110,6 +111,46 @@ class DatabaseConfigurationTests {
                                             context.getEnvironment()
                                                     .getProperty("spring.jpa.hibernate.ddl-auto"))
                                     .isEqualTo("validate");
+                        });
+    }
+
+    @Test
+    void loadsProductionCookieAndReverseProxySettings() {
+        new ApplicationContextRunner()
+                .withInitializer(new ConfigDataApplicationContextInitializer())
+                .withPropertyValues(
+                        "spring.profiles.active=prod",
+                        "DB_URL=jdbc:mariadb://db.example.test:31769/magister",
+                        "DB_USERNAME=magister_app",
+                        "DB_PASSWORD=test-password")
+                .run(
+                        context -> {
+                            assertThat(context).hasNotFailed();
+                            assertThat(
+                                            context.getEnvironment()
+                                                    .getProperty(
+                                                            "server.servlet.session.cookie.same-site"))
+                                    .isEqualTo("none");
+                            assertThat(
+                                            context.getEnvironment()
+                                                    .getProperty(
+                                                            "server.servlet.session.cookie.secure"))
+                                    .isEqualTo("true");
+                            assertThat(
+                                            context.getEnvironment()
+                                                    .getProperty(
+                                                            "server.forward-headers-strategy"))
+                                    .isEqualTo("native");
+                            String internalProxies =
+                                    context.getEnvironment()
+                                            .getProperty("server.tomcat.remoteip.internal-proxies");
+                            assertThat(internalProxies).isNotBlank();
+                            Pattern proxyPattern = Pattern.compile(internalProxies);
+                            assertThat(proxyPattern.matcher("100.64.0.1").matches()).isTrue();
+                            assertThat(proxyPattern.matcher("100.127.255.254").matches()).isTrue();
+                            assertThat(proxyPattern.matcher("fd12:3456::1").matches()).isTrue();
+                            assertThat(proxyPattern.matcher("203.0.113.10").matches()).isFalse();
+                            assertThat(proxyPattern.matcher("100.128.0.1").matches()).isFalse();
                         });
     }
 }

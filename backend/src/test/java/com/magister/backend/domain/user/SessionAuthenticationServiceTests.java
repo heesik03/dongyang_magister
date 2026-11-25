@@ -62,4 +62,31 @@ class SessionAuthenticationServiceTests {
         assertThat(stored.getAuthentication().getPrincipal().toString())
                 .doesNotContain("private-hash");
     }
+
+    @Test
+    void invalidateSessionExpiresCookieWithSameSiteNoneAndSecureAttributes() {
+        SessionAuthenticationService service =
+                new SessionAuthenticationService(
+                        mock(AuthenticationManager.class),
+                        new HttpSessionSecurityContextRepository(),
+                        new ChangeSessionIdAuthenticationStrategy(),
+                        null,
+                        "none",
+                        true);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.getSession(true);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        service.invalidateSession(request, response);
+
+        assertThat(request.getSession(false)).isNull();
+        String setCookie = response.getHeader("Set-Cookie");
+        assertThat(setCookie)
+                .contains("JSESSIONID=")
+                .contains("Max-Age=0")
+                .contains("Path=/")
+                .contains("HttpOnly")
+                .contains("Secure")
+                .contains("SameSite=None");
+    }
 }

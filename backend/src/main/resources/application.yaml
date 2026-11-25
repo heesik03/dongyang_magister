@@ -89,7 +89,7 @@ server:
       timeout: 1h
       cookie:
         http-only: true
-        same-site: lax
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
         secure: ${SESSION_COOKIE_SECURE:false}
 
 logging:
@@ -126,8 +126,14 @@ springdoc:
 server:
   address: 0.0.0.0
   port: ${PORT:8080}
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:native}
+  tomcat:
+    remoteip:
+      # Railway 리버스 프록시의 사설망·CGNAT(100.64.0.0/10)·IPv6 ULA 대역을 신뢰해 실제 클라이언트 IP와 HTTPS 여부를 복원한다.
+      internal-proxies: '${TOMCAT_INTERNAL_PROXIES:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.1[6-9]\.\d{1,3}\.\d{1,3}|172\.2[0-9]\.\d{1,3}\.\d{1,3}|172\.3[0-1]\.\d{1,3}\.\d{1,3}|100\.(?:6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d{1,3}\.\d{1,3}|0:0:0:0:0:0:0:1|::1|fc[0-9a-f]{2}:.+|fd[0-9a-f]{2}:.+|fe80:.+}'
   servlet:
     session:
       cookie:
+        same-site: ${SESSION_COOKIE_SAME_SITE:none}
         secure: true
 
