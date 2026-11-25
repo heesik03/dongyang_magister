@@ -9,10 +9,10 @@ spring:
     import: "optional:file:./.env[.properties]"
 
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/magister}
+    url: ${DB_URL:jdbc:mariadb://localhost:3306/magister}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.mariadb.jdbc.Driver
 
   jpa:
     open-in-view: false
@@ -95,8 +95,11 @@ server:
 logging:
   level:
     # JDBC 오류 전문에는 중복 이메일 등 입력값이 포함될 수 있다. 애플리케이션은 코드·SQLState만 기록한다.
-    org.hibernate.orm.jdbc.error: OFF
-    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF
+    org.hibernate.orm.jdbc.error: "OFF"
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
+    org.mariadb.jdbc.message.server.ErrorPacket: "OFF"
+    # MariaDB 드라이버의 DatabaseMetaData.getURL()은 평문 비밀번호를 포함할 수 있어 기동 INFO 로그 노출을 막는다.
+    org.hibernate.orm.connections.pooling: WARN
 
 ---
 spring:

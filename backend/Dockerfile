@@ -12,6 +12,7 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=build /build/build/libs/*.jar /app/magister.jar
 ENV SPRING_PROFILES_ACTIVE=prod
+ENV TZ=Asia/Seoul
 EXPOSE 8080
 USER 10001:10001
-ENTRYPOINT ["java", "-XX:-UseBASE64Intrinsics", "-jar", "/app/magister.jar"]
+ENTRYPOINT ["java", "-XX:-UseBASE64Intrinsics", "-Duser.timezone=Asia/Seoul", "-jar", "/app/magister.jar"]

@@ -11,9 +11,27 @@
 Railway 서비스의 Root Directory를 `/backend`, Config File Path를 `/backend/railway.toml`로 지정합니다. Dockerfile이 Java 21과 Gradle Wrapper로 실행 JAR를 빌드하고 `prod` 프로필로 실행합니다.
 
 - Railway 변수에 `PORT=8080`을 지정하고 공개 도메인의 대상 포트도 8080으로 설정합니다. Railway는 `GET /api/health`가 200을 반환하면 트래픽을 전환합니다. 이 경로는 인증 없이 빈 본문을 반환하고, 요청을 받을 준비가 되지 않았으면 503을 반환합니다.
-- MySQL 연결은 `DB_URL`(JDBC URL), `DB_USERNAME`, `DB_PASSWORD`로 설정합니다. 운영 프로필은 기본적으로 스키마를 검증하므로 최초 기동 전에 테이블을 준비합니다.
+- MariaDB 연결은 `DB_URL`(JDBC URL), `DB_USERNAME`, `DB_PASSWORD`로 설정합니다. 운영 프로필은 기본적으로 스키마를 검증하므로 최초 기동 전에 테이블을 준비합니다.
 - `CORS_ALLOWED_ORIGINS`에는 Vercel 운영 출처를, `GEMINI_API_KEY`와 `GEMINI_MODEL`에는 서버에서 사용할 키와 텍스트 모델을 설정합니다.
 - 역사 고증에서 한국민족문화대백과사전을 조회하려면 `ENCYKOREA_API_KEY`를 등록합니다.
+
+## Cloudtype MariaDB 연결 및 테스트
+
+Cloudtype 프로젝트 `magister`의 DB 서비스 이름은 `mariadb`, 버전은 `11.2`, 데이터베이스 이름은 `magister`, 시간대는 `Asia/Seoul`입니다. 로컬 PC와 Railway에서는 Cloudtype 연결 화면의 **외부 TCP 호스트와 포트**를 사용합니다.
+
+로컬에서는 `backend/.env`에 아래 세 값을 입력합니다. Railway에서는 백엔드 서비스 변수에 같은 키를 등록합니다.
+
+```dotenv
+DB_URL=jdbc:mariadb://<외부 TCP 호스트>:<외부 포트>/magister
+DB_USERNAME=root
+DB_PASSWORD=<Cloudtype에서 지정한 root 비밀번호>
+```
+
+`backend/`에서 `.\gradlew.bat test`를 실행하면 H2의 MariaDB 호환 모드로 일반 테스트를 수행합니다. 실제 MariaDB 검증은 아래 PowerShell 명령으로 실행합니다. 테스트 계정에는 같은 서버에 임시 데이터베이스를 생성하고 삭제할 권한이 필요합니다. 테스트는 실행할 때 새 임시 스키마 이름을 생성합니다. 같은 이름의 스키마가 이미 있으면 중단합니다. 이름을 직접 지정할 때만 `MAGISTER_MARIADB_TEST_SCHEMA`에 `magister_refactor_<소문자 16진수 12자리>` 형식의 값을 설정합니다.
+
+```powershell
+.\gradlew.bat mariaDbTest
+```
 
 ## 주요 기능
 
@@ -61,7 +79,7 @@ Railway 서비스의 Root Directory를 `/backend`, Config File Path를 `/backend
 | --- | --- |
 | **Frontend** | React 19, TypeScript 6, Vite 8, React Router 7, Zustand, Axios, Vitest, pnpm |
 | **Backend** | Java 21 (21.0.13.1+), Spring Boot 4.1.1, Spring Security (세션 + CSRF), Spring Data JPA, Bean Validation, Gradle Wrapper |
-| **Database** | MySQL |
+| **Database** | MariaDB |
 | **AI** | Google Gemini API |
 | **External API** | 국가유산청 국가유산포털 OpenAPI, 한국학중앙연구원 한국민족문화대백과사전 OpenAPI |
 

@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 /** 일반 test에서는 실행하지 않는다. 실제 작품·계정 자료는 읽지 않고 아래 합성 자료만 전송한다. */
 @SpringBootTest(
         properties =
-                "spring.datasource.url=jdbc:h2:mem:gemini-quality;MODE=MySQL;DB_CLOSE_DELAY=-1")
+                "spring.datasource.url=jdbc:h2:mem:gemini-quality;MODE=MariaDB;DB_CLOSE_DELAY=-1")
 @ActiveProfiles("test")
 @EnabledIfEnvironmentVariable(named = "MAGISTER_RUN_GEMINI_TESTS", matches = "true")
 class GeminiQualityEvaluationTests {

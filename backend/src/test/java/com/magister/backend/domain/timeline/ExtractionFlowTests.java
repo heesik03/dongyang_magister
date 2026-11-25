@@ -47,7 +47,7 @@ import java.util.List;
 import java.util.UUID;
 
 @SpringBootTest(
-        properties = "spring.datasource.url=jdbc:h2:mem:timeline-flow;MODE=MySQL;DB_CLOSE_DELAY=-1")
+        properties = "spring.datasource.url=jdbc:h2:mem:timeline-flow;MODE=MariaDB;DB_CLOSE_DELAY=-1")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class ExtractionFlowTests {

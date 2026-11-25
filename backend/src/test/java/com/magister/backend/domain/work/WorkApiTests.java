@@ -39,7 +39,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 
 @SpringBootTest(
-        properties = "spring.datasource.url=jdbc:h2:mem:work-api;MODE=MySQL;DB_CLOSE_DELAY=-1")
+        properties = "spring.datasource.url=jdbc:h2:mem:work-api;MODE=MariaDB;DB_CLOSE_DELAY=-1")
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 class WorkApiTests {

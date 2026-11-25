@@ -43,13 +43,14 @@ import com.magister.backend.domain.workspace.service.WorkspaceSnapshotService;
 import com.magister.backend.global.error.code.CommonErrorCode;
 import com.magister.backend.global.error.exception.CustomException;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -60,17 +61,19 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import tools.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
+import java.net.URI;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -80,15 +83,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.jupiter.api.AfterAll;
-
-/** 기존 DB를 대상으로 실행하지 않는다. mysqlTest 태스크와 임시 스키마 이름이 모두 필요하다. */
-@SpringBootTest
+/** 기존 DB를 대상으로 실행하지 않는다. mariaDbTest 태스크와 임시 스키마 이름이 모두 필요하다. */
+@SpringBootTest(properties = "character-image.poll-delay-ms=3600000")
 @ActiveProfiles("test")
 @EnabledIfEnvironmentVariable(
-        named = "MAGISTER_MYSQL_TEST_SCHEMA",
+        named = "MAGISTER_MARIADB_TEST_SCHEMA",
         matches = "magister_refactor_[a-f0-9]{12}")
-class MySqlRefactoringTests {
+class MariaDbRefactoringTests {
     @Autowired AnalysisInputFactory inputFactory;
     @Autowired WorkspaceSnapshotService workspaceSnapshotService;
     @Autowired AnalysisJobStateService stateService;
@@ -121,7 +122,7 @@ class MySqlRefactoringTests {
     }
 
     @Test
-    void decisionVersionsScopesReferencesAndWorkDeletionOnMySql() {
+    void decisionVersionsScopesReferencesAndWorkDeletionOnMariaDb() {
         Fixture fixture = fixture(null);
         chapterService.create(
                 fixture.ownerId(),
@@ -150,7 +151,7 @@ class MySqlRefactoringTests {
                         "의도된 설정",
                         "ability change",
                         0,
-                        "mysql-decision",
+                        "mariadb-decision",
                         initial.basisHash(),
                         false,
                         List.of(
@@ -184,7 +185,7 @@ class MySqlRefactoringTests {
                 .isEqualTo(saved.id());
         AnalysisRequest next =
                 new AnalysisRequest(
-                        "mysql-next",
+                        "mariadb-next",
                         "c2",
                         1,
                         List.of(fixture.settingId().toString()),
@@ -221,9 +222,11 @@ class MySqlRefactoringTests {
                                             + " VALUES(?,'SCENE','invalid')",
                                         saved.id()))
                 .isInstanceOfSatisfying(
-                        UncategorizedSQLException.class,
+                        DataIntegrityViolationException.class,
                         error ->
-                                assertThat(error.getSQLException().getErrorCode()).isEqualTo(3819));
+                                assertThat(error.getMostSpecificCause())
+                                        .isInstanceOfSatisfying(SQLException.class, cause ->
+                                                assertThat(cause.getErrorCode()).isEqualTo(4025)));
         stateService.claim(nextId).orElseThrow();
         Fixture preserved = fixture(fixture.ownerId());
         workDeletionService.delete(
@@ -257,7 +260,7 @@ class MySqlRefactoringTests {
     }
 
     @Test
-    void reviewEvidencePersistsAtomicallyAndRejectsOtherJobSourcesOnMySql() {
+    void reviewEvidencePersistsAtomicallyAndRejectsOtherJobSourcesOnMariaDb() {
         Fixture fixture = fixture(null);
         AnalysisRequest request = fixture.request();
         AnalysisInput input = buildInput(fixture.workId(), request);
@@ -326,7 +329,7 @@ class MySqlRefactoringTests {
                         fixture.workId(),
                         "c1",
                         new UpdateChapterRequest(
-                                "chapter", "saved text", original.version(), "mysql-save"));
+                                "chapter", "saved text", original.version(), "mariadb-save"));
         assertThat(saved.version()).isEqualTo(original.version() + 1);
         assertThat(workspaces.findById(fixture.workId()).orElseThrow().getRevision()).isEqualTo(1);
         try {
@@ -335,7 +338,7 @@ class MySqlRefactoringTests {
                     fixture.workId(),
                     "c1",
                     new UpdateChapterRequest(
-                            "chapter", "stale text", original.version(), "mysql-stale"));
+                            "chapter", "stale text", original.version(), "mariadb-stale"));
             throw new AssertionError("Expected version conflict");
         } catch (CustomException expected) {
             assertThat(expected.getErrorCode().getCode()).isEqualTo("VERSION_CONFLICT");
@@ -344,64 +347,90 @@ class MySqlRefactoringTests {
                 .isEqualTo("saved text");
     }
 
+    private static volatile ScheduledAnnotationBeanPostProcessor runningScheduler;
+    private static volatile String createdSchema;
+    private static String serverUrl;
+    private static String username;
+    private static String password;
+
+    @Autowired
+    void captureScheduler(ScheduledAnnotationBeanPostProcessor schedulerPostProcessor) {
+        runningScheduler = schedulerPostProcessor;
+    }
+
     @DynamicPropertySource
-    static void mysqlProperties(DynamicPropertyRegistry registry) throws Exception {
-        String schema = System.getenv("MAGISTER_MYSQL_TEST_SCHEMA");
+    static void mariaDbProperties(DynamicPropertyRegistry registry) throws Exception {
+        String schema = System.getenv("MAGISTER_MARIADB_TEST_SCHEMA");
         if (schema == null || !schema.matches("magister_refactor_[a-f0-9]{12}")) {
-            throw new IllegalStateException("An isolated MySQL verification schema is required");
+            throw new IllegalStateException("An isolated MariaDB verification schema is required");
         }
         Properties configuration = new Properties();
-        try (Reader reader = Files.newBufferedReader(Path.of(".env"))) {
-            configuration.load(reader);
+        Path envFile = Path.of(".env");
+        if (Files.exists(envFile)) {
+            try (Reader reader = Files.newBufferedReader(envFile)) {
+                configuration.load(reader);
+            }
         }
-        String password = configuration.getProperty("DB_PASSWORD", System.getenv("DB_PASSWORD"));
-        if (password == null) {
-            throw new IllegalStateException("DB_PASSWORD is missing");
+        String url = requiredSetting(configuration, "DB_URL");
+        if (!url.startsWith("jdbc:mariadb://")) {
+            throw new IllegalArgumentException("DB_URL must be a MariaDB JDBC URL");
         }
-        try (Connection conn =
-                        DriverManager.getConnection("jdbc:mysql://localhost:3306/", "root", password);
-                Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("DROP DATABASE IF EXISTS " + schema);
-            stmt.executeUpdate(
-                    "CREATE DATABASE "
-                            + schema
-                            + " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        URI endpoint = URI.create(url.substring("jdbc:".length()));
+        if (endpoint.getHost() == null || endpoint.getRawUserInfo() != null
+                || endpoint.getRawFragment() != null) {
+            throw new IllegalArgumentException("DB_URL must contain a single MariaDB host");
         }
-
-        registry.add("spring.datasource.url", () -> "jdbc:mysql://localhost:3306/" + schema);
-        registry.add("spring.datasource.driver-class-name", () -> "com.mysql.cj.jdbc.Driver");
-        registry.add("spring.datasource.username", () -> "root");
+        String baseUrl = "jdbc:mariadb://" + endpoint.getRawAuthority() + "/";
+        String options = endpoint.getRawQuery() == null ? "" : "?" + endpoint.getRawQuery();
+        serverUrl = baseUrl + options;
+        username = requiredSetting(configuration, "DB_USERNAME");
+        password = requiredSetting(configuration, "DB_PASSWORD");
+        try (Connection connection = DriverManager.getConnection(serverUrl, username, password);
+                Statement statement = connection.createStatement()) {
+            assertThat(connection.getMetaData().getDatabaseProductName()).isEqualTo("MariaDB");
+            statement.executeUpdate("CREATE DATABASE " + schema
+                    + " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            createdSchema = schema;
+            Runtime.getRuntime()
+                    .addShutdownHook(
+                            new Thread(
+                                    () -> {
+                                        try {
+                                            dropIsolatedSchema();
+                                        } catch (SQLException ignored) {
+                                        }
+                                    }));
+        }
+        registry.add("spring.datasource.url", () -> baseUrl + schema + options);
+        registry.add("spring.datasource.driver-class-name", () -> "org.mariadb.jdbc.Driver");
+        registry.add("spring.datasource.username", () -> username);
         registry.add("spring.datasource.password", () -> password);
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
+    }
+
+    private static String requiredSetting(Properties configuration, String key) {
+        String value = System.getenv().getOrDefault(key, configuration.getProperty(key));
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(key + " is required for MariaDB verification");
+        }
+        return value;
     }
 
     @AfterAll
-    static void dropIsolatedSchema() throws Exception {
-        String schema = System.getenv("MAGISTER_MYSQL_TEST_SCHEMA");
-        if (schema == null || !schema.matches("magister_refactor_[a-f0-9]{12}")) {
-            return;
+    static synchronized void dropIsolatedSchema() throws SQLException {
+        ScheduledAnnotationBeanPostProcessor schedulerToStop = runningScheduler;
+        if (schedulerToStop != null) {
+            runningScheduler = null;
+            schedulerToStop.destroy();
         }
-        Properties configuration = new Properties();
-        try (Reader reader = Files.newBufferedReader(Path.of(".env"))) {
-            configuration.load(reader);
+        String schemaToDrop = createdSchema;
+        if (schemaToDrop != null) {
+            try (Connection connection = DriverManager.getConnection(serverUrl, username, password);
+                    Statement statement = connection.createStatement()) {
+                statement.executeUpdate("DROP DATABASE IF EXISTS " + schemaToDrop);
+                createdSchema = null;
+            }
         }
-        String password = configuration.getProperty("DB_PASSWORD", System.getenv("DB_PASSWORD"));
-        if (password == null) {
-            return;
-        }
-        Runtime.getRuntime()
-                .addShutdownHook(
-                        new Thread(
-                                () -> {
-                                    try (Connection conn =
-                                                    DriverManager.getConnection(
-                                                            "jdbc:mysql://localhost:3306/",
-                                                            "root",
-                                                            password);
-                                            Statement stmt = conn.createStatement()) {
-                                        stmt.executeUpdate("DROP DATABASE IF EXISTS " + schema);
-                                    } catch (Exception ignored) {
-                                    }
-                                }));
     }
 
     private record Fixture(Long ownerId, Long workId, Long settingId) {
@@ -460,9 +489,9 @@ class MySqlRefactoringTests {
     }
 
     @Test
-    void concurrentAdmissionsAcrossWorksRespectOwnerLimitOnMySql() throws Exception {
+    void concurrentAdmissionsAcrossWorksRespectOwnerLimitOnMariaDb() throws Exception {
         try (Connection connection = jdbc.getDataSource().getConnection()) {
-            assertThat(connection.getMetaData().getDatabaseProductName()).isEqualTo("MySQL");
+            assertThat(connection.getMetaData().getDatabaseProductName()).isEqualTo("MariaDB");
         }
         Fixture first = fixture(null);
         Fixture second = fixture(first.ownerId());
@@ -496,7 +525,7 @@ class MySqlRefactoringTests {
     }
 
     @Test
-    void simultaneousSignupTranslatesActualMySqlUniqueViolation() throws Exception {
+    void simultaneousSignupTranslatesActualMariaDbUniqueViolation() throws Exception {
         String email = UUID.randomUUID() + "@example.com";
         CyclicBarrier hashing = new CyclicBarrier(2);
         doAnswer(
@@ -571,23 +600,29 @@ class MySqlRefactoringTests {
                 });
         jdbc.execute("ANALYZE TABLE work_settings");
 
-        String plan =
-                jdbc.queryForObject(
-                        "EXPLAIN ANALYZE SELECT"
+        Map<String, Object> plan =
+                jdbc.queryForMap(
+                        "ANALYZE SELECT"
                             + " id,work_id,title,kind,status,content,created_at,updated_at,version"
                             + " FROM work_settings WHERE work_id=? AND kind=? AND id<? ORDER BY id"
                             + " DESC LIMIT 21",
-                        String.class,
                         target.workId(),
                         "CHARACTER",
                         Long.MAX_VALUE);
-        assertThat(plan).contains("ix_settings_work_kind_id");
-        assertThat(plan).contains("rows=21");
+        assertThat(plan.get("key")).isEqualTo("ix_settings_work_kind_id");
+        // MariaDB ANALYZE SELECT의 r_rows 컬럼은 문자열(예: "21.00")로 반환될 수 있다.
+        Object actualRowsValue = plan.get("r_rows");
+        assertThat(actualRowsValue).isNotNull();
+        double actualRows =
+                actualRowsValue instanceof Number number
+                        ? number.doubleValue()
+                        : Double.parseDouble(actualRowsValue.toString());
+        assertThat(actualRows).isEqualTo(21.0);
         System.out.println("SETTING_CURSOR_EXPLAIN\n" + plan);
     }
 
     @Test
-    void legacyWorkspaceJsonEventsMigrateIdempotentlyAndIsolateOtherAccountsOnMySql() {
+    void legacyWorkspaceJsonEventsMigrateIdempotentlyAndIsolateOtherAccountsOnMariaDb() {
         Fixture fixture = fixture(null);
         User otherUser =
                 users.saveAndFlush(
