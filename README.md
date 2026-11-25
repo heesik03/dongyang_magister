@@ -6,13 +6,22 @@
 
 <br />
 
-## Railway 백엔드 배포 설정
+## 배포 설정 (Vercel · Railway)
 
-Railway 서비스의 Root Directory를 `/backend`, Config File Path를 `/backend/railway.toml`로 지정합니다. Dockerfile이 Java 21과 Gradle Wrapper로 실행 JAR를 빌드하고 `prod` 프로필로 실행합니다.
+### 1. Vercel 프런트엔드 배포
 
-- Railway 변수에 `PORT=8080`을 지정하고 공개 도메인의 대상 포트도 8080으로 설정합니다. Railway는 `GET /api/health`가 200을 반환하면 트래픽을 전환합니다. 이 경로는 인증 없이 빈 본문을 반환하고, 요청을 받을 준비가 되지 않았으면 503을 반환합니다.
-- MariaDB 연결은 `DB_URL`(JDBC URL), `DB_USERNAME`, `DB_PASSWORD`로 설정합니다. 운영 프로필은 기본적으로 스키마를 검증하므로 최초 기동 전에 테이블을 준비합니다.
-- `CORS_ALLOWED_ORIGINS`에는 Vercel 운영 출처를, `GEMINI_API_KEY`와 `GEMINI_MODEL`에는 서버에서 사용할 키와 텍스트 모델을 설정합니다.
+Vercel 프로젝트의 Root Directory를 `frontend`로 지정합니다. `frontend/vercel.json`이 SPA 경로 새로고침 라우팅을 처리하며, 프로덕션 빌드 시 `VITE_API_URL`에 지정한 출처를 CSP `connect-src`에 자동 반영합니다.
+
+- Vercel 환경 변수 `VITE_API_URL`에 Railway 백엔드 공개 출처(경로 `/api` 제외, 예: `https://your-backend.up.railway.app`)를 등록합니다.
+
+### 2. Railway 백엔드 배포
+
+Railway 서비스의 Root Directory를 `/backend`, Config File Path를 `/backend/railway.toml`로 지정합니다. Dockerfile이 Java 21과 Gradle Wrapper로 실행 JAR를 빌드하고 `prod` 프로필(`Asia/Seoul` 시간대, 교차 사이트 세션 쿠키 `SameSite=None; Secure`, 리버스 프록시 헤더 복원 `FORWARD_HEADERS_STRATEGY=native`)로 실행합니다.
+
+- Railway 변수에 `PORT=8080`을 지정하고 공개 도메인의 대상 포트도 8080으로 설정합니다. 인메모리 세션·요청 제한기를 사용하므로 인스턴스 수(Replicas)는 `1`로 유지합니다.
+- Railway는 `GET /api/health`가 200을 반환하면 트래픽을 전환합니다. 이 경로는 인증 없이 빈 본문을 반환하고, 요청을 받을 준비가 되지 않았으면 503을 반환합니다.
+- MariaDB 연결은 `DB_URL`(JDBC URL), `DB_USERNAME`, `DB_PASSWORD`로 설정합니다. 운영 프로필은 기본적으로 스키마를 검증(`validate`)하므로 최초 기동 전에 `utf8mb4` 데이터베이스 테이블을 준비하거나 최초 1회 `JPA_DDL_AUTO=update`로 반영한 뒤 `validate`로 전환합니다.
+- `CORS_ALLOWED_ORIGINS`에는 Vercel 운영 출처(예: `https://your-app.vercel.app`)를, `GEMINI_API_KEY`와 `GEMINI_MODEL`에는 서버에서 사용할 키와 텍스트 모델을 설정합니다.
 - 역사 고증에서 한국민족문화대백과사전을 조회하려면 `ENCYKOREA_API_KEY`를 등록합니다.
 
 ## Cloudtype MariaDB 연결 및 테스트
