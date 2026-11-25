@@ -9,12 +9,14 @@ import com.magister.backend.domain.user.service.support.EmailNormalizer;
 import com.magister.backend.global.error.exception.CustomException;
 import com.magister.backend.global.security.AuthRateLimitFilter;
 
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -26,6 +28,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
+import java.util.Locale;
 
 @Service
 public class SessionAuthenticationService {
@@ -35,24 +38,50 @@ public class SessionAuthenticationService {
     private final HttpSessionSecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
     private final AuthRequestLimiter authRequestLimiter;
+    private final String cookieSameSite;
+    private final boolean cookieSecure;
 
     @Autowired
     public SessionAuthenticationService(
             AuthenticationManager authenticationManager,
             HttpSessionSecurityContextRepository securityContextRepository,
             SessionAuthenticationStrategy sessionAuthenticationStrategy,
-            AuthRequestLimiter authRequestLimiter) {
+            AuthRequestLimiter authRequestLimiter,
+            @Value("${server.servlet.session.cookie.same-site:lax}") String cookieSameSite,
+            @Value("${server.servlet.session.cookie.secure:false}") boolean cookieSecure) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
         this.authRequestLimiter = authRequestLimiter;
+        this.cookieSameSite = normalizeSameSite(cookieSameSite);
+        this.cookieSecure = cookieSecure;
+    }
+
+    public SessionAuthenticationService(
+            AuthenticationManager authenticationManager,
+            HttpSessionSecurityContextRepository securityContextRepository,
+            SessionAuthenticationStrategy sessionAuthenticationStrategy,
+            AuthRequestLimiter authRequestLimiter) {
+        this(
+                authenticationManager,
+                securityContextRepository,
+                sessionAuthenticationStrategy,
+                authRequestLimiter,
+                "lax",
+                false);
     }
 
     public SessionAuthenticationService(
             AuthenticationManager authenticationManager,
             HttpSessionSecurityContextRepository securityContextRepository,
             SessionAuthenticationStrategy sessionAuthenticationStrategy) {
-        this(authenticationManager, securityContextRepository, sessionAuthenticationStrategy, null);
+        this(
+                authenticationManager,
+                securityContextRepository,
+                sessionAuthenticationStrategy,
+                null,
+                "lax",
+                false);
     }
 
     /** 인증 결과의 프로필로 세션을 만들고 세션 ID·CSRF 토큰을 함께 회전한다. */
@@ -96,12 +125,29 @@ public class SessionAuthenticationService {
             }
         }
         SecurityContextHolder.clearContext();
-        Cookie cookie = new Cookie("JSESSIONID", "");
-        cookie.setPath("/");
-        cookie.setHttpOnly(true);
-        cookie.setSecure(request.isSecure());
-        cookie.setMaxAge(0);
-        response.addCookie(cookie);
+        // 교차 사이트(SameSite=None) 환경에서도 브라우저가 삭제 쿠키를 수용하도록 발급 시점과 동일한 속성을 명시한다.
+        boolean effectiveSecure =
+                cookieSecure || request.isSecure() || "None".equalsIgnoreCase(cookieSameSite);
+        ResponseCookie expiredCookie =
+                ResponseCookie.from("JSESSIONID", "")
+                        .path("/")
+                        .httpOnly(true)
+                        .secure(effectiveSecure)
+                        .sameSite(cookieSameSite)
+                        .maxAge(0)
+                        .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, expiredCookie.toString());
+    }
+
+    private static String normalizeSameSite(String rawSameSite) {
+        if (rawSameSite == null || rawSameSite.isBlank()) {
+            return "Lax";
+        }
+        return switch (rawSameSite.strip().toLowerCase(Locale.ROOT)) {
+            case "none" -> "None";
+            case "strict" -> "Strict";
+            default -> "Lax";
+        };
     }
 
     record SessionSecurityVersion(long value) implements Serializable {}

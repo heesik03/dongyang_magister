@@ -46,7 +46,7 @@ import java.util.UUID;
 @ActiveProfiles("test")
 @SpringBootTest(
         properties =
-                "spring.datasource.url=jdbc:h2:mem:user-mypage-api;MODE=MySQL;DB_CLOSE_DELAY=-1")
+                "spring.datasource.url=jdbc:h2:mem:user-mypage-api;MODE=MariaDB;DB_CLOSE_DELAY=-1")
 @AutoConfigureMockMvc
 class UserMyPageApiTests {
     @Autowired private MockMvc mvc;

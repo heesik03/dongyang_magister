@@ -46,7 +46,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @SpringBootTest(properties = {
-    "spring.datasource.url=jdbc:h2:mem:character-image;MODE=MySQL;DB_CLOSE_DELAY=-1",
+    "spring.datasource.url=jdbc:h2:mem:character-image;MODE=MariaDB;DB_CLOSE_DELAY=-1",
     "character-image.poll-delay-ms=3600000"
 })
 @ActiveProfiles("test")

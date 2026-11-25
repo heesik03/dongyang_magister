@@ -72,7 +72,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 @SpringBootTest(
-        properties = "spring.datasource.url=jdbc:h2:mem:decision-flow;MODE=MySQL;DB_CLOSE_DELAY=-1")
+        properties = "spring.datasource.url=jdbc:h2:mem:decision-flow;MODE=MariaDB;DB_CLOSE_DELAY=-1")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class DecisionFlowTests {

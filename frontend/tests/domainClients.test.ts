@@ -9,6 +9,7 @@ import { settingClient } from '../src/features/settings/settingClient'
 import { authClient } from '../src/features/auth/authClient'
 import { analysisClient, parseJob, parseInput } from '../src/features/analysis/analysisClient'
 import { chapterClient, parseChapter } from '../src/features/manuscript/chapterClient'
+import { aiWritingClient } from '../src/features/manuscript/aiWritingClient'
 import { workspaceClient } from '../src/features/workspace/workspaceClient'
 import { SESSION_EXPIRED_EVENT } from '../src/shared/httpClient'
 import {
@@ -511,6 +512,25 @@ test('작품 삭제는 CSRF와 읽었던 버전을 전달하고 204를 처리한
       url: '/work/work%2Fid',
       params: { version: 7 },
       headers: expect.objectContaining({ 'X-CSRF-TOKEN': expect.any(String) }),
+    }),
+  )
+})
+
+test('AI 집필 도우미는 서버 Gemini 제한 시간보다 긴 45초 타임아웃으로 요청한다', async () => {
+  const signal = new AbortController().signal
+  request.mockResolvedValueOnce(csrf()).mockResolvedValueOnce(success({ text: '제안 문장' }))
+  const suggestion = await aiWritingClient.assist(
+    '1',
+    { action: 'CONTINUE', excerpt: '', before: '앞 문맥', after: '', settingIds: [] },
+    signal,
+  )
+  expect(suggestion).toBe('제안 문장')
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      method: 'POST',
+      url: '/work/1/writing-assist',
+      signal,
+      timeout: 45000,
     }),
   )
 })

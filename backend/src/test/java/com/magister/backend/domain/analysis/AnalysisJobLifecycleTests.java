@@ -65,7 +65,7 @@ import java.util.concurrent.TimeUnit;
 
 @SpringBootTest(
         properties = {
-            "spring.datasource.url=jdbc:h2:mem:analysis-lifecycle;MODE=MySQL;DB_CLOSE_DELAY=-1",
+            "spring.datasource.url=jdbc:h2:mem:analysis-lifecycle;MODE=MariaDB;DB_CLOSE_DELAY=-1",
             "spring.jpa.properties.hibernate.session_factory.statement_inspector=com.magister.backend.domain.analysis.AnalysisJobLifecycleTests$SqlCapture"
         })
 @ActiveProfiles("test")

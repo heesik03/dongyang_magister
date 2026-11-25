@@ -16,9 +16,10 @@ final class HistoryHttp {
     private HistoryHttp() {}
 
     static RestClient client(String baseUrl) {
-        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+        // 해외 클라우드 리전에서 국내 공공 API(TLS·비표준 포트) 연결 지연을 견디도록 연결·읽기 시간 여유를 둔다.
+        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
-        factory.setReadTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(12));
         return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
     }
 

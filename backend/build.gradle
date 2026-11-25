@@ -47,7 +47,7 @@ dependencies {
     implementation 'org.apache.pdfbox:pdfbox:3.0.4'
     implementation 'org.apache.poi:poi-ooxml:5.4.0'
     compileOnly 'org.projectlombok:lombok'
-    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
@@ -59,7 +59,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
-    exclude '**/MySqlRefactoringTests.class'
+    exclude '**/MariaDbRefactoringTests.class'
     exclude '**/GeminiQualityEvaluationTests.class'
 }
 
@@ -79,8 +79,8 @@ tasks.register('geminiTest', Test) {
     }
 }
 
-tasks.register('mysqlTest', Test) {
-    description = 'Run refactoring contracts against an explicitly named isolated MySQL schema'
+tasks.register('mariaDbTest', Test) {
+    description = 'Run refactoring contracts against an isolated MariaDB schema'
     group = 'verification'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
@@ -88,12 +88,15 @@ tasks.register('mysqlTest', Test) {
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
     useJUnitPlatform()
-    filter { includeTestsMatching 'com.magister.backend.verification.MySqlRefactoringTests' }
+    filter { includeTestsMatching 'com.magister.backend.verification.MariaDbRefactoringTests' }
     doFirst {
-        String schema = providers.environmentVariable('MAGISTER_MYSQL_TEST_SCHEMA').getOrElse('')
-        if (!(schema ==~ /magister_refactor_[a-f0-9]{12}/)) {
-            throw new GradleException('Set MAGISTER_MYSQL_TEST_SCHEMA to an isolated magister_refactor_<12 hex> schema')
+        String schema = providers.environmentVariable('MAGISTER_MARIADB_TEST_SCHEMA').getOrNull()
+        if (schema == null) {
+            schema = 'magister_refactor_' + UUID.randomUUID().toString().replace('-', '').substring(0, 12)
         }
-        environment 'MAGISTER_MYSQL_TEST_SCHEMA', schema
+        if (!(schema ==~ /magister_refactor_[a-f0-9]{12}/)) {
+            throw new GradleException('Set MAGISTER_MARIADB_TEST_SCHEMA to an isolated magister_refactor_<12 hex> schema')
+        }
+        environment 'MAGISTER_MARIADB_TEST_SCHEMA', schema
     }
 }

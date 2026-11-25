@@ -52,7 +52,7 @@
 | --- | --- |
 | **Frontend** | React 19, TypeScript 6, Vite 8, React Router 7, Zustand, Axios, Vitest, pnpm |
 | **Backend** | Java 21 (21.0.13.1+), Spring Boot 4.1.1, Spring Security (세션 + CSRF), Spring Data JPA, Bean Validation, Gradle Wrapper |
-| **Database** | MySQL |
+| **Database** | MariaDB |
 | **AI** | Google Gemini API |
 | **External API** | 국가유산청 국가유산포털 OpenAPI, 한국학중앙연구원 한국민족문화대백과사전 OpenAPI |
 

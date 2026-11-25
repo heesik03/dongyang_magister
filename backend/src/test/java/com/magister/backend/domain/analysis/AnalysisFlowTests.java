@@ -74,7 +74,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @SpringBootTest(
-        properties = "spring.datasource.url=jdbc:h2:mem:analysis-flow;MODE=MySQL;DB_CLOSE_DELAY=-1")
+        properties = "spring.datasource.url=jdbc:h2:mem:analysis-flow;MODE=MariaDB;DB_CLOSE_DELAY=-1")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class AnalysisFlowTests {
